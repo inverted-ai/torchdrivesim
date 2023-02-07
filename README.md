@@ -1,0 +1,101 @@
+# TorchDrive
+
+TorchDrive is a lightweight 2D driving simulator, built entirely in PyTorch, primarily intended as a training
+environment for developing autonomous driving algorithms. Its main features are:
+1. Fully differentiable execution producing a single computation graph, including state transition (kinematic models) and observation (differentiable rendering) models.
+2. First class support for batch processing, down to the lowest level.
+3. Support for heterogeneous agent types (vehicles, pedestrians, cyclists, etc.), each with its own kinematic model.
+4. Extensible and customizable implementation of kinematic models (unconstrained, unicycle, bicycle, etc.), rendering modes, and rendering backends.
+5. Support for extensible traffic control types, including traffic lights.
+6. Differentiable implementations of various infraction metrics (collisions, off-road, wrong way).
+7. Modular collection of wrappers modifying the simulator's behavior.
+8. Ability to ingest any map in Lanelet2 format out of the box.
+9. Integration with IAI API for initializing agent states and providing realistic behaviors.
+
+## Simulator Architecture
+
+The simulated world consists of the following elements:
+1. Static background, by default including road (drivable surface) and lane markings, represented as a triangular mesh.
+2. Control elements, represented by rectangles with internal state. The simulator does not enforce their semantics.
+3. A collection of agents grouped into arbitrary types. All agents are rigid rectangles.
+4. Per agent type kinematic models, defining the agents' action space and how actions translate into motion.
+5. A configurable renderer, displaying the world form bird's eye view (birdview), using a customizable color map.
+
+Each agent is described by its static attributes (length, width, and others as needed by kinematic models),
+dynamic state (x, y, orientation, speed), and a flag (present mask) indicating whether a given agent is currently alive.
+At each time step, the agents perform actions, which in turn determine
+their next state. The simulator allows the agents to overlap, which is identified as a collision but not prohibited,
+and the states of different agents do not influence each other except through the agents' actions. The simulator can
+operate either in homogeneous mode (all agents are the same type and their states and actions are tensors), or in
+heterogeneous mode (there are multiple agent types and their states and actions are dictionaries mapping agent
+types to tensors). To support both modes, most operations are applied as functors, which lift a function acting on
+a single agent type into a function acting on all agent types. However, this behavior should be transparent to users
+who do not modify the simulator code.
+
+The base simulator requires actions for all agents and does not modify their presence masks. For convenience, we provide
+various wrappers modifying the simulator's behavior, such as by controlling a subset of agents (by replay or pre-defined
+ontrollers), removing agents that exit the designated area, monitoring infractions, recording video, and many others.
+Unless specified otherwise, the wrappers can be combined in different orders to reach desired effects.
+
+## Behavioral Models
+
+The hardest driving scenarios are those that require interactions with other road users. When building simulated
+environments it is crucial to ensure that the other agents behave realistically, but achieving that is not easy and
+TorchDrive is flexible in terms of how those other agents are controlled. We provide a simple heuristic that achieves
+minimally sensible driving, noting that in most cases it will be unsatisfactory and requiring additional extensions.
+We also facilitate log replay and demonstrate how to use recorded actions from the INTERACTION dataset. However,
+such replay is not reactive, often resulting in spurious collisions.
+
+For maximum realism and reactivity, we recommend using our (Inverted AI) API for generating realistic behaviors,
+which is integrated with TorchDrive. This is a paid offering that requires an API key, which you can obtain by
+contacting us. For academics, we may be able to offer free API keys.
+
+## Maps and Map Formats
+
+TorchDrive uses Lanelet2 as its map format, but it runs without Lanelet2 on any of the pre-defined
+maps available as meshes in this repo, although it won't be able to detect wrong way infractions and use certain
+heuristic behavioral models. To use those features, and to use TorchDrive with your own maps, you'll need to install
+Lanelet2 with its Python bindings. You can either use the official distribution or the fork hosted by Inverted AI,
+which allows for installation without ROS.
+
+## Scenario Definition
+
+With maps and behavioral models available, the final hurdle is to define a suite of driving scenarios that can be
+used for testing and evaluation. TorchDrive provides helpers for initializing the simulation state, including
+by calling Inverted AI API, instantiating from a log (when available), and using some simple heuristics. It also
+provides functions for identifying driving infractions, specifically collisions, going off-road, and driving wrong way.
+However, it does not specify goals or rewards, leaving that to the user. Over time, we are planning to release
+various scenario suites that can serve as benchmarks.
+
+## Kinematic models
+
+The primary kinematic model for vehicles in TorchDrive is the bicycle model, where the action consists of steering
+and acceleration. It requires additionally specifying the rear axis offset to control the vehicle turn radius, but
+it does not use the front axis offset, since that can not be fit by observing the vehicle movement from the outside,
+effectively assuming the front axis is in the middle of the vehicle. Other kinematic models available are the
+unconstrained model, where the action is the state delta between subsequent time steps, and the teleporting model,
+where the action directly specifies the next state. We also provide different variations of those models, and it is
+straightforward to implement a custom one.
+
+## Differentiable rendering
+
+TorchDrive supports two rendering backends, namely pytorch3d and nvdiffrast, both producing results that look the
+same to the human eye. Pytorch3d is the default one and a required dependency, since it's easier to install. Nvdiffrast
+is supported and can sometimes be substantially faster, but it needs to be installed separately, and it's subject
+to more restrictive license conditions. We also provide a dummy rendering backend that returns an empty image,
+mostly for debugging and benchmarking purposes.
+
+## Citations
+
+If you use TorchDrive in your research, please cite the following paper, for which an early version of TorchDrive
+was initially developed.
+
+```bibtex
+@INPROCEEDINGS{itra2021,
+  author={\'Scibior, Adam and Lioutas, Vasileios and Reda, Daniele and Bateni, Peyman and Wood, Frank},
+  booktitle={2021 IEEE International Intelligent Transportation Systems Conference (ITSC)}, 
+  title={Imagining The Road Ahead: Multi-Agent Trajectory Prediction via Differentiable Simulation}, 
+  year={2021},
+  pages={720-725},
+  doi={10.1109/ITSC48978.2021.9565113}}
+```

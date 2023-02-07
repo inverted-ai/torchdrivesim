@@ -1,0 +1,2 @@
+class InitializationFailedError(RuntimeError):
+    pass
