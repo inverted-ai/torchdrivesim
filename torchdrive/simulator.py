@@ -488,7 +488,7 @@ class Simulator(SimulatorInterface):
         cfg: holds various configuration options
         renderer: specify if using a non-standard renderer or static meshes beyond the road mesh (default from config)
         lanelet_map: provide the map to compute orientation losses, one map per batch element where available
-        recenter_offset: if the coordinate system from lanelet_map was shifter, this value will be used to shift it back
+        recenter_offset: if the coordinate system from lanelet_map was shifted, this value will be used to shift it back
         internal_time: initial value for step counter
         traffic_controls: applicable traffic controls by type
     """
