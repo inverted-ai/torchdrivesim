@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version="0.6" upload="true" generator="commonroad-scenario-designer">
+  <node id="-1" action="modify" visible="true" lat="0.0009452305848212478" lon="4.511256115004784"/>
+  <node id="-2" action="modify" visible="true" lat="0.0009452317528639993" lon="4.512152015226507"/>
+  <node id="-3" action="modify" visible="true" lat="0.0009452329206755106" lon="4.513047916555204"/>
+  <node id="-4" action="modify" visible="true" lat="0.0009163685822313515" lon="4.5112561150413475"/>
+  <node id="-5" action="modify" visible="true" lat="0.0009163697146086756" lon="4.512152015263064"/>
+  <node id="-6" action="modify" visible="true" lat="0.0009163708467618199" lon="4.513047916591755"/>
+  <node id="-10" action="modify" visible="true" lat="0.0008875056777038682" lon="4.51125611507678"/>
+  <node id="-11" action="modify" visible="true" lat="0.0008875067744146501" lon="4.512152015298487"/>
+  <node id="-12" action="modify" visible="true" lat="0.0008875078709083131" lon="4.513047916627172"/>
+  <node id="-15" action="modify" visible="true" lat="0.0008586436751139597" lon="4.511256115111077"/>
+  <node id="-16" action="modify" visible="true" lat="0.0008586447361593143" lon="4.512152015332778"/>
+  <node id="-17" action="modify" visible="true" lat="0.0008586457969946105" lon="4.513047916661454"/>
+  <way id="-7" action="modify" visible="true">
+    <nd ref="-1"/>
+    <nd ref="-2"/>
+    <nd ref="-3"/>
+  </way>
+  <way id="-8" action="modify" visible="true">
+    <nd ref="-4"/>
+    <nd ref="-5"/>
+    <nd ref="-6"/>
+  </way>
+  <way id="-13" action="modify" visible="true">
+    <nd ref="-10"/>
+    <nd ref="-11"/>
+    <nd ref="-12"/>
+  </way>
+  <way id="-18" action="modify" visible="true">
+    <nd ref="-15"/>
+    <nd ref="-16"/>
+    <nd ref="-17"/>
+  </way>
+  <relation id="-9" action="modify" visible="true">
+    <member type="way" ref="-8" role="right"/>
+    <member type="way" ref="-7" role="left"/>
+    <tag k="type" v="lanelet"/>
+  </relation>
+  <relation id="-14" action="modify" visible="true">
+    <member type="way" ref="-13" role="right"/>
+    <member type="way" ref="-8" role="left"/>
+    <tag k="type" v="lanelet"/>
+  </relation>
+  <relation id="-19" action="modify" visible="true">
+    <member type="way" ref="-18" role="right"/>
+    <member type="way" ref="-13" role="left"/>
+    <tag k="type" v="lanelet"/>
+  </relation>
+</osm>
