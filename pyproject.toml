@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "pandas",
+    "numpy",
     "shapely",
     "torch>=1.10.1",
     "pytorch3d>=0.6.1"
