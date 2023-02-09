@@ -34,5 +34,5 @@ tests = ["pytest"]
 version = {attr = "torchdrive.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["torchdrive"]
+include = ["torchdrive*"]
 
