@@ -553,12 +553,12 @@ class Simulator(SimulatorInterface):
 
     def to(self, device):
         self.road_mesh = self.road_mesh.to(device)
-        self.recenter_offset = self.recenter_offset.to(device)
+        self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
         self.agent_size = self.agent_functor.to_device(self.agent_size, device)
         self.present_mask = self.agent_functor.to_device(self.present_mask, device)
 
         self.kinematic_model = self.agent_functor.to_device(self.kinematic_model, device)  # type: ignore
-        self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()}
+        self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()} if self.traffic_controls is not None else None
         self.renderer = self.renderer.to(device)
 
         return self
@@ -583,8 +583,8 @@ class Simulator(SimulatorInterface):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         self.agent_size = self.across_agent_types(enlarge, self.agent_size)
         self.present_mask = self.across_agent_types(enlarge, self.present_mask)
-        self.recenter_offset = enlarge(self.recenter_offset)
-        self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)]
+        self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
+        self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
         # kinematic models are expanded in place
         def expand_kinematic(kin):
@@ -606,8 +606,8 @@ class Simulator(SimulatorInterface):
             return other
 
         self.road_mesh = self.road_mesh[idx]
-        self.recenter_offset = self.recenter_offset[idx]
-        self.lanelet_map = [self.lanelet_map[i] for i in idx]
+        self.recenter_offset = self.recenter_offset[idx] if self.recenter_offset is not None else None
+        self.lanelet_map = [self.lanelet_map[i] for i in idx] if self.lanelet_map is not None else None
         self.agent_size = self.across_agent_types(
             lambda x: x[idx], self.agent_size
         )
