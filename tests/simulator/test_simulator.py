@@ -4,6 +4,7 @@ import torch
 from torchdrive.simulator import TorchDriveConfig, Simulator
 from torchdrive.kinematic import KinematicBicycle
 from torchdrive.mesh import BirdviewMesh
+from tests import device
 
 
 class TestBaseSimulator:
@@ -47,9 +48,9 @@ class TestBaseSimulator:
     def setup_class(cls):
         cls.get_shapes(cls.data_batch_size)
         cls.mock_agent_attributes = torch.ones(cls.data_batch_size, cls.mock_agent_count, 3)
-        cls.mock_agent_state = torch.Tensor([[[0, 0, 0, 0], [1, 1, 0, 0]]]).expand(cls.data_batch_size, -1, -1).cuda()
-        cls.mock_future_state = torch.Tensor([[[1, 1, 1, 0], [2, 2, 1, 0]]]).expand(cls.data_batch_size, -1, -1).cuda()
-        cls.mock_action = torch.Tensor([[[0, 0], [1, 1]]]).expand(cls.data_batch_size, -1, -1).cuda()
+        cls.mock_agent_state = torch.Tensor([[[0, 0, 0, 0], [1, 1, 0, 0]]]).expand(cls.data_batch_size, -1, -1).to(device)
+        cls.mock_future_state = torch.Tensor([[[1, 1, 1, 0], [2, 2, 1, 0]]]).expand(cls.data_batch_size, -1, -1).to(device)
+        cls.mock_action = torch.Tensor([[[0, 0], [1, 1]]]).expand(cls.data_batch_size, -1, -1).to(device)
 
     @classmethod
     def setup_method(cls) -> None:
@@ -69,7 +70,7 @@ class TestBaseSimulator:
         projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
         lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
         lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
-        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config, lanelet_map=lanelet_map).to('cuda')
+        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config, lanelet_map=lanelet_map).to(device)
 
     @staticmethod
     def get_tensor(item):
@@ -80,7 +81,7 @@ class TestBaseSimulator:
         return {'vehicle': tensor}
 
     def test_move_to_device(self):
-        self.simulator.to('cpu').to('cuda')
+        self.simulator.to('cpu').to(device)
 
     def test_copy(self):
         old_state = self.simulator.get_state()

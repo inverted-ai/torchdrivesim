@@ -10,9 +10,7 @@ from torchdrive.rendering import BirdviewRenderer, renderer_from_config, Rendere
 from torchdrive.mesh import BaseMesh, AttributeMesh, BirdviewMesh
 from torchdrive.utils import Resolution
 from torchdrive.simulator import TorchDriveConfig
-
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from tests import device
 
 
 class TestBaseMesh:

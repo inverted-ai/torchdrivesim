@@ -8,6 +8,7 @@ from torchdrive.simulator import CollisionMetric, SimulatorWrapper, RecordingWra
     BirdviewRecordingWrapper, \
     SelectiveWrapper, BoundedRegionWrapper, HomogeneousWrapper
 from torchdrive.utils import Resolution
+from tests import device
 
 
 class TestBaseWrappedSimulator(TestBaseSimulator):
@@ -94,9 +95,9 @@ class TestSelectiveSimulator(TestBaseWrappedSimulator):
         cls.offroad_shape = torch.Size([cls.data_batch_size, cls.mock_agent_count])
         cls.collision_shape = torch.Size([cls.data_batch_size, cls.mock_agent_count])
         cls.wrong_way_shape = torch.Size([cls.data_batch_size, cls.mock_agent_count])
-        cls.mock_exposed_agent_state = torch.Tensor([[[1, 1, 0, 0]], [[1, 1, 0, 0]]]).cuda()
-        cls.mock_exposed_future_state = torch.Tensor([[[2, 2, 1, 0]], [[2, 2, 1, 0]]]).cuda()
-        cls.mock_exposed_action = torch.Tensor([[[1, 1]], [[1, 1]]]).cuda()
+        cls.mock_exposed_agent_state = torch.Tensor([[[1, 1, 0, 0]], [[1, 1, 0, 0]]]).to(device)
+        cls.mock_exposed_future_state = torch.Tensor([[[2, 2, 1, 0]], [[2, 2, 1, 0]]]).to(device)
+        cls.mock_exposed_action = torch.Tensor([[[1, 1]], [[1, 1]]]).to(device)
         cls.agents_absolute_shape = torch.Size([2, 1, 6])
 
     @classmethod
@@ -151,7 +152,7 @@ class TestProximitySimulator(TestSelectiveSimulator):
         config = copy.copy(cls.config)
         config.remove_exiting_vehicles = False
         cutoff_polygon_verts = cls.tensor_collection(torch.Tensor([[-100, 100], [100, 100], [100, -100], [-100, -100]])
-                                                     .unsqueeze(0).expand(cls.data_batch_size, -1, -1).cuda())
+                                                     .unsqueeze(0).expand(cls.data_batch_size, -1, -1).to(device))
         return BoundedRegionWrapper(super().get_simulator().inner_simulator,
                                     exposed_agent_limit, default_action,
                                     warmup_timesteps=1,
@@ -163,13 +164,13 @@ class TestProximitySimulator(TestSelectiveSimulator):
         assert torch.all(self.get_tensor(self.simulator.exposed_agents) == 0)
 
         self.simulator.set_state\
-            (self.tensor_collection(torch.ones(self.data_batch_size, self.mock_exposed_agent_count, 4).cuda() * 999))
+            (self.tensor_collection(torch.ones(self.data_batch_size, self.mock_exposed_agent_count, 4).to(device) * 999))
         self.simulator.update_exposed_agents()
         # When agent 0 is exposed but out of region, agent 1 will be exposed
         assert torch.all(self.get_tensor(self.simulator.exposed_agents) == 1)
 
         self.simulator.cutoff_polygon_verts = self.tensor_collection(torch.Tensor([[-100, 100], [100, 100], [100, -100], [-100, -100]])
-                                                     .unsqueeze(0).expand(self.data_batch_size, -1, -1).cuda())
+                                                     .unsqueeze(0).expand(self.data_batch_size, -1, -1).to(device))
         self.simulator.update_exposed_agents()
         # When agent 1 is exposed and inside the region, agent 1 remains exposed
         assert torch.all(self.get_tensor(self.simulator.exposed_agents) == 1)
@@ -179,7 +180,7 @@ class TestProximitySimulator(TestSelectiveSimulator):
         self.simulator.update_exposed_agents()
         # Move agent 0 outside a region
         self.simulator.set_state \
-            (self.tensor_collection(torch.ones(self.data_batch_size, self.mock_exposed_agent_count, 4).cuda() * 200))
+            (self.tensor_collection(torch.ones(self.data_batch_size, self.mock_exposed_agent_count, 4).to(device) * 200))
         self.simulator.update_exposed_agents()
         # When agent 0 is exposed and outside the region, agent 1 will be exposed
         assert torch.all(self.get_tensor(self.simulator.exposed_agents) == 1)
