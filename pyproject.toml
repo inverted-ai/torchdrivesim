@@ -19,14 +19,14 @@ dependencies = [
     "pandas",
     "numpy",
     "shapely",
+    "scipy",
+    "imageio",
     "torch>=1.10.1",
     "pytorch3d>=0.6.1"
 ]
 dynamic = ["version",]
 
 [project.optional-dependencies]
-lanelet_map = ["lanelet2",]
-rendering = ["nvdiffrast",]
 dev = ["omegaconf", "gym", "invertedai"]
 tests = ["pytest"]
 
