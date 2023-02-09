@@ -82,18 +82,22 @@ class TestAttributeMesh(TestBaseMesh):
     def test_expand(self):
         expanded_mesh = super().test_expand()
         assert expanded_mesh.attrs.shape[0] == 2
+        return expanded_mesh
 
     def test_select_batch_elements(self):
         selected_mesh = super().test_select_batch_elements()
         assert len(selected_mesh.attrs.shape) == 3
+        return selected_mesh
 
     def test_collate(self):
         collated_mesh = super().test_collate()
         assert collated_mesh.attrs.shape[0] == 2
+        return collated_mesh
 
     def test_concat(self):
         concatenated_mesh = super().test_concat()
         assert concatenated_mesh.attrs.shape[0] == 1 and concatenated_mesh.verts.shape[1] == 6
+        return concatenated_mesh
 
     def test_pickle_and_unpickle(self):
         pass
@@ -110,18 +114,23 @@ class TestBirdviewMesh(TestBaseMesh):
     def test_expand(self):
         expanded_mesh = super().test_expand()
         assert expanded_mesh.vert_category.shape[0] == 2
+        return expanded_mesh
 
     def test_select_batch_elements(self):
         selected_mesh = super().test_select_batch_elements()
         assert len(selected_mesh.vert_category.shape) == 2
+        return selected_mesh
 
     def test_collate(self):
         collated_mesh = super().test_collate()
         assert collated_mesh.vert_category.shape[0] == 2
+        return collated_mesh
 
     def test_concat(self):
         concatenated_mesh = super().test_concat()
         assert concatenated_mesh.vert_category.shape[0] == 1 and concatenated_mesh.vert_category.shape[1] == 6
+        return concatenated_mesh
+
 
     def test_pickle_and_unpickle(self):
         pass
