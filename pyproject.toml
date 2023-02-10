@@ -22,12 +22,13 @@ dependencies = [
     "scipy",
     "imageio",
     "torch>=1.10.1",
-    "pytorch3d>=0.6.1"
+    "pytorch3d",
+    "invertedai"
 ]
 dynamic = ["version",]
 
 [project.optional-dependencies]
-dev = ["omegaconf", "gym", "invertedai"]
+dev = ["omegaconf", "gym"]
 tests = ["pytest"]
 
 [tool.setuptools.dynamic]
