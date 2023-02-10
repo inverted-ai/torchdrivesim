@@ -764,6 +764,11 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], mask))
 
         def set_new_state(kinematic, state, mask):
+            state_from_kinematic = kinematic.get_state()
+            state_size, state_from_kinematic_size = state.shape[-1], state_from_kinematic.shape[-1]
+            assert state_size <= state_from_kinematic_size
+            if state_size < state_from_kinematic_size:
+                state = torch.cat([state, state_from_kinematic[..., (state_size-state_from_kinematic_size):]], dim=-1)
             new_state = state.where(mask.unsqueeze(-1).expand_as(state), kinematic.get_state())
             kinematic.set_state(new_state)
             return kinematic
