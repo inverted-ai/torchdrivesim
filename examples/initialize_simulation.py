@@ -25,7 +25,10 @@ from torchdrive.utils import Resolution
 @dataclass
 class InitializationVisualizationConfig:
     maps_path: str
-    map_name: str
+    driving_surface_mesh_path: str = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
+    )
+    map_name: str = "Town03"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
@@ -33,7 +36,7 @@ class InitializationVisualizationConfig:
     orientation: float = np.pi / 2
     save_path: str = './initialization.png'
     method: str = 'iai'
-    left_handed: bool = False
+    left_handed: bool = True
     agent_count: int = 5
 
 
@@ -41,10 +44,8 @@ def visualize_map(cfg: InitializationVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
     map_path = os.path.join(cfg.maps_path, f'{cfg.map_name}.osm')
-    lanelet_map = load_lanelet_map(map_path, origin=cfg.map_origin)
 
-    road_mesh = BirdviewMesh.set_properties(road_mesh_from_lanelet_map(lanelet_map), category='road').to(device)
-    lane_mesh = lanelet_map_to_lane_mesh(lanelet_map).to(device)
+    driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
     simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed)
 
     if cfg.method == 'iai':
@@ -52,19 +53,21 @@ def visualize_map(cfg: InitializationVisualizationConfig):
             location = f'carla:{":".join(cfg.map_name.split("_"))}'
         else:
             location = f'canada:vancouver:{cfg.map_name}'
-        agent_attributes, agent_states, _ = iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center))
+        agent_attributes, agent_states, _ = iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
     elif cfg.method == 'heuristic':
+        lanelet_map = load_lanelet_map(map_path, origin=cfg.map_origin)
         agent_attributes, agent_states = heuristic_initialize(lanelet_map, agent_num=cfg.agent_count)
     else:
         raise ValueError(f'Unrecognized initialization method: {cfg.method}')
     agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
+    agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
     kinematic_model = KinematicBicycle()
     kinematic_model.set_params(lr=agent_attributes[..., 2])
     kinematic_model.set_state(agent_states)
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]))
+    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
 
     simulator = Simulator(
-        cfg=simulator_cfg, road_mesh=road_mesh,
+        cfg=simulator_cfg, road_mesh=driving_surface_mesh,
         kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
         initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
         renderer=renderer,
