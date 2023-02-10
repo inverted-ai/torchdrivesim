@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "torchdrive"
 authors = [
-    {name = "Adam Scibior", email = "adam.scibior@inverted.ai"},
+    {name = "Inverted AI Ltd.", email = "info@inverted.ai"},
 ]
 description = "TorchDrive is a lightweight 2D driving simulator, built entirely in PyTorch, primarily intended as a training environment for developing autonomous driving algorithms"
 readme = "README.md"
