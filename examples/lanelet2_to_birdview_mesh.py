@@ -32,7 +32,7 @@ def revert_map(lanelet_map):
 
 
 
-def build_driving_surface_mesh(cfg: LaneletToMeshConfig):
+def build_map_mesh(cfg: LaneletToMeshConfig):
     map_file_path, mesh_save_path = cfg.maps_file_path, cfg.mesh_save_path
     origin = (0, 0)
     projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
@@ -51,4 +51,4 @@ if __name__ == '__main__':
     cli_cfg: LaneletToMeshConfig = OmegaConf.structured(
         LaneletToMeshConfig(**OmegaConf.from_dotlist(sys.argv[1:]))
     )
-    build_driving_surface_mesh(cli_cfg)  # type: ignore
+    build_map_mesh(cli_cfg)  # type: ignore
