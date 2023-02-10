@@ -10,7 +10,9 @@ from typing import Any, Tuple, List, Optional
 
 import numpy as np
 import scipy.spatial
+from scipy.sparse import lil_matrix
 import torch
+from torch import Tensor
 
 from torchdrive.mesh import BaseMesh, logger, BirdviewMesh, rendering_mesh
 
@@ -199,13 +201,14 @@ def road_mesh_from_lanelet_map(lanelet_map: LaneletMap, lanelets: Optional[List[
     return BaseMesh(verts=verts.unsqueeze(0), faces=faces.unsqueeze(0))
 
 
-def line_segments_to_mesh(points, line_width=0.3) -> BaseMesh:
+def line_segments_to_mesh(points: Tensor, line_width: float = 0.3, eps: float = 1e-6) -> BaseMesh:
     """
     Converts a given collection of line segments to a mesh visualizing them.
 
     Args:
         points: BxNx2x2 tensor specifying N line segments, each consisting of a pair of points
         line_width: width of the line in meters
+        eps: small value to add for avoiding division by zero
     Return:
         mesh visualizing the line, with 6*N verts and 4*N faces
     """
@@ -213,7 +216,7 @@ def line_segments_to_mesh(points, line_width=0.3) -> BaseMesh:
     # TODO: Since I'm not actually using multiple batches here I don't bother with masking between meshes
     # but maybe I should add support for optionally passing a mask and appropriately compute the norm with padding.
     d = points[:, :, 1] - points[:, :, 0]
-    d_hat = d / torch.norm(d, p=2, dim=2, keepdim=True)
+    d_hat = d / (torch.norm(d, p=2, dim=2, keepdim=True) + eps)
     d_perp = torch.stack([-d_hat[:, :, 1], d_hat[:, :, 0]], dim=2).unsqueeze(2)
 
     verts = torch.cat([
@@ -231,13 +234,14 @@ def line_segments_to_mesh(points, line_width=0.3) -> BaseMesh:
     return BaseMesh(verts=verts, faces=faces)
 
 
-def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False) -> BirdviewMesh:
+def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False, batch_size: int = 50000) -> BirdviewMesh:
     """
     Creates a lane marking mesh from a given map.
 
     Args:
         lanelet_map: map to use
         left_handed: whether the map's coordinate system is left-handed (flips the left and right boundary designations)
+        batch_size: controls the amount of points processed in parallel
     """
     # Each point in the lanelet map becomes a vertex of the road mesh
     n_points = len(lanelet_map.pointLayer)
@@ -273,13 +277,20 @@ def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False)
         p2 = vertices[point_idx[segment[1]]]
         right_points_t.append(np.array([p1, p2], dtype=np.float32))
     right_points_t = np.stack(right_points_t, axis=0)
-    p00 = scipy.spatial.distance.cdist(left_points_t[:, 0], right_points_t[:, 0]) < 0.1
-    p11 = scipy.spatial.distance.cdist(left_points_t[:, 1], right_points_t[:, 1]) < 0.1
-    p01 = scipy.spatial.distance.cdist(left_points_t[:, 0], right_points_t[:, 1]) < 0.1
-    p10 = scipy.spatial.distance.cdist(left_points_t[:, 1], right_points_t[:, 0]) < 0.1
-    joint_indexes = (p00 & p11) | (p01 & p10)
-    left_common_indexes_binary = joint_indexes.any(axis=1).astype(np.float32)
-    right_common_indexes_binary = joint_indexes.any(axis=0).astype(np.float32)
+    def calc_distance_sparse(vec_1, vec_2):
+        res = lil_matrix((vec_1.shape[0], vec_2.shape[0]), dtype = np.int8)
+        for i in range(0, vec_1.shape[0], batch_size):
+            for j in range(0, vec_2.shape[0], batch_size):
+                res[i:i+batch_size, j:j+batch_size] = scipy.spatial.distance.cdist(\
+                    vec_1[i:i+batch_size], vec_2[j:j+batch_size]) < 0.1
+        return res.tocsr()
+    p00 = calc_distance_sparse(left_points_t[:,0], right_points_t[:,0])
+    p11 = calc_distance_sparse(left_points_t[:,1], right_points_t[:,1])
+    p01 = calc_distance_sparse(left_points_t[:,0], right_points_t[:,1])
+    p10 = calc_distance_sparse(left_points_t[:,1], right_points_t[:,0])
+    joint_indexes = p00.multiply(p11) + p01.multiply(p10)
+    left_common_indexes_binary = (np.asarray(joint_indexes.sum(axis=1)) > 0).astype(np.float32).flatten()
+    right_common_indexes_binary = (np.asarray(joint_indexes.sum(axis=0)) > 0).astype(np.float32).flatten()
     left_indexes = (1 - left_common_indexes_binary).nonzero()[0]
     right_indexes = (1 - right_common_indexes_binary).nonzero()[0]
     left_common_indexes = left_common_indexes_binary.nonzero()[0]
