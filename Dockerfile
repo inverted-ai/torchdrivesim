@@ -19,7 +19,7 @@ RUN apt update && apt install -y build-essential cmake autoconf ninja-build \
 # Install Lanelet2
 RUN apt update \
   && apt install -y libboost-all-dev libeigen3-dev libgeographic-dev libpugixml-dev libboost-python-dev
-COPY resources/dependencies/lanelet2-0.1.0-cp38-cp38-linux_x86_64.whl /opt/lanelet2-0.1.0-cp38-cp38-linux_x86_64.whl
+COPY resources/dependencies/lanelet2/lanelet2-0.1.0-cp38-cp38-linux_x86_64.whl /opt/lanelet2-0.1.0-cp38-cp38-linux_x86_64.whl
 RUN pip install /opt/lanelet2-0.1.0-cp38-cp38-linux_x86_64.whl
 
 
