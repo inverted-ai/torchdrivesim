@@ -29,7 +29,7 @@ dynamic = ["version",]
 
 [project.optional-dependencies]
 dev = ["omegaconf", "gym"]
-tests = ["pytest"]
+tests = ["pytest==5.4.3"]
 
 [tool.setuptools.dynamic]
 version = {attr = "torchdrive.__version__"}
