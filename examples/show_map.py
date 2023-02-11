@@ -20,8 +20,10 @@ from torchdrive.utils import Resolution
 
 @dataclass
 class MapVisualizationConfig:
-    maps_path: str
-    map_name: str
+    driving_surface_mesh_path: str = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
+    )
+    map_name: str = "Town03"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
@@ -33,16 +35,10 @@ class MapVisualizationConfig:
 def visualize_map(cfg: MapVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
-    map_path = os.path.join(cfg.maps_path, f'{cfg.map_name}.osm')
-    lanelet_map = load_lanelet_map(map_path, origin=cfg.map_origin)
-    road_mesh = BirdviewMesh.set_properties(road_mesh_from_lanelet_map(lanelet_map), category='road')
-    lane_mesh = lanelet_map_to_lane_mesh(lanelet_map)
-    map_mesh = BirdviewMesh.concat(
-        [road_mesh, lane_mesh]
-    ).to(device)
+    driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
     renderer_cfg = RendererConfig()
     renderer = renderer_from_config(
-        renderer_cfg, device=device, static_mesh=map_mesh
+        renderer_cfg, device=device, static_mesh=driving_surface_mesh
     )
     map_image = renderer.render_static_meshes(res=res, fov=cfg.fov)
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)

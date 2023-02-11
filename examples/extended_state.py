@@ -13,20 +13,22 @@ import pandas
 import torch
 from omegaconf import OmegaConf
 
-from torchdrive.behavior.iai import iai_initialize, iai_drive
+from torchdrive.behavior.iai import iai_initialize, iai_drive, IAIWrapper
 from torchdrive.behavior.heuristic import heuristic_initialize
 from torchdrive.kinematic import KinematicBicycle, TeleportingKinematicModel, KinematicModel
 from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import renderer_from_config
-from torchdrive.simulator import TorchDriveConfig, Simulator
+from torchdrive.rendering import renderer_from_config, RendererConfig
+from torchdrive.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
 from torchdrive.utils import Resolution
 
 
 @dataclass
 class InitializationVisualizationConfig:
-    maps_path: str
-    map_name: str
+    driving_surface_mesh_path: str = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
+    )
+    map_name: str = "Town03"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
@@ -34,9 +36,9 @@ class InitializationVisualizationConfig:
     orientation: float = np.pi / 2
     save_path: str = './simulation.gif'
     method: str = 'iai'
-    left_handed: bool = False
+    left_handed: bool = True
     agent_count: int = 5
-    steps: int = 20
+    steps: int = 50
 
 
 class DynamicBicycleModelWithSkidding(KinematicBicycle):
@@ -138,11 +140,7 @@ class DynamicBicycleModelWithSkidding(KinematicBicycle):
 def visualize_map(cfg: InitializationVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
-    map_path = os.path.join(cfg.maps_path, f'{cfg.map_name}.osm')
-    lanelet_map = load_lanelet_map(map_path, origin=cfg.map_origin)
-
-    road_mesh = BirdviewMesh.set_properties(road_mesh_from_lanelet_map(lanelet_map), category='road').to(device)
-    lane_mesh = lanelet_map_to_lane_mesh(lanelet_map).to(device)
+    driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
     simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed)
 
     if cfg.map_name.startswith('Town'):
@@ -150,38 +148,39 @@ def visualize_map(cfg: InitializationVisualizationConfig):
     else:
         location = f'canada:vancouver:{cfg.map_name}'
     agent_attributes, agent_states, recurrent_states =\
-        iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center))
+        iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
     agent_states = torch.cat([agent_states, 10*torch.ones_like(agent_states[..., :1])], dim=-1)
+    agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
     agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
     kinematic_model = DynamicBicycleModelWithSkidding()
     kinematic_model.set_params(mass=agent_attributes[..., 2], lr=agent_attributes[..., 2])
     kinematic_model.set_state(agent_states)
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]))
-
+    action_size = kinematic_model.action_size
+    renderer = renderer_from_config(RendererConfig(left_handed_coordinates=cfg.left_handed), static_mesh=driving_surface_mesh)
     simulator = Simulator(
-        cfg=simulator_cfg, road_mesh=road_mesh,
+        cfg=simulator_cfg, road_mesh=driving_surface_mesh,
         kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
         initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
         renderer=renderer,
+    )
+    simulator = HomogeneousWrapper(simulator)
+    npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
+    simulator = IAIWrapper(
+        simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],
+        rear_axis_offset=agent_attributes[..., 2:3], locations=[location]
     )
 
     images = []
     for _ in range(cfg.steps):
         if cfg.center is None:
-            camera_xy = simulator.renderer.world_center.to(device)
+            camera_xy = simulator.get_innermost_simulator().renderer.world_center.to(device)
         else:
             camera_xy = torch.tensor(cfg.center).unsqueeze(0).to(torch.float32).to(device)
         camera_psi = torch.ones_like(camera_xy[..., :1]) * cfg.orientation
         image = simulator.render(camera_xy=camera_xy, camera_psi=camera_psi, res=res, fov=cfg.fov)
         images.append(image)
-
-        agent_states = simulator.get_state()['vehicle']
-        # agent_states, recurrent_states = iai_drive(
-        #     location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-        #     recurrent_states=recurrent_states
-        # )
         agent_states = agent_states.to(device).to(torch.float32)
-        simulator.step(simulator.fit_action(dict(vehicle=agent_states)))
+        simulator.step(torch.zeros(agent_states.shape[0], 0, action_size, dtype=agent_states.dtype, device=agent_states.device))
 
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)
     imageio.mimsave(

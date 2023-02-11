@@ -488,7 +488,7 @@ class Simulator(SimulatorInterface):
         cfg: holds various configuration options
         renderer: specify if using a non-standard renderer or static meshes beyond the road mesh (default from config)
         lanelet_map: provide the map to compute orientation losses, one map per batch element where available
-        recenter_offset: if the coordinate system from lanelet_map was shifter, this value will be used to shift it back
+        recenter_offset: if the coordinate system from lanelet_map was shifted, this value will be used to shift it back
         internal_time: initial value for step counter
         traffic_controls: applicable traffic controls by type
     """
@@ -553,12 +553,12 @@ class Simulator(SimulatorInterface):
 
     def to(self, device):
         self.road_mesh = self.road_mesh.to(device)
-        self.recenter_offset = self.recenter_offset.to(device)
+        self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
         self.agent_size = self.agent_functor.to_device(self.agent_size, device)
         self.present_mask = self.agent_functor.to_device(self.present_mask, device)
 
         self.kinematic_model = self.agent_functor.to_device(self.kinematic_model, device)  # type: ignore
-        self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()}
+        self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()} if self.traffic_controls is not None else None
         self.renderer = self.renderer.to(device)
 
         return self
@@ -583,8 +583,8 @@ class Simulator(SimulatorInterface):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         self.agent_size = self.across_agent_types(enlarge, self.agent_size)
         self.present_mask = self.across_agent_types(enlarge, self.present_mask)
-        self.recenter_offset = enlarge(self.recenter_offset)
-        self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)]
+        self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
+        self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
         # kinematic models are expanded in place
         def expand_kinematic(kin):
@@ -606,8 +606,8 @@ class Simulator(SimulatorInterface):
             return other
 
         self.road_mesh = self.road_mesh[idx]
-        self.recenter_offset = self.recenter_offset[idx]
-        self.lanelet_map = [self.lanelet_map[i] for i in idx]
+        self.recenter_offset = self.recenter_offset[idx] if self.recenter_offset is not None else None
+        self.lanelet_map = [self.lanelet_map[i] for i in idx] if self.lanelet_map is not None else None
         self.agent_size = self.across_agent_types(
             lambda x: x[idx], self.agent_size
         )
@@ -764,6 +764,11 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], mask))
 
         def set_new_state(kinematic, state, mask):
+            state_from_kinematic = kinematic.get_state()
+            state_size, state_from_kinematic_size = state.shape[-1], state_from_kinematic.shape[-1]
+            assert state_size <= state_from_kinematic_size
+            if state_size < state_from_kinematic_size:
+                state = torch.cat([state, state_from_kinematic[..., (state_size-state_from_kinematic_size):]], dim=-1)
             new_state = state.where(mask.unsqueeze(-1).expand_as(state), kinematic.get_state())
             kinematic.set_state(new_state)
             return kinematic

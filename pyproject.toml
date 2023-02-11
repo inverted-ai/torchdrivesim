@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchdrive"
+authors = [
+    {name = "Inverted AI Ltd.", email = "info@inverted.ai"},
+]
+description = "TorchDrive is a lightweight 2D driving simulator, built entirely in PyTorch, primarily intended as a training environment for developing autonomous driving algorithms"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["torch", "drive", "torch-drive", "torchdrive", "invertedai", "inverted ai"]
+license = {file = "LICENSE.md"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "pandas",
+    "numpy",
+    "shapely",
+    "scipy",
+    "imageio",
+    "torch>=1.10.1",
+    "pytorch3d",
+    "invertedai"
+]
+dynamic = ["version",]
+
+[project.optional-dependencies]
+dev = ["omegaconf", "gym"]
+tests = ["pytest"]
+
+[tool.setuptools.dynamic]
+version = {attr = "torchdrive.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["torchdrive*"]
+
