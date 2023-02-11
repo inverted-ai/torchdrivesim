@@ -264,10 +264,14 @@ class BaseMesh:
                     trimmed_mesh_faces.shape[0], 0,
                     device=trimmed_mesh_faces.device)
             else:
-                inside_polygon_idx_with_outside_dependent = trimmed_mesh_faces.flatten(start_dim=1).unique(dim=-1)  # BxVs
+                inside_polygon_idx_with_outside_dependent = pad_sequence(
+                    [x.unique() for x in trimmed_mesh_faces.flatten(start_dim=1)],
+                    batch_first=True
+                )  # BxVs
             trimmed_mesh_verts = torch.gather(
                 mesh_verts, 1,
-                inside_polygon_idx_with_outside_dependent.unsqueeze(-1).expand(-1, -1, mesh_verts.shape[-1]))  # BxVsx3
+                inside_polygon_idx_with_outside_dependent.unsqueeze(-1).expand(-1, -1, mesh_verts.shape[-1])
+            )  # BxVsx3
             new_verts_idx = torch.zeros(mesh_verts.shape[:2], dtype=torch.long, device=mesh_verts.device)
             new_verts_idx.scatter_(
                 1,
@@ -275,8 +279,9 @@ class BaseMesh:
                 torch.arange(
                     0,
                     inside_polygon_idx_with_outside_dependent.shape[1],
-                    device=inside_polygon_idx_with_outside_dependent.device)
-                .unsqueeze(0).expand(new_verts_idx.shape[0], -1))
+                    device=inside_polygon_idx_with_outside_dependent.device
+                ).unsqueeze(0).expand(new_verts_idx.shape[0], -1)
+            )
             offset_idx = new_verts_idx.unsqueeze(-1).expand(-1, -1, 3)
             trimmed_mesh_faces = torch.gather(offset_idx, dim=1, index=trimmed_mesh_faces)
         return trimmed_mesh_verts, trimmed_mesh_faces, inside_polygon_idx_with_outside_dependent

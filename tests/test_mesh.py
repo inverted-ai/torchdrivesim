@@ -108,6 +108,7 @@ class TestBirdviewMesh(TestBaseMesh):
     def setup_class(cls):
         super().setup_class()
         cls.mesh = BirdviewMesh.set_properties(BaseMesh(verts=torch.zeros(1, 3, 2), faces=torch.zeros(1, 1, 3)), "road", (0, 0, 0), 0)
+        cls.resources_dir = os.path.join(os.path.dirname(__file__), 'resources')
 
     def test_expand(self):
         expanded_mesh = super().test_expand()
@@ -149,3 +150,12 @@ class TestBirdviewMesh(TestBaseMesh):
         assert (recovered_road_mesh.faces == road_mesh.faces).all().item()
         assert (recovered_lane_mesh.verts == lane_mesh.verts).all().item()
         assert (recovered_lane_mesh.faces == lane_mesh.faces).all().item()
+
+
+    def test_separate_categories_from_saved(self):
+        mesh = BirdviewMesh.unpickle(os.path.join(self.resources_dir, 'birdview_mesh.pkl'))
+        meshes = mesh.separate_by_category()
+        assert meshes['vehicle'].verts.shape[1]%4 == 0
+        assert set(mesh.categories) == set(meshes.keys())
+        for k in meshes.keys():
+            assert mesh.batch_size == meshes[k].batch_size
