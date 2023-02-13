@@ -1,3 +1,5 @@
+[![CI](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml/badge.svg)](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml)
+
 # TorchDrive
 
 TorchDrive is a lightweight 2D driving simulator, built entirely in PyTorch, primarily intended as a training
