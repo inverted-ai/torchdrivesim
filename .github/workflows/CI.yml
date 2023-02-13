@@ -18,11 +18,11 @@ jobs:
 
    steps:
      - uses: actions/checkout@v2
+       with:
+         context: .
+         cache-from: type=gha
+         cache-to: type=gha,mode=max
      - name: Build Docker image
        run: docker build --target torchdrive-tests -t torchdrive_test:latest .
-       with:
-        context: .
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
      - name: Run tests inside the container
        run: docker run torchdrive_test:latest
