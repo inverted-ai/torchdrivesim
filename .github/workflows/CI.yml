@@ -1,0 +1,32 @@
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push to the master branch and pull request for all branches
+  push:
+    branches: [ master ]
+  pull_request:
+    branches:
+      - "*"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+   runs-on: ubuntu-latest
+
+   steps:
+     - uses: actions/checkout@v2
+     - uses: docker/setup-buildx-action@v2
+     - uses: docker/build-push-action@v4
+       with:
+           context: .
+           load: true
+           cache-from: type=gha
+           cache-to: type=gha,mode=max
+           tags: torchdrive_tests:latest
+           target: torchdrive-tests
+     - name: Run tests inside the container
+       run: |
+         docker run -v "$PWD/torchdrive:/opt/torchdrive"  torchdrive_tests:latest

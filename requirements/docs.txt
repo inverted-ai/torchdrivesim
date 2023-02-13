@@ -1,0 +1,17 @@
+-r dev.txt
+Sphinx
+myst-parser
+furo
+sphinx-copybutton
+sphinx_design
+sphinxcontrib-applehelp
+sphinxcontrib-devhelp
+sphinxcontrib-htmlhelp
+sphinxcontrib-jsmath
+sphinxcontrib-qthelp
+sphinxcontrib-serializinghtml
+sphinx-autoapi
+pydata-sphinx-theme
+sphinx-autobuild
+nbsphinx
+breathe

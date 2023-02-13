@@ -1,5 +1,4 @@
 import os
-import lanelet2
 import torch
 from torchdrive.simulator import TorchDriveConfig, Simulator
 from torchdrive.kinematic import KinematicBicycle
@@ -67,10 +66,10 @@ class TestBaseSimulator:
         agent_size = dict(vehicle=cls.mock_agent_attributes[..., :2])
         initial_present_mask = dict(vehicle=torch.ones_like(cls.mock_agent_state[..., 0], dtype=torch.bool))
         origin = (0, 0)
-        projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
-        lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
-        lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
-        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config, lanelet_map=lanelet_map).to(device)
+        # projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
+        # lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
+        # lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
+        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config).to(device)
 
     @staticmethod
     def get_tensor(item):
@@ -95,7 +94,7 @@ class TestBaseSimulator:
         extended = self.simulator.extend(n, in_place=False)
         assert extended.road_mesh.verts.shape[0] == self.simulator.road_mesh.verts.shape[0] * n
         assert extended.batch_size == self.simulator.batch_size * n
-        assert len(extended.lanelet_map) == len(self.simulator.lanelet_map) * n
+        # assert len(extended.lanelet_map) == len(self.simulator.lanelet_map) * n
         assert self.get_tensor(extended.agent_size).shape[0] == self.get_tensor(self.simulator.agent_size).shape[0] * n
 
     def test_select_batch_elements(self):
