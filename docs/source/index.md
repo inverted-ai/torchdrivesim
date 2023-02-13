@@ -21,10 +21,9 @@ hide-toc: true
 :start-after: <!-- start Features-->
 :end-before: <!-- end Features-->
 ```
-## Simulator Architecture
 ```{include} ../../README.md
-:start-after: <!-- start architecture-->
-:end-before: <!-- end architecture-->
+:start-after: <!-- start readme-->
+:end-before: <!-- end readme-->
 ```
 
 ## Further resources
@@ -34,7 +33,6 @@ The following pages will help you integrate TorchDrive.
 :maxdepth: 2
 
 self
-userguide
 ```
 
 ```{eval-rst}

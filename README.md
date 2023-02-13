@@ -15,8 +15,8 @@ environment for developing autonomous driving algorithms. Its main features are:
 9. Integration with IAI API for initializing agent states and providing realistic behaviors.
 <!-- end Features-->
 
+<!-- start readme-->
 ## Simulator Architecture
-<!-- start architecture-->
 The simulated world consists of the following elements:
 1. Static background, by default including road (drivable surface) and lane markings, represented as a triangular mesh.
 2. Control elements, represented by rectangles with internal state. The simulator does not enforce their semantics.
@@ -39,7 +39,6 @@ The base simulator requires actions for all agents and does not modify their pre
 various wrappers modifying the simulator's behavior, such as by controlling a subset of agents (by replay or pre-defined
 ontrollers), removing agents that exit the designated area, monitoring infractions, recording video, and many others.
 Unless specified otherwise, the wrappers can be combined in different orders to reach desired effects.
-<!-- end architecture-->
 
 ## Behavioral Models
 
@@ -103,3 +102,4 @@ was initially developed.
   pages={720-725},
   doi={10.1109/ITSC48978.2021.9565113}}
 ```
+<!-- end readme-->
