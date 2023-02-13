@@ -23,12 +23,13 @@ dependencies = [
     "imageio",
     "torch>=1.10.1",
     "pytorch3d",
-    "invertedai"
+    "invertedai",
+    "omegaconf"
 ]
 dynamic = ["version",]
 
 [project.optional-dependencies]
-dev = ["omegaconf", "gym"]
+dev = ["gym"]
 tests = ["pytest==5.4.3"]
 
 [tool.setuptools.dynamic]
