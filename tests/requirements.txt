@@ -1,0 +1,7 @@
+pandas
+numpy
+shapely
+scipy
+imageio
+torch>=1.11.0
+pytorch3d

@@ -1,4 +1,4 @@
-FROM nvidia/cudagl:11.2.2-devel-ubuntu20.04 as torchdrive
+FROM nvidia/cudagl:11.2.2-devel-ubuntu20.04 as torchdrive-base
 # This file is for building the production api server only.
 
 # Install general utilities
@@ -15,19 +15,23 @@ RUN apt install -y libffi-dev python python-dev python3-dev python3-pip python3-
 RUN pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install pytorch3d==0.7.2 -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
 
+WORKDIR /opt
+
+
+FROM torchdrive-base as torchdrive-tests
+
+COPY tests /opt/tests
+RUN pip install -r tests/requirements.txt
+COPY pytest.ini /opt/pytest.ini
+CMD ["pytest", "-s", "-m", "not depend_on_lanelet2 and not depend_on_cuda", "tests"]
+
+FROM torchdrive-base as torchdrive
+
 # Install torchdrive
-COPY ./torchdrive /opt/torchdrive
+COPY . /opt/torchdrive
 WORKDIR /opt/torchdrive
 RUN pip install build && python -m build --sdist --wheel --outdir dist && pip install dist/$(ls dist/ | grep " *.whl")[dev,tests] && rm -R ../torchdrive
 WORKDIR /
-
-
-FROM torchdrive as torchdrive-tests
-
-COPY tests /opt/tests
-COPY pytest.ini /opt/pytest.ini
-CMD ["pytest", "-s", "-m", "not depend_on_lanelet2 and not depend_on_cuda", "tests"]
-WORKDIR /opt
 
 FROM torchdrive as torchdrive-lanelet2
 
