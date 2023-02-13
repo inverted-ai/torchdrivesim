@@ -23,13 +23,32 @@ dependencies = [
     "imageio",
     "torch>=1.10.1",
     "pytorch3d",
-    "invertedai"
+    "invertedai",
+    "omegaconf"
 ]
 dynamic = ["version",]
 
 [project.optional-dependencies]
-dev = ["omegaconf", "gym"]
+dev = ["gym"]
 tests = ["pytest"]
+docs = ["Sphinx",
+"myst-parser",
+"furo",
+"sphinx-copybutton",
+"sphinx_design",
+"sphinxcontrib-applehelp",
+"sphinxcontrib-devhelp",
+"sphinxcontrib-htmlhelp",
+"sphinxcontrib-jsmath",
+"sphinxcontrib-qthelp",
+"sphinxcontrib-serializinghtml",
+"sphinx-autoapi",
+"pydata-sphinx-theme",
+"sphinx-autobuild",
+"nbsphinx",
+"breathe"]
+
+
 
 [tool.setuptools.dynamic]
 version = {attr = "torchdrive.__version__"}

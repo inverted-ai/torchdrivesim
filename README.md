@@ -1,5 +1,5 @@
 # TorchDrive
-
+<!-- start Features-->
 TorchDrive is a lightweight 2D driving simulator, built entirely in PyTorch, primarily intended as a training
 environment for developing autonomous driving algorithms. Its main features are:
 1. Fully differentiable execution producing a single computation graph, including state transition (kinematic models) and observation (differentiable rendering) models.
@@ -11,9 +11,10 @@ environment for developing autonomous driving algorithms. Its main features are:
 7. Modular collection of wrappers modifying the simulator's behavior.
 8. Ability to ingest any map in Lanelet2 format out of the box.
 9. Integration with IAI API for initializing agent states and providing realistic behaviors.
+<!-- end Features-->
 
 ## Simulator Architecture
-
+<!-- start architecture-->
 The simulated world consists of the following elements:
 1. Static background, by default including road (drivable surface) and lane markings, represented as a triangular mesh.
 2. Control elements, represented by rectangles with internal state. The simulator does not enforce their semantics.
@@ -36,6 +37,7 @@ The base simulator requires actions for all agents and does not modify their pre
 various wrappers modifying the simulator's behavior, such as by controlling a subset of agents (by replay or pre-defined
 ontrollers), removing agents that exit the designated area, monitoring infractions, recording video, and many others.
 Unless specified otherwise, the wrappers can be combined in different orders to reach desired effects.
+<!-- end architecture-->
 
 ## Behavioral Models
 
