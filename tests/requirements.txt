@@ -1,9 +1,0 @@
-pandas
-numpy
-shapely
-scipy
-imageio
-torch>=1.11.0
-pytorch3d
-omegaconf
-pytest==5.4.3

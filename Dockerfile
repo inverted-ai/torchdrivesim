@@ -21,7 +21,8 @@ WORKDIR /opt
 FROM torchdrive-base as torchdrive-tests
 
 COPY tests /opt/tests
-RUN pip install -r tests/requirements.txt
+COPY requirements/dev.txt /opt/requirements.txt
+RUN pip install -r /opt/requirements.txt
 COPY pytest.ini /opt/pytest.ini
 CMD ["pytest", "-s", "-m", "not depend_on_lanelet2 and not depend_on_cuda", "tests"]
 
