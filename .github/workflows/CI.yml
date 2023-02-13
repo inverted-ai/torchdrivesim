@@ -19,6 +19,6 @@ jobs:
    steps:
      - uses: actions/checkout@v2
      - name: Build Docker image
-       run: docker build --target torchdrive_test -t torchdrive_test:latest .
+       run: docker build --target torchdrive-tests -t torchdrive_test:latest .
      - name: Run tests inside the container
        run: docker run torchdrive-tests:latest
