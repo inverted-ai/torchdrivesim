@@ -17,6 +17,10 @@ jobs:
    runs-on: ubuntu-latest
 
    steps:
+     - with:
+         context: .
+         cache-from: type=gha
+         cache-to: type=gha,mode=max
      - uses: actions/checkout@v2
      - name: Build Docker image
        run: docker build --target torchdrive-tests -t torchdrive_test:latest .
