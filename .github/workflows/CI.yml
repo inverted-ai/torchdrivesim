@@ -25,6 +25,6 @@ jobs:
            cache-from: type=gha
            cache-to: type=gha,mode=max
            tags: torchdrive_tests:latest
-           build-args: target=torchdrive-tests
+           target: torchdrive-tests
      - name: Run tests inside the container
        run: docker run -v "$PWD/torchdrive:/opt/torchdrive"  torchdrive_tests:latest
