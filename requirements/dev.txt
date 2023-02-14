@@ -1,0 +1,12 @@
+pandas
+numpy
+shapely
+scipy
+imageio
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==1.11.0+cu113
+--find-links https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
+pytorch3d==0.7.2
+omegaconf
+invertedai
+pytest==5.4.3

@@ -1,5 +1,6 @@
 import os
 import lanelet2
+import pytest
 import torch
 from torchdrive.simulator import TorchDriveConfig, Simulator
 from torchdrive.kinematic import KinematicBicycle
@@ -7,6 +8,7 @@ from torchdrive.mesh import BirdviewMesh
 from tests import device
 
 
+@pytest.mark.depends_on_lanelet2
 class TestBaseSimulator:
     dataset_config = None
     mock_batch = None

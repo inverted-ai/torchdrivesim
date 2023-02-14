@@ -1,3 +1,5 @@
+[![CI](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml/badge.svg)](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml)
+
 # TorchDrive
 
 TorchDrive is a lightweight 2D driving simulator, built entirely in PyTorch, primarily intended as a training
@@ -84,6 +86,16 @@ same to the human eye. Pytorch3d is the default one and a required dependency, s
 is supported and can sometimes be substantially faster, but it needs to be installed separately, and it's subject
 to more restrictive license conditions. We also provide a dummy rendering backend that returns an empty image,
 mostly for debugging and benchmarking purposes.
+
+## Docker
+
+In order to use TorchDrive smoothly without worrying about installing dependencies, we provide a 
+[Dockerfile](Dockerfile) that works either with or without gpu. In order to build the docker image,
+run `docker build --target torchdrive -t torchdrivelatest . `. To run the container with GPU access,
+run `docker run --runtime=nvidia -it torchdrive:latest /bin/bash`. To run the container without GPU access,
+run `docker run -it torchdrive:latest /bin/bash`. For more information regarding setting up GPU runtime with Docker,
+follow [this official link](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+for the installation process.
 
 ## Citations
 

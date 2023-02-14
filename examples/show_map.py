@@ -25,7 +25,7 @@ class MapVisualizationConfig:
     )
     map_name: str = "Town03"
     res: int = 1024
-    fov: float = 200
+    fov: float = 1000
     center: Optional[Tuple[float, float]] = None
     map_origin: Tuple[float, float] = (0, 0)
     orientation: float = 0
@@ -36,7 +36,7 @@ def visualize_map(cfg: MapVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
     driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
-    renderer_cfg = RendererConfig()
+    renderer_cfg = RendererConfig(left_handed_coordinates=True)
     renderer = renderer_from_config(
         renderer_cfg, device=device, static_mesh=driving_surface_mesh
     )

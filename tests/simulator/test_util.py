@@ -1,12 +1,16 @@
 import unittest
-
+import pytest
 import numpy as np
 import torch
-import lanelet2
+try:
+    import lanelet2
+except ImportError:
+    pass
 from torchdrive.infractions import lanelet_orientation_loss
 from torchdrive.lanelet2 import find_direction
 
 
+@pytest.mark.depends_on_lanelet2
 class TestModelsUtil(unittest.TestCase):
     env = None
 
