@@ -36,7 +36,7 @@ COPY tests /opt/tests
 COPY requirements/dev.txt /opt/requirements.txt
 RUN pip install -r /opt/requirements.txt
 COPY pytest.ini /opt/pytest.ini
-CMD ["pytest", "-s", "-m", "not depends_on_lanelet2 and not depends_on_cuda", "tests"]
+CMD ["pytest", "-s", "-m", "not depends_on_cuda", "tests"]
 
 FROM torchdrive-base as torchdrive
 
