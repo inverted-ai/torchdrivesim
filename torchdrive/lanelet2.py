@@ -84,9 +84,9 @@ def find_lanelet_directions(lanelet_map: LaneletMap, x: float, y: float, tags_to
     all_selected_lanelets = lanelet2.geometry.findWithin2d(lanelet_map.laneletLayer, location, 1)
     directions = []
     for distance, lanelet in all_selected_lanelets:
-        if any([lanelet_attr in lanelet.attributes for lanelet_attr in tags_to_exclude]):
-            continue
         centerline = lanelet.centerline
+        if len(centerline) < 2 or any([lanelet_attr in lanelet.attributes for lanelet_attr in tags_to_exclude]):
+            continue
         direction = find_direction(centerline, location3d)
         directions.append(direction)
     return directions

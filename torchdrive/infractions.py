@@ -12,7 +12,7 @@ from torch import Tensor, relu, cosine_similarity
 from torch.nn import functional as F
 
 from torchdrive._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
-from torchdrive.lanelet2 import LaneletMap, find_lanelet_directions
+from torchdrive.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
 from torchdrive.mesh import BaseMesh
 
 logger = logging.getLogger(__name__)
@@ -151,19 +151,25 @@ def lanelet_orientation_loss(lanelet_maps: List[Optional[LaneletMap]], agents_st
                 x = x + recenter_offset[batch_idx, 0]
                 y = y + recenter_offset[batch_idx, 1]
             agent_direction = torch.stack([torch.cos(agent_psi), torch.sin(agent_psi)])
-            directions = [
-                torch.tensor(direction) for direction in find_lanelet_directions(
-                    lanelet_map=lanelet_map, x=x, y=y, tags_to_exclude=LANELET_TAGS_TO_EXCLUDE
-                )
-            ]
-            losses = [
-                relu(-cosine_similarity(
-                    agent_direction, torch.stack([torch.cos(psi), torch.sin(psi)]).to(device), dim=0
-                )) for psi in directions
-            ]
-            if len(losses) > 0:
-                loss = torch.min(torch.stack(losses), dim=0).values
-            else:
+            try:
+                directions = [
+                    torch.tensor(direction) for direction in find_lanelet_directions(
+                        lanelet_map=lanelet_map, x=x, y=y, tags_to_exclude=LANELET_TAGS_TO_EXCLUDE
+                    )
+                ]
+                losses = [
+                    relu(-cosine_similarity(
+                        agent_direction, torch.stack([torch.cos(psi), torch.sin(psi)]).to(device), dim=0
+                    )) for psi in directions
+                ]
+                if len(losses) > 0:
+                    loss = torch.min(torch.stack(losses), dim=0).values
+                else:
+                    loss = torch.tensor(0.0).to(device)
+            except LaneletError:
+                logger.error(
+                    "Lanelet errors occurred during computing the orientation losses."
+                    " Setting the wrong way loss for the agent to be zero.")
                 loss = torch.tensor(0.0).to(device)
             agents_results.append(loss)
         if not agents_results:
