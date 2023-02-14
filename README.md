@@ -1,4 +1,4 @@
-[![CI](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml/badge.svg)](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml)
+[![CI](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrive/actions/workflows/CI.yml)
 
 # TorchDrive
 
