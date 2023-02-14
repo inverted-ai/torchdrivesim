@@ -85,11 +85,11 @@ class ReplayWrapper(NPCWrapper):
         return self.across_agent_types(lambda pm: pm[..., self.time], self.present_masks)
 
     def step(self, action):
-        super().step(action)
         self.time += 1
         # reset time if needed
         if self.time == self.max_time_step:
             self.time = 0
+        super().step(action)
 
     def to(self, device) -> Self:
         super().to(device)
