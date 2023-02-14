@@ -1,5 +1,6 @@
 """
-Simple demonstration for how to grab a map and visualize it.
+Simple demonstration for how to initialize the simulator and use behavioral models to move the cars.
+The behavioral models are provided by the IAI API and a key is required to use it and run this script.
 """
 import os
 import sys
@@ -45,10 +46,7 @@ def simulate(cfg: SimulationConfig):
     simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
                                      renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
 
-    if cfg.map_name.startswith('Town'):
-        location = f'carla:{":".join(cfg.map_name.split("_"))}'
-    else:
-        location = f'canada:vancouver:{cfg.map_name}'
+    location = f'carla:{":".join(cfg.map_name.split("_"))}'
     agent_attributes, agent_states, recurrent_states =\
         iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
     agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)

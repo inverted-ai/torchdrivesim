@@ -1,3 +1,7 @@
+"""
+An example showing how to define an OpenAI gym environment based on TorchDrive.
+It uses the IAI API to provide behaviors for other vehicles and requires an access key to run.
+"""
 import contextlib
 import os
 import signal
@@ -14,7 +18,6 @@ from torch import Tensor
 
 from torchdrive.behavior.iai import iai_initialize, IAIWrapper
 from torchdrive.kinematic import KinematicBicycle
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrive.mesh import BirdviewMesh
 from torchdrive.rendering import RendererConfig, renderer_from_config
 from torchdrive.utils import Resolution
@@ -146,10 +149,7 @@ class IAIGymEnv(GymEnv):
         simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
                                          renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
 
-        if cfg.location.startswith('Town'):
-            iai_location = f'carla:{":".join(cfg.location.split("_"))}'
-        else:
-            iai_location = f'canada:vancouver:{cfg.location}'
+        iai_location = f'carla:{":".join(cfg.location.split("_"))}'
         agent_attributes, agent_states, recurrent_states = \
             iai_initialize(location=iai_location, agent_count=cfg.agent_count, center=tuple(cfg.center))
         agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
