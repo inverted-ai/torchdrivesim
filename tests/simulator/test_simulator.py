@@ -1,4 +1,5 @@
 import os
+import lanelet2
 import torch
 from torchdrive.simulator import TorchDriveConfig, Simulator
 from torchdrive.kinematic import KinematicBicycle
@@ -66,10 +67,10 @@ class TestBaseSimulator:
         agent_size = dict(vehicle=cls.mock_agent_attributes[..., :2])
         initial_present_mask = dict(vehicle=torch.ones_like(cls.mock_agent_state[..., 0], dtype=torch.bool))
         origin = (0, 0)
-        # projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
-        # lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
-        # lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
-        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config).to(device)
+        projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
+        lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
+        lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
+        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config, lanelet_map=lanelet_map).to(device)
 
     @staticmethod
     def get_tensor(item):

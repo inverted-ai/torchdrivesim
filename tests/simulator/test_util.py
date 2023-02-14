@@ -10,7 +10,7 @@ from torchdrive.infractions import lanelet_orientation_loss
 from torchdrive.lanelet2 import find_direction
 
 
-@pytest.mark.depend_on_lanelet2
+@pytest.mark.depends_on_lanelet2
 class TestModelsUtil(unittest.TestCase):
     env = None
 

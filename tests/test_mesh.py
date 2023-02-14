@@ -152,9 +152,8 @@ class TestBirdviewMesh(TestBaseMesh):
         assert (recovered_lane_mesh.faces == lane_mesh.faces).all().item()
 
 
-    @pytest.mark.depend_on_cuda
     def test_separate_categories_from_saved(self):
-        mesh = BirdviewMesh.unpickle(os.path.join(self.resources_dir, 'birdview_mesh.pkl'))
+        mesh = BirdviewMesh.unpickle(os.path.join(self.resources_dir, 'cpu_birdview_mesh.pkl'))
         meshes = mesh.separate_by_category()
         assert meshes['vehicle'].verts.shape[1]%4 == 0
         assert set(mesh.categories) == set(meshes.keys())
