@@ -1141,7 +1141,7 @@ class NPCWrapper(SimulatorWrapper):
             )
             self.inner_simulator.set_state(npc_state, mask=full_npc_mask)
 
-        # update presence mask of replay vehicles in case it changed
+        # update presence mask of NPCs in case it changed
         non_replay_present_mask = self.across_agent_types(
             lambda x, k: x[..., torch.logical_not(k)], self.inner_simulator.get_present_mask(), self.npc_mask
         )
@@ -1513,7 +1513,7 @@ class BirdviewRecordingWrapper(RecordingWrapper):
         bvs = self.get_birdviews()
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         imageio.imsave(
-            filename, bvs[frame-1][batch_index].cpu().numpy().astype(np.uint8).transpose(1, 2, 0))
+            filename, bvs[frame][batch_index].cpu().numpy().astype(np.uint8).transpose(1, 2, 0))
 
 
 class TrajectoryVisualizationWrapper(BirdviewRecordingWrapper):
