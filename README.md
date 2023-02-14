@@ -89,7 +89,7 @@ mostly for debugging and benchmarking purposes.
 
 ## Docker
 
-In order to use Torchdrive smoothly without worrying about installing dependencies, we provide a 
+In order to use TorchDrive smoothly without worrying about installing dependencies, we provide a 
 [Dockerfile](Dockerfile) that works either with or without gpu. In order to build the docker image,
 run `docker build --target torchdrive -t torchdrivelatest . `. To run the container with GPU access,
 run `docker run --runtime=nvidia -it torchdrive:latest /bin/bash`. To run the container without GPU access,

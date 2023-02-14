@@ -97,7 +97,7 @@ class TestBaseSimulator:
         extended = self.simulator.extend(n, in_place=False)
         assert extended.road_mesh.verts.shape[0] == self.simulator.road_mesh.verts.shape[0] * n
         assert extended.batch_size == self.simulator.batch_size * n
-        # assert len(extended.lanelet_map) == len(self.simulator.lanelet_map) * n
+        assert len(extended.lanelet_map) == len(self.simulator.lanelet_map) * n
         assert self.get_tensor(extended.agent_size).shape[0] == self.get_tensor(self.simulator.agent_size).shape[0] * n
 
     def test_select_batch_elements(self):
