@@ -37,7 +37,7 @@ def build_map_mesh(cfg: LaneletToMeshConfig):
     origin = (0, 0)
     projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
     lanelet_map = lanelet2.io.load(map_file_path, projector)
-    lanelet_map = revert_map(lanelet_map)
+    lanelet_map = revert_map(lanelet_map)  # Fixing for Carla left-handed coordinates
     road_mesh = road_mesh_from_lanelet_map(lanelet_map)
     road_mesh = BirdviewMesh.set_properties(road_mesh, category='road').to(road_mesh.device)
     lane_mesh = lanelet_map_to_lane_mesh(
