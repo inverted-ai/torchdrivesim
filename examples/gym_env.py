@@ -40,7 +40,6 @@ class TorchDriveGymEnvConfig:
     agent_count: int = 5
     steps: int = 20
 
-
 class GymEnv(gym.Env):
     def __init__(self, config: TorchDriveGymEnvConfig, simulator: SimulatorInterface):
         dtype = np.float32
@@ -57,7 +56,7 @@ class GymEnv(gym.Env):
         )
         self.observation_space = gym.spaces.Dict({
             'speed': gym.spaces.Box(low=np.array([0.0], dtype=dtype), high=np.array([200.0], dtype=dtype), dtype=dtype),
-            'birdview_image': gym.spaces.Box(low=0, high=255, shape=(1,), dtype=dtype),
+            'birdview_image': gym.spaces.Box(low=0, high=255, shape=(3, 64, 64), dtype=dtype),
             # 'command': gym.spaces.Discrete(n=4),
             'prev_action': self.action_space
         })
@@ -175,6 +174,16 @@ class IAIGymEnv(GymEnv):
         )
         super().__init__(config=cfg, simulator=simulator)
 
+    def get_reward(self):
+        offroad_penalty = self.offroad_threshold - self.simulator.compute_offroad()
+        collision = self.collision_threshold-self.simulator.compute_collision()
+        economy_penalty =  - self.prev_action.norm(2)
+        speed_bonus = self.simulator.get_state()[..., 3]
+        x = self.simulator.get_state()[..., 0]
+        r = torch.zeros_like(x)
+        r += offroad_penalty + collision + economy_penalty + speed_bonus
+        r = torch.clamp(r,min=-10.,max=10.)
+        return r
 
 class SingleAgentWrapper(gym.Wrapper):
     """
