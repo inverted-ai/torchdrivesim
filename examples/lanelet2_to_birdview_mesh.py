@@ -1,3 +1,7 @@
+"""
+A simple example demonstrating how to convert a Lanelet2 map into a mesh used by TorchDrive.
+A trivial Lanelet2 map is constructed here, but the same procedure works with externally provided maps.
+"""
 from omegaconf import OmegaConf
 from dataclasses import dataclass
 from torchdrive.lanelet2 import lanelet_map_to_lane_mesh, road_mesh_from_lanelet_map
@@ -11,9 +15,9 @@ class LaneletToMeshConfig:
     maps_file_path: str
     mesh_save_path: str
 
+
 def revert_map(lanelet_map):
     reverted_map = lanelet2.core.LaneletMap()
-    origin = lanelet2.io.Origin(0, 0)
     for lanelet in lanelet_map.laneletLayer:
         left_boundary = [p for p in lanelet.leftBound]
         right_boundary = [p for p in lanelet.rightBound]
@@ -29,7 +33,6 @@ def revert_map(lanelet_map):
             reverted_map.add(new_lanelet)
 
     return reverted_map
-
 
 
 def build_map_mesh(cfg: LaneletToMeshConfig):
