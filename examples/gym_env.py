@@ -14,7 +14,6 @@ from torch import Tensor
 
 from torchdrive.behavior.iai import iai_initialize, IAIWrapper
 from torchdrive.kinematic import KinematicBicycle
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrive.mesh import BirdviewMesh
 from torchdrive.rendering import RendererConfig, renderer_from_config
 from torchdrive.utils import Resolution
@@ -35,10 +34,10 @@ class TorchDriveGymEnvConfig:
     res: int = 1024
     fov: float = 200
     center: Tuple[float, float] = (0, 0)
-    map_origin: Tuple[float, float] = (0, 0)
     left_handed: bool = True
     agent_count: int = 5
     steps: int = 20
+
 
 class GymEnv(gym.Env):
     def __init__(self, config: TorchDriveGymEnvConfig, simulator: SimulatorInterface):
@@ -145,10 +144,7 @@ class IAIGymEnv(GymEnv):
         simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
                                          renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
 
-        if cfg.location.startswith('Town'):
-            iai_location = f'carla:{":".join(cfg.location.split("_"))}'
-        else:
-            iai_location = f'canada:vancouver:{cfg.location}'
+        iai_location = f'carla:{":".join(cfg.location.split("_"))}'
         agent_attributes, agent_states, recurrent_states = \
             iai_initialize(location=iai_location, agent_count=cfg.agent_count, center=tuple(cfg.center))
         agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
@@ -177,13 +173,14 @@ class IAIGymEnv(GymEnv):
     def get_reward(self):
         offroad_penalty = self.offroad_threshold - self.simulator.compute_offroad()
         collision = self.collision_threshold-self.simulator.compute_collision()
-        economy_penalty =  - self.prev_action.norm(2)
+        economy_penalty = - self.prev_action.norm(2)
         speed_bonus = self.simulator.get_state()[..., 3]
         x = self.simulator.get_state()[..., 0]
         r = torch.zeros_like(x)
         r += offroad_penalty + collision + economy_penalty + speed_bonus
         r = torch.clamp(r,min=-10.,max=10.)
         return r
+
 
 class SingleAgentWrapper(gym.Wrapper):
     """

@@ -1,51 +1,10 @@
-
-import contextlib
-import os
-import signal
-import logging
-import sys
-from dataclasses import dataclass
-from typing import Optional, Tuple
-import gym
 import torch.nn as nn
-import torch
-import numpy as np
-from omegaconf import OmegaConf
-from torch import Tensor
-
-from torchdrive.behavior.iai import iai_initialize, IAIWrapper
-from torchdrive.kinematic import KinematicBicycle
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import RendererConfig, renderer_from_config
-from torchdrive.utils import Resolution
-from torchdrive.simulator import TorchDriveConfig, SimulatorInterface, \
-    BirdviewRecordingWrapper, Simulator, HomogeneousWrapper
-
 from gym_env import *
 import warnings
 warnings.filterwarnings("ignore")
 
 logger = logging.getLogger(__name__)
 
-import invertedai as iai
-
-
-@dataclass
-class TorchDriveGymEnvConfig:
-    simulator: TorchDriveConfig = TorchDriveConfig()
-    visualize_to: Optional[str] = None
-    driving_surface_mesh_path: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
-    )
-    location: str = 'Town03'
-    res: int = 1024
-    fov: float = 200
-    center: Tuple[float, float] = (0, 0)
-    map_origin: Tuple[float, float] = (0, 0)
-    left_handed: bool = True
-    agent_count: int = 5
-    steps: int = 1000
 
 class DictDataset(torch.utils.data.TensorDataset):
 
@@ -58,6 +17,7 @@ class DictDataset(torch.utils.data.TensorDataset):
 
     def __len__(self):
         return [len(self.data[key]) for key in self.data_keys][0]
+
 
 class RolloutStorage:
 
@@ -129,6 +89,7 @@ class RolloutStorage:
             gae = delta + gamma * gae_lambda * self.masks[step +  1] * gae
             self.returns[step] = gae + self.value_preds[step]
 
+
 class FixedNormal(torch.distributions.Normal):
 
     def log_probs(self, actions):
@@ -143,11 +104,11 @@ class FixedNormal(torch.distributions.Normal):
     def std(self):
         return self.std
 
+
 class DiagGaussian(nn.Module):
 
     def __init__(self, num_inputs, num_outputs, bounds=None, param_sd=None, zero_mean=True):
         super(DiagGaussian, self).__init__()
-        init_ = lambda m: init(m, nn.init.xavier_normal_, lambda x: nn.init.constant_(x, 0))
         self.fc_mean = nn.Linear(num_inputs, num_outputs)
         self.logstd = torch.nn.Parameter(- 0.25 * torch.ones(num_outputs))
 
@@ -159,6 +120,7 @@ class DiagGaussian(nn.Module):
 
     def forward(self, x, sd_input=None):
         return FixedNormal(self.get_mean(x),  self.get_std(sd_input))
+
 
 class NNBase(nn.Module):
     def __init__(self, obs_shape, num_layers=2, num_filters=32,
@@ -178,6 +140,7 @@ class NNBase(nn.Module):
         out_dim = conv.view(conv.size(0), -1).size()[1]
         self.fc = nn.Linear(out_dim, self.feature_dim)
         self.ln = nn.LayerNorm(self.feature_dim)
+
     def forward_conv(self, obs):
         if len(obs.size()) > len(self.obs_shape)+1:
             obs = obs.squeeze(0)
@@ -185,7 +148,9 @@ class NNBase(nn.Module):
         for i in range(1, self.num_layers):
             conv = torch.relu(self.convs[i](conv))
         h = conv.view(conv.size(0), -1)
+
         return h
+
     def forward(self, obs, detach=False):
         h = self.forward_conv(obs['birdview_image'])
         h = h.reshape(h.shape[0],-1)
@@ -196,6 +161,7 @@ class NNBase(nn.Module):
         out = torch.tanh(out)
         return out
 
+
 class ActorCritic(nn.Module):
     def __init__(self, obs_shape, action_space, base_kwargs):
         super(ActorCritic, self).__init__()
@@ -204,25 +170,30 @@ class ActorCritic(nn.Module):
         self.feature_encoder = NNBase(obs_shape,feature_dim=50)
         self.critic = torch.nn.Linear(self.feature_encoder.feature_dim,1)
         self.dist = DiagGaussian(self.feature_encoder.feature_dim, action_space, bounds=None, param_sd=None)
+
     def act(self, inputs, deterministic=False):
         state_value, features = self.forward(inputs)
         action_dist = self.dist(features)
         action = action_dist.mode() if deterministic else action_dist.sample()
         action_log_probs = action_dist.log_probs(action)
         return state_value, action, action_log_probs
+
     def get_value(self, inputs):
         state_value, features = self.forward(inputs)
         return state_value
+
     def evaluate_actions(self, inputs, actions, detach_encoder=False):
         state_value, features = self.forward(inputs)
         action_dist = self.dist(features)
         action_log_probs = action_dist.log_probs(actions)
         dist_entropy = action_dist.entropy().mean()
         return state_value, action_log_probs, dist_entropy
+
     def forward(self,inputs):
         features = self.feature_encoder(inputs)
         state_value = self.critic(features)
         return state_value, features
+
 
 class PPOTrainer:
     def __init__(self, envs_gen):
@@ -340,15 +311,16 @@ class PPOTrainer:
             self.steps += 1
             self.rollouts.after_update()
 
+
 def rl_trainer(cfg: TorchDriveGymEnvConfig):
-    env_gen = lambda : gym.make('torchdrive/IAI-v0', args=cfg)
-    env = env_gen()
+    env_gen = lambda: gym.make('torchdrive/IAI-v0', args=cfg)
     policy_trainer = PPOTrainer(env_gen)
     for i in range(100):
         policy_trainer.train_step()
         if i % 3 == 0:
             print('current return {}'.format(policy_trainer.evaluate_policy()))
     return policy_trainer
+
 
 if __name__ == "__main__":
     cli_cfg: TorchDriveGymEnvConfig = OmegaConf.structured(
