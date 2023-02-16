@@ -7,9 +7,9 @@ import logging
 from omegaconf import DictConfig, OmegaConf, SCMode
 
 
-from torchdrive.rendering.base import RendererConfig, DummyRendererConfig, BirdviewRenderer, DummyRenderer
-from torchdrive.rendering.pytorch3d import Pytorch3DRendererConfig, Pytorch3DRenderer
-from torchdrive.rendering.nvdiffrast import NvdiffrastRendererConfig, NvdiffrastRenderer
+from torchdrivesim.rendering.base import RendererConfig, DummyRendererConfig, BirdviewRenderer, DummyRenderer
+from torchdrivesim.rendering.pytorch3d import Pytorch3DRendererConfig, Pytorch3DRenderer
+from torchdrivesim.rendering.nvdiffrast import NvdiffrastRendererConfig, NvdiffrastRenderer
 
 logger = logging.getLogger(__name__)
 

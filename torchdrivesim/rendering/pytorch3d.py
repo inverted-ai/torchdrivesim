@@ -9,9 +9,9 @@ import pytorch3d
 import torch
 from pytorch3d.renderer import BlendParams
 
-from torchdrive.mesh import BirdviewMesh, tensor_color
-from torchdrive.rendering.base import RendererConfig, BirdviewRenderer
-from torchdrive.utils import Resolution
+from torchdrivesim.mesh import BirdviewMesh, tensor_color
+from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer
+from torchdrivesim.utils import Resolution
 
 
 class RenderingBlend(Enum):

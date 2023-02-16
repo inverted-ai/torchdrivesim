@@ -11,11 +11,11 @@ import imageio
 import lanelet2
 from omegaconf import OmegaConf
 
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
-from torchdrive.simulator import TorchDriveConfig
-from torchdrive.utils import Resolution
+from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
+from torchdrivesim.simulator import TorchDriveConfig
+from torchdrivesim.utils import Resolution
 
 
 @dataclass

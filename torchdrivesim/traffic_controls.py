@@ -6,7 +6,7 @@ from typing import List, Optional
 import torch
 from torch import Tensor
 
-from torchdrive._iou_utils import oriented_box_intersection_2d, box2corners_th, box2corners_with_rear_factor
+from torchdrivesim._iou_utils import oriented_box_intersection_2d, box2corners_th, box2corners_with_rear_factor
 
 
 class BaseTrafficControl:

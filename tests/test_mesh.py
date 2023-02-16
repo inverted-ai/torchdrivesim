@@ -6,10 +6,10 @@ import torch
 from PIL import Image
 import pytest
 
-from torchdrive.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
-from torchdrive.mesh import BaseMesh, AttributeMesh, BirdviewMesh
-from torchdrive.utils import Resolution
-from torchdrive.simulator import TorchDriveConfig
+from torchdrivesim.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
+from torchdrivesim.mesh import BaseMesh, AttributeMesh, BirdviewMesh
+from torchdrivesim.utils import Resolution
+from torchdrivesim.simulator import TorchDriveConfig
 from tests import device
 
 

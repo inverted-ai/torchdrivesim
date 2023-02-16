@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from torchdrive.utils import rotate
+from torchdrivesim.utils import rotate
 
 logger = logging.getLogger(__name__)
 

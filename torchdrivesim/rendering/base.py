@@ -15,9 +15,9 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
-from torchdrive.mesh import BirdviewMesh, BaseMesh, rendering_mesh
-from torchdrive.traffic_controls import BaseTrafficControl
-from torchdrive.utils import Resolution, rotate
+from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rendering_mesh
+from torchdrivesim.traffic_controls import BaseTrafficControl
+from torchdrivesim.utils import Resolution, rotate
 
 logger = logging.getLogger(__name__)
 

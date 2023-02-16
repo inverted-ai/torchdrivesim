@@ -2,9 +2,9 @@ import random
 
 import torch
 
-from torchdrive.infractions import collision_detection_with_discs
-from torchdrive.behavior.common import InitializationFailedError
-from torchdrive.lanelet2 import pick_random_point_and_orientation
+from torchdrivesim.infractions import collision_detection_with_discs
+from torchdrivesim.behavior.common import InitializationFailedError
+from torchdrivesim.lanelet2 import pick_random_point_and_orientation
 
 
 def heuristic_initialize(lanelet_map, agent_num, min_speed=0, max_speed=10, num_attempts_per_agent=500):

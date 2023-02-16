@@ -11,9 +11,9 @@ from shapely.geometry import Polygon
 from torch import Tensor, relu, cosine_similarity
 from torch.nn import functional as F
 
-from torchdrive._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
-from torchdrive.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
-from torchdrive.mesh import BaseMesh
+from torchdrivesim._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
+from torchdrivesim.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
+from torchdrivesim.mesh import BaseMesh
 
 logger = logging.getLogger(__name__)
 

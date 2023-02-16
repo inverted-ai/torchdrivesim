@@ -4,8 +4,8 @@ A trivial Lanelet2 map is constructed here, but the same procedure works with ex
 """
 from omegaconf import OmegaConf
 from dataclasses import dataclass
-from torchdrive.lanelet2 import lanelet_map_to_lane_mesh, road_mesh_from_lanelet_map
-from torchdrive.mesh import BirdviewMesh
+from torchdrivesim.lanelet2 import lanelet_map_to_lane_mesh, road_mesh_from_lanelet_map
+from torchdrivesim.mesh import BirdviewMesh
 import lanelet2
 import sys
 

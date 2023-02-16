@@ -4,10 +4,10 @@ import pytest
 import torch
 
 from tests.simulator.test_simulator import TestBaseSimulator
-from torchdrive.simulator import CollisionMetric, SimulatorWrapper, RecordingWrapper, \
+from torchdrivesim.simulator import CollisionMetric, SimulatorWrapper, RecordingWrapper, \
     BirdviewRecordingWrapper, \
     SelectiveWrapper, BoundedRegionWrapper, HomogeneousWrapper
-from torchdrive.utils import Resolution
+from torchdrivesim.utils import Resolution
 from tests import device
 
 @pytest.mark.depends_on_lanelet2

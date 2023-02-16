@@ -6,8 +6,8 @@ try:
     import lanelet2
 except ImportError:
     pass
-from torchdrive.infractions import lanelet_orientation_loss
-from torchdrive.lanelet2 import find_direction
+from torchdrivesim.infractions import lanelet_orientation_loss
+from torchdrivesim.lanelet2 import find_direction
 
 
 @pytest.mark.depends_on_lanelet2

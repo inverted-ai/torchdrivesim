@@ -14,14 +14,14 @@ import torch
 from torch import Tensor
 from torch.nn.functional import pad
 
-from torchdrive.kinematic import KinematicModel
-from torchdrive.lanelet2 import LaneletMap
-from torchdrive.mesh import generate_trajectory_mesh, BirdviewMesh
-from torchdrive.rendering import BirdviewRenderer, RendererConfig, renderer_from_config
-from torchdrive.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
+from torchdrivesim.kinematic import KinematicModel
+from torchdrivesim.lanelet2 import LaneletMap
+from torchdrivesim.mesh import generate_trajectory_mesh, BirdviewMesh
+from torchdrivesim.rendering import BirdviewRenderer, RendererConfig, renderer_from_config
+from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
     compute_agent_collisions_metric_pytorch3d, compute_agent_collisions_metric, collision_detection_with_discs
-from torchdrive.traffic_controls import BaseTrafficControl
-from torchdrive.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
+from torchdrivesim.traffic_controls import BaseTrafficControl
+from torchdrivesim.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
 
 logger = logging.getLogger(__name__)
 

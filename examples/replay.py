@@ -13,15 +13,15 @@ import lanelet2
 import torch
 from omegaconf import OmegaConf
 
-from torchdrive.behavior.iai import iai_initialize, iai_drive
-from torchdrive.behavior.replay import interaction_replay, ReplayWrapper
-from torchdrive.behavior.heuristic import heuristic_initialize
-from torchdrive.kinematic import KinematicBicycle, TeleportingKinematicModel
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import renderer_from_config
-from torchdrive.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
-from torchdrive.utils import Resolution
+from torchdrivesim.behavior.iai import iai_initialize, iai_drive
+from torchdrivesim.behavior.replay import interaction_replay, ReplayWrapper
+from torchdrivesim.behavior.heuristic import heuristic_initialize
+from torchdrivesim.kinematic import KinematicBicycle, TeleportingKinematicModel
+from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import renderer_from_config
+from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.utils import Resolution
 
 
 @dataclass
