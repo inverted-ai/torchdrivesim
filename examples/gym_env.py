@@ -47,7 +47,8 @@ class GymEnv(gym.Env):
         action_range = np.ndarray(shape=(2, 2), dtype=dtype)
         action_range[:, 0] = acceleration_range
         action_range[:, 1] = steering_range
-
+        self.max_environment_steps = 1000
+        self.environment_steps = 0
         self.action_space = gym.spaces.Box(
             low=action_range[0],
             high=action_range[1],
@@ -79,9 +80,11 @@ class GymEnv(gym.Env):
         if wrapper is not None:
             wrapper.inner_simulator = self.simulator
             self.simulator = wrapper
+        self.environment_steps = 0
         return self.get_obs()
 
     def step(self, action: Tensor):
+        self.environment_steps += 1
         self.simulator.step(action)
         self.prev_action = action
         return self.get_obs(), self.get_reward(), self.is_done(), self.get_info()
@@ -106,6 +109,7 @@ class GymEnv(gym.Env):
     def is_done(self):
         x = self.simulator.get_state()[..., 0]
         done = torch.zeros_like(x, dtype=torch.bool)
+        done += self.environment_steps >= self.max_environment_steps
         return done
 
     def get_info(self):
@@ -169,11 +173,12 @@ class IAIGymEnv(GymEnv):
             rear_axis_offset=agent_attributes[..., 2:3], locations=[iai_location]
         )
         super().__init__(config=cfg, simulator=simulator)
+        self.max_environment_steps = 100
 
     def get_reward(self):
-        offroad_penalty = self.offroad_threshold - self.simulator.compute_offroad()
-        collision = self.collision_threshold-self.simulator.compute_collision()
-        economy_penalty = - self.prev_action.norm(2)
+        offroad_penalty = -self.simulator.compute_offroad()
+        collision = -self.simulator.compute_collision()
+        economy_penalty = -self.prev_action.norm(2)
         speed_bonus = self.simulator.get_state()[..., 3]
         x = self.simulator.get_state()[..., 0]
         r = torch.zeros_like(x)

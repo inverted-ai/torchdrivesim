@@ -1,10 +1,10 @@
 import torch.nn as nn
 from gym_env import *
 import warnings
+from tqdm import trange
 warnings.filterwarnings("ignore")
 
 logger = logging.getLogger(__name__)
-
 
 class DictDataset(torch.utils.data.TensorDataset):
 
@@ -123,6 +123,7 @@ class DiagGaussian(nn.Module):
 
 
 class NNBase(nn.Module):
+
     def __init__(self, obs_shape, num_layers=2, num_filters=32,
                      feature_dim=50, stride=(2,2),  kernel_size=(3,3), output_logits=False):
         super().__init__()
@@ -163,6 +164,7 @@ class NNBase(nn.Module):
 
 
 class ActorCritic(nn.Module):
+
     def __init__(self, obs_shape, action_space, base_kwargs):
         super(ActorCritic, self).__init__()
         self.action_space = action_space
@@ -196,6 +198,7 @@ class ActorCritic(nn.Module):
 
 
 class PPOTrainer:
+
     def __init__(self, envs_gen):
         super(PPOTrainer, self).__init__()
         self.env_gen, self.envs = envs_gen, envs_gen()
@@ -224,15 +227,13 @@ class PPOTrainer:
         with torch.no_grad():
             eval_env = self.env_gen()
             obs = eval_env.reset()
-            avg_reward, done, steps = 0., 0, 0
+            avg_reward, done = 0., 0
             for eval_run in range(traces):
                 while not done:
                     obs['birdview_image'] = obs['birdview_image'].unsqueeze(0)
                     value, action, action_log_prob = self.actor_critic.act(obs, deterministic=True)
                     obs, reward, done, infos = eval_env.step(action.squeeze(0))
                     avg_reward += reward
-                    steps += 1
-                    done = 1 if steps > 100 else done
                 obs = eval_env.reset()
             return avg_reward / traces
 
@@ -242,10 +243,11 @@ class PPOTrainer:
                 self.obs['birdview_image'] = self.obs['birdview_image'].unsqueeze(0)
                 value, action, action_log_prob = self.actor_critic.act(self.obs)
                 self.obs, reward, done, infos = self.envs.step(action.squeeze(0))
+                bad_done = 1 * torch.tensor(self.envs.environment_steps >= self.envs.max_environment_steps)
                 if done:
-                    self.obs = self.envs.reset(action)
+                    self.obs = self.envs.reset()
                 next_masks = 1 * done.unsqueeze(0)
-                next_bad_masks = 0 * next_masks
+                next_bad_masks = 1 * bad_done.unsqueeze(0)
                 self.rollouts.insert(self.obs, action, action_log_prob, value, reward, next_masks, next_bad_masks, k=step)
             self.time_steps += self.num_processes * self.num_steps
             with torch.no_grad():
@@ -315,10 +317,11 @@ class PPOTrainer:
 def rl_trainer(cfg: TorchDriveGymEnvConfig):
     env_gen = lambda: gym.make('torchdrive/IAI-v0', args=cfg)
     policy_trainer = PPOTrainer(env_gen)
-    for i in range(100):
+    print('Training Reinforcement Learning Agent:')
+    progress_bar = trange(100, leave=True)
+    for i in progress_bar:
         policy_trainer.train_step()
-        if i % 3 == 0:
-            print('current return {}'.format(policy_trainer.evaluate_policy()))
+        progress_bar.set_description(f"Average Return: {policy_trainer.evaluate_policy().item():.2f}")
     return policy_trainer
 
 
