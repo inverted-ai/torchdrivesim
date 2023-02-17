@@ -4,7 +4,7 @@ hide-toc: true
 
 ![](../images/iai-drive.gif)
 
-[pypi-badge]: https://badge.fury.io/py/invertedai.svg
+[pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg
 [pypi-link]: https://pypi.org/project/torchdrivesim/  
 [colab-badge]: https://colab.research.google.com/assets/colab-badge.svg
 [github-badge]: https://badgen.net/badge/icon/github?icon=github&label
