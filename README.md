@@ -1,4 +1,5 @@
-[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)
+[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)  
+[pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg  [pypi-link]: https://pypi.org/project/torchdrivesim/
 
 # TorchDriveSim
 
