@@ -72,7 +72,8 @@ class TestBaseSimulator:
         projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
         lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
         lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
-        return Simulator(road_mesh, kinematic_model, agent_size, initial_present_mask, cls.config, lanelet_map=lanelet_map).to(device)
+        return Simulator(road_mesh, kinematic_model, agent_size,
+                         initial_present_mask, cls.config, lanelet_map=lanelet_map).to(device)
 
     @staticmethod
     def get_tensor(item):

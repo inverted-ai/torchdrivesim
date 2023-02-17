@@ -1,3 +1,8 @@
+"""
+A simple version of Proximal Policy Optimization for driving in a minimal environment.
+Note that the behavior of other agents are provided by the IAI API, which requires an access key.
+However, it is easy to modify the environment to provide alternative means of controlling other agents.
+"""
 import torch.nn as nn
 from gym_env import *
 import warnings
@@ -5,6 +10,7 @@ from tqdm import trange
 warnings.filterwarnings("ignore")
 
 logger = logging.getLogger(__name__)
+
 
 class DictDataset(torch.utils.data.TensorDataset):
 
