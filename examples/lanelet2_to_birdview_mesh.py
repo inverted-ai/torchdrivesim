@@ -1,7 +1,11 @@
+"""
+A simple example demonstrating how to convert a Lanelet2 map into a mesh used by TorchDriveSim.
+A trivial Lanelet2 map is constructed here, but the same procedure works with externally provided maps.
+"""
 from omegaconf import OmegaConf
 from dataclasses import dataclass
-from torchdrive.lanelet2 import lanelet_map_to_lane_mesh, road_mesh_from_lanelet_map
-from torchdrive.mesh import BirdviewMesh
+from torchdrivesim.lanelet2 import lanelet_map_to_lane_mesh, road_mesh_from_lanelet_map
+from torchdrivesim.mesh import BirdviewMesh
 import lanelet2
 import sys
 
@@ -11,9 +15,9 @@ class LaneletToMeshConfig:
     maps_file_path: str
     mesh_save_path: str
 
+
 def revert_map(lanelet_map):
     reverted_map = lanelet2.core.LaneletMap()
-    origin = lanelet2.io.Origin(0, 0)
     for lanelet in lanelet_map.laneletLayer:
         left_boundary = [p for p in lanelet.leftBound]
         right_boundary = [p for p in lanelet.rightBound]
@@ -31,13 +35,12 @@ def revert_map(lanelet_map):
     return reverted_map
 
 
-
 def build_map_mesh(cfg: LaneletToMeshConfig):
     map_file_path, mesh_save_path = cfg.maps_file_path, cfg.mesh_save_path
     origin = (0, 0)
     projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
     lanelet_map = lanelet2.io.load(map_file_path, projector)
-    lanelet_map = revert_map(lanelet_map)
+    lanelet_map = revert_map(lanelet_map)  # Fixing for Carla left-handed coordinates
     road_mesh = road_mesh_from_lanelet_map(lanelet_map)
     road_mesh = BirdviewMesh.set_properties(road_mesh, category='road').to(road_mesh.device)
     lane_mesh = lanelet_map_to_lane_mesh(

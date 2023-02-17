@@ -1,5 +1,6 @@
 """
-Simple demonstration for how to grab a map and visualize it.
+Simple demonstration for how to initialize the simulator and use behavioral models to move the cars.
+The behavioral models are provided by the IAI API and a key is required to use it and run this script.
 """
 import os
 import sys
@@ -11,13 +12,13 @@ import imageio
 import torch
 from omegaconf import OmegaConf
 
-from torchdrive.behavior.iai import iai_initialize, IAIWrapper
-from torchdrive.kinematic import KinematicBicycle
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import renderer_from_config, RendererConfig
-from torchdrive.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
-from torchdrive.utils import Resolution
+from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
+from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import renderer_from_config, RendererConfig
+from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.utils import Resolution
 
 
 @dataclass
@@ -45,10 +46,7 @@ def simulate(cfg: SimulationConfig):
     simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
                                      renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
 
-    if cfg.map_name.startswith('Town'):
-        location = f'carla:{":".join(cfg.map_name.split("_"))}'
-    else:
-        location = f'canada:vancouver:{cfg.map_name}'
+    location = f'carla:{":".join(cfg.map_name.split("_"))}'
     agent_attributes, agent_states, recurrent_states =\
         iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
     agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)

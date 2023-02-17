@@ -1,5 +1,5 @@
 """
-Simple demonstration for how to grab a map and visualize it.
+Simple demonstration for how to generate an initial simulator state and visualize it.
 """
 import os
 import sys
@@ -12,14 +12,14 @@ import lanelet2
 import torch
 from omegaconf import OmegaConf
 
-from torchdrive.behavior.iai import iai_initialize
-from torchdrive.behavior.heuristic import heuristic_initialize
-from torchdrive.kinematic import KinematicBicycle
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import renderer_from_config
-from torchdrive.simulator import TorchDriveConfig, Simulator
-from torchdrive.utils import Resolution
+from torchdrivesim.behavior.iai import iai_initialize
+from torchdrivesim.behavior.heuristic import heuristic_initialize
+from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import renderer_from_config
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
+from torchdrivesim.utils import Resolution
 
 
 @dataclass
@@ -49,10 +49,7 @@ def visualize_map(cfg: InitializationVisualizationConfig):
     simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed)
 
     if cfg.method == 'iai':
-        if cfg.map_name.startswith('Town'):
-            location = f'carla:{":".join(cfg.map_name.split("_"))}'
-        else:
-            location = f'canada:vancouver:{cfg.map_name}'
+        location = f'carla:{":".join(cfg.map_name.split("_"))}'
         agent_attributes, agent_states, _ = iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
     elif cfg.method == 'heuristic':
         lanelet_map = load_lanelet_map(map_path, origin=cfg.map_origin)

@@ -1,3 +1,7 @@
+"""
+An example showing how to define an OpenAI gym environment based on TorchDriveSim.
+It uses the IAI API to provide behaviors for other vehicles and requires an access key to run.
+"""
 import contextlib
 import os
 import signal
@@ -12,13 +16,12 @@ import numpy as np
 from omegaconf import OmegaConf
 from torch import Tensor
 
-from torchdrive.behavior.iai import iai_initialize, IAIWrapper
-from torchdrive.kinematic import KinematicBicycle
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import RendererConfig, renderer_from_config
-from torchdrive.utils import Resolution
-from torchdrive.simulator import TorchDriveConfig, SimulatorInterface, \
+from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
+from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import RendererConfig, renderer_from_config
+from torchdrivesim.utils import Resolution
+from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
     BirdviewRecordingWrapper, Simulator, HomogeneousWrapper
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,6 @@ class TorchDriveGymEnvConfig:
     res: int = 1024
     fov: float = 200
     center: Tuple[float, float] = (0, 0)
-    map_origin: Tuple[float, float] = (0, 0)
     left_handed: bool = True
     agent_count: int = 5
     steps: int = 20
@@ -49,7 +51,8 @@ class GymEnv(gym.Env):
         action_range = np.ndarray(shape=(2, 2), dtype=dtype)
         action_range[:, 0] = acceleration_range
         action_range[:, 1] = steering_range
-
+        self.max_environment_steps = 1000
+        self.environment_steps = 0
         self.action_space = gym.spaces.Box(
             low=action_range[0],
             high=action_range[1],
@@ -57,7 +60,7 @@ class GymEnv(gym.Env):
         )
         self.observation_space = gym.spaces.Dict({
             'speed': gym.spaces.Box(low=np.array([0.0], dtype=dtype), high=np.array([200.0], dtype=dtype), dtype=dtype),
-            'birdview_image': gym.spaces.Box(low=0, high=255, shape=(1,), dtype=dtype),
+            'birdview_image': gym.spaces.Box(low=0, high=255, shape=(3, 64, 64), dtype=dtype),
             # 'command': gym.spaces.Discrete(n=4),
             'prev_action': self.action_space
         })
@@ -81,9 +84,11 @@ class GymEnv(gym.Env):
         if wrapper is not None:
             wrapper.inner_simulator = self.simulator
             self.simulator = wrapper
+        self.environment_steps = 0
         return self.get_obs()
 
     def step(self, action: Tensor):
+        self.environment_steps += 1
         self.simulator.step(action)
         self.prev_action = action
         return self.get_obs(), self.get_reward(), self.is_done(), self.get_info()
@@ -108,6 +113,7 @@ class GymEnv(gym.Env):
     def is_done(self):
         x = self.simulator.get_state()[..., 0]
         done = torch.zeros_like(x, dtype=torch.bool)
+        done += self.environment_steps >= self.max_environment_steps
         return done
 
     def get_info(self):
@@ -146,10 +152,7 @@ class IAIGymEnv(GymEnv):
         simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
                                          renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
 
-        if cfg.location.startswith('Town'):
-            iai_location = f'carla:{":".join(cfg.location.split("_"))}'
-        else:
-            iai_location = f'canada:vancouver:{cfg.location}'
+        iai_location = f'carla:{":".join(cfg.location.split("_"))}'
         agent_attributes, agent_states, recurrent_states = \
             iai_initialize(location=iai_location, agent_count=cfg.agent_count, center=tuple(cfg.center))
         agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
@@ -174,6 +177,18 @@ class IAIGymEnv(GymEnv):
             rear_axis_offset=agent_attributes[..., 2:3], locations=[iai_location]
         )
         super().__init__(config=cfg, simulator=simulator)
+        self.max_environment_steps = 100
+
+    def get_reward(self):
+        offroad_penalty = -self.simulator.compute_offroad()
+        collision = -self.simulator.compute_collision()
+        economy_penalty = -self.prev_action.norm(2)
+        speed_bonus = self.simulator.get_state()[..., 3]
+        x = self.simulator.get_state()[..., 0]
+        r = torch.zeros_like(x)
+        r += offroad_penalty + collision + economy_penalty + speed_bonus
+        r = torch.clamp(r,min=-10.,max=10.)
+        return r
 
 
 class SingleAgentWrapper(gym.Wrapper):
@@ -220,7 +235,7 @@ class SingleAgentWrapper(gym.Wrapper):
         self.env.close()
 
 
-gym.register('torchdrive/IAI-v0', entry_point=lambda args: SingleAgentWrapper(IAIGymEnv(cfg=args)))
+gym.register('torchdrivesim/IAI-v0', entry_point=lambda args: SingleAgentWrapper(IAIGymEnv(cfg=args)))
 
 
 def main(cfg: TorchDriveGymEnvConfig):
@@ -230,7 +245,7 @@ def main(cfg: TorchDriveGymEnvConfig):
 
     signal.signal(signal.SIGTERM, sigterm_handler)
 
-    with contextlib.closing(gym.make('torchdrive/IAI-v0', args=cfg)) as env:
+    with contextlib.closing(gym.make('torchdrivesim/IAI-v0', args=cfg)) as env:
         # will produce a video showing what's going on
         if cfg.visualize_to is not None:
             env.render(mode='video', res=Resolution(cfg.res, cfg.res), fov=cfg.fov, filename=cfg.visualize_to)

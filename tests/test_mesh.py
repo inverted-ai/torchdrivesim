@@ -1,16 +1,10 @@
 import dataclasses
 import os
 import shutil
-import numpy as np
-import torch
-from PIL import Image
-import pytest
 
-from torchdrive.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
-from torchdrive.mesh import BaseMesh, AttributeMesh, BirdviewMesh
-from torchdrive.utils import Resolution
-from torchdrive.simulator import TorchDriveConfig
-from tests import device
+import torch
+
+from torchdrivesim.mesh import BaseMesh, AttributeMesh, BirdviewMesh
 
 
 class TestBaseMesh:
@@ -130,7 +124,6 @@ class TestBirdviewMesh(TestBaseMesh):
         assert concatenated_mesh.vert_category.shape[0] == 1 and concatenated_mesh.vert_category.shape[1] == 6
         return concatenated_mesh
 
-
     def test_pickle_and_unpickle(self):
         pass
 
@@ -151,10 +144,8 @@ class TestBirdviewMesh(TestBaseMesh):
         assert (recovered_lane_mesh.verts == lane_mesh.verts).all().item()
         assert (recovered_lane_mesh.faces == lane_mesh.faces).all().item()
 
-
-    @pytest.mark.depend_on_cuda
     def test_separate_categories_from_saved(self):
-        mesh = BirdviewMesh.unpickle(os.path.join(self.resources_dir, 'birdview_mesh.pkl'))
+        mesh = BirdviewMesh.unpickle(os.path.join(self.resources_dir, 'cpu_birdview_mesh.pkl'))
         meshes = mesh.separate_by_category()
         assert meshes['vehicle'].verts.shape[1]%4 == 0
         assert set(mesh.categories) == set(meshes.keys())

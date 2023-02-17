@@ -11,11 +11,11 @@ import imageio
 import lanelet2
 from omegaconf import OmegaConf
 
-from torchdrive.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
-from torchdrive.simulator import TorchDriveConfig
-from torchdrive.utils import Resolution
+from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
+from torchdrivesim.simulator import TorchDriveConfig
+from torchdrivesim.utils import Resolution
 
 
 @dataclass
@@ -25,7 +25,7 @@ class MapVisualizationConfig:
     )
     map_name: str = "Town03"
     res: int = 1024
-    fov: float = 200
+    fov: float = 1000
     center: Optional[Tuple[float, float]] = None
     map_origin: Tuple[float, float] = (0, 0)
     orientation: float = 0
@@ -36,7 +36,7 @@ def visualize_map(cfg: MapVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
     driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
-    renderer_cfg = RendererConfig()
+    renderer_cfg = RendererConfig(left_handed_coordinates=True)
     renderer = renderer_from_config(
         renderer_cfg, device=device, static_mesh=driving_surface_mesh
     )

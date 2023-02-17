@@ -25,8 +25,8 @@ jobs:
            load: true
            cache-from: type=gha
            cache-to: type=gha,mode=max
-           tags: torchdrive_tests:latest
-           target: torchdrive-tests
+           tags: torchdrivesim_tests:latest
+           target: torchdrivesim-tests
      - name: Run tests inside the container
        run: |
-         docker run -v "$PWD/torchdrive:/opt/torchdrive"  torchdrive_tests:latest
+         docker run -v "$PWD/torchdrivesim:/opt/torchdrivesim"  torchdrivesim_tests:latest
