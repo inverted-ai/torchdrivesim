@@ -1,5 +1,5 @@
 """
-A simple example demonstrating how to convert a Lanelet2 map into a mesh used by TorchDrive.
+A simple example demonstrating how to convert a Lanelet2 map into a mesh used by TorchDriveSim.
 A trivial Lanelet2 map is constructed here, but the same procedure works with externally provided maps.
 """
 from omegaconf import OmegaConf

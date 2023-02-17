@@ -315,7 +315,7 @@ class PPOTrainer:
 
 
 def rl_trainer(cfg: TorchDriveGymEnvConfig):
-    env_gen = lambda: gym.make('torchdrive/IAI-v0', args=cfg)
+    env_gen = lambda: gym.make('torchdrivesim/IAI-v0', args=cfg)
     policy_trainer = PPOTrainer(env_gen)
     print('Training Reinforcement Learning Agent:')
     progress_bar = trange(100, leave=True)

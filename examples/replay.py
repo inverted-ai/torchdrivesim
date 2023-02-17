@@ -1,5 +1,5 @@
 """
-Simple demonstration for how to replay some agent behaviors from the INTERACTION dataset in TorchDrive.
+Simple demonstration for how to replay some agent behaviors from the INTERACTION dataset in TorchDriveSim.
 The dataset needs to be downloaded separately in order to run this script.
 """
 import os

@@ -1,5 +1,5 @@
 """
-An example showing how to define an OpenAI gym environment based on TorchDrive.
+An example showing how to define an OpenAI gym environment based on TorchDriveSim.
 It uses the IAI API to provide behaviors for other vehicles and requires an access key to run.
 """
 import contextlib

@@ -1,5 +1,5 @@
 """
-PyTorch3D-based renderers, used by default in TorchDrive.
+PyTorch3D-based renderers, used by default in TorchDriveSim.
 """
 from dataclasses import dataclass
 from enum import Enum

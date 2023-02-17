@@ -33,7 +33,7 @@ dev = ["gym"]
 tests = ["pytest==5.4.3"]
 
 [tool.setuptools.dynamic]
-version = {attr = "torchdrive.__version__"}
+version = {attr = "torchdrivesim.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["torchdrivesim*"]

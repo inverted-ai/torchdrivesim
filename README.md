@@ -91,9 +91,9 @@ mostly for debugging and benchmarking purposes.
 
 In order to use TorchDriveSim smoothly without worrying about installing dependencies, we provide a 
 [Dockerfile](Dockerfile) that works either with or without gpu. In order to build the docker image,
-run `docker build --target torchdrive -t torchdrivelatest . `. To run the container with GPU access,
-run `docker run --runtime=nvidia -it torchdrive:latest /bin/bash`. To run the container without GPU access,
-run `docker run -it torchdrive:latest /bin/bash`. For more information regarding setting up GPU runtime with Docker,
+run `docker build --target torchdrivesim -t torchdrivesim:latest . `. To run the container with GPU access,
+run `docker run --runtime=nvidia -it torchdrivesim:latest /bin/bash`. To run the container without GPU access,
+run `docker run -it torchdrivesim:latest /bin/bash`. For more information regarding setting up GPU runtime with Docker,
 follow [this official link](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
 for the installation process.
 
