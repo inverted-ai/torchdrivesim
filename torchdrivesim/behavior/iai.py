@@ -4,8 +4,8 @@ import torch
 from torch import Tensor
 from typing_extensions import Self
 
-from torchdrive.behavior.common import InitializationFailedError
-from torchdrive.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
+from torchdrivesim.behavior.common import InitializationFailedError
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 
 
 def iai_initialize(location, agent_count, center=(0, 0)):

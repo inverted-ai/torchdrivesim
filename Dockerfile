@@ -1,4 +1,4 @@
-FROM nvidia/cudagl:11.2.2-devel-ubuntu20.04 as torchdrive-base
+FROM nvidia/cudagl:11.2.2-devel-ubuntu20.04 as torchdrivesim-base
 # This file is for building the production api server only.
 
 # Install general utilities
@@ -30,7 +30,7 @@ RUN pip install /opt/lanelet2-0.1.0-cp38-cp38-linux_x86_64.whl
 WORKDIR /opt
 
 
-FROM torchdrive-base as torchdrive-tests
+FROM torchdrivesim-base as torchdrivesim-tests
 
 COPY tests /opt/tests
 COPY requirements/dev.txt /opt/requirements.txt
@@ -38,10 +38,10 @@ RUN pip install -r /opt/requirements.txt
 COPY pytest.ini /opt/pytest.ini
 CMD ["pytest", "-s", "-m", "not depends_on_cuda", "tests"]
 
-FROM torchdrive-base as torchdrive
+FROM torchdrivesim-base as torchdrivesim
 
-# Install torchdrive
-COPY . /opt/torchdrive
-WORKDIR /opt/torchdrive
-RUN pip install build && python -m build --sdist --wheel --outdir dist && pip install dist/$(ls dist/ | grep " *.whl")[dev,tests] && rm -R ../torchdrive
+# Install torchdrivesim
+COPY . /opt/torchdrivesim
+WORKDIR /opt/torchdrivesim
+RUN pip install build && python -m build --sdist --wheel --outdir dist && pip install dist/$(ls dist/ | grep " *.whl")[dev,tests] && rm -R ../torchdrivesim
 WORKDIR /

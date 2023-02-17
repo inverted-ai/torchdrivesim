@@ -1,5 +1,5 @@
 """
-An example showing how to define an OpenAI gym environment based on TorchDrive.
+An example showing how to define an OpenAI gym environment based on TorchDriveSim.
 It uses the IAI API to provide behaviors for other vehicles and requires an access key to run.
 """
 import contextlib
@@ -16,12 +16,12 @@ import numpy as np
 from omegaconf import OmegaConf
 from torch import Tensor
 
-from torchdrive.behavior.iai import iai_initialize, IAIWrapper
-from torchdrive.kinematic import KinematicBicycle
-from torchdrive.mesh import BirdviewMesh
-from torchdrive.rendering import RendererConfig, renderer_from_config
-from torchdrive.utils import Resolution
-from torchdrive.simulator import TorchDriveConfig, SimulatorInterface, \
+from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
+from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.rendering import RendererConfig, renderer_from_config
+from torchdrivesim.utils import Resolution
+from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
     BirdviewRecordingWrapper, Simulator, HomogeneousWrapper
 
 logger = logging.getLogger(__name__)
@@ -235,7 +235,7 @@ class SingleAgentWrapper(gym.Wrapper):
         self.env.close()
 
 
-gym.register('torchdrive/IAI-v0', entry_point=lambda args: SingleAgentWrapper(IAIGymEnv(cfg=args)))
+gym.register('torchdrivesim/IAI-v0', entry_point=lambda args: SingleAgentWrapper(IAIGymEnv(cfg=args)))
 
 
 def main(cfg: TorchDriveGymEnvConfig):
@@ -245,7 +245,7 @@ def main(cfg: TorchDriveGymEnvConfig):
 
     signal.signal(signal.SIGTERM, sigterm_handler)
 
-    with contextlib.closing(gym.make('torchdrive/IAI-v0', args=cfg)) as env:
+    with contextlib.closing(gym.make('torchdrivesim/IAI-v0', args=cfg)) as env:
         # will produce a video showing what's going on
         if cfg.visualize_to is not None:
             env.render(mode='video', res=Resolution(cfg.res, cfg.res), fov=cfg.fov, filename=cfg.visualize_to)

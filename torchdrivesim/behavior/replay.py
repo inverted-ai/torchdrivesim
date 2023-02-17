@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from torchdrive.behavior.common import InitializationFailedError
-from torchdrive.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType
-from torchdrive.utils import assert_equal
+from torchdrivesim.behavior.common import InitializationFailedError
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType
+from torchdrivesim.utils import assert_equal
 
 
 def interaction_replay(location, dataset_path, initial_frame=1, segment_length=40, recording=0):

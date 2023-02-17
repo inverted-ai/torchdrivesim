@@ -14,14 +14,14 @@ import torch
 from torch import Tensor
 from torch.nn.functional import pad
 
-from torchdrive.kinematic import KinematicModel
-from torchdrive.lanelet2 import LaneletMap
-from torchdrive.mesh import generate_trajectory_mesh, BirdviewMesh
-from torchdrive.rendering import BirdviewRenderer, RendererConfig, renderer_from_config
-from torchdrive.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
+from torchdrivesim.kinematic import KinematicModel
+from torchdrivesim.lanelet2 import LaneletMap
+from torchdrivesim.mesh import generate_trajectory_mesh, BirdviewMesh
+from torchdrivesim.rendering import BirdviewRenderer, RendererConfig, renderer_from_config
+from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
     compute_agent_collisions_metric_pytorch3d, compute_agent_collisions_metric, collision_detection_with_discs
-from torchdrive.traffic_controls import BaseTrafficControl
-from torchdrive.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
+from torchdrivesim.traffic_controls import BaseTrafficControl
+from torchdrivesim.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class CollisionMetric(Enum):
 @dataclass
 class TorchDriveConfig:
     """
-    Top-level configuration for a TorchDrive simulator.
+    Top-level configuration for a TorchDriveSim simulator.
     """
     renderer: RendererConfig = RendererConfig()  #: how to visualize the world, for the user and for the agents
     single_agent_rendering: bool = False  #: if set, agents don't see each other
@@ -369,7 +369,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     def compute_offroad(self) -> TensorPerAgentType:
         """
         Offroad metric for each agent, defined as the distance to the road mesh.
-        See `torchdrive.infractions.offroad_infraction_loss` for details.
+        See `torchdrivesim.infractions.offroad_infraction_loss` for details.
 
         Returns:
             a functor of BxA tensors
@@ -380,7 +380,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     def compute_wrong_way(self) -> TensorPerAgentType:
         """
         Wrong-way metric for each agent, based on the inner product between the agent and lane direction.
-        See `torchdrive.infractions.lanelet_orientation_loss` for details.
+        See `torchdrivesim.infractions.lanelet_orientation_loss` for details.
 
         Returns:
             a functor of BxA tensors
@@ -390,7 +390,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     def compute_traffic_lights_violations(self) -> TensorPerAgentType:
         """
         Boolean value indicating whether each agent is committing a traffic light violation.
-        See `torchdrive.infractions.traffic_controls.TrafficLightControl.compute_violations` for details.
+        See `torchdrivesim.infractions.traffic_controls.TrafficLightControl.compute_violations` for details.
 
         Returns:
             a functor of BxA tensors

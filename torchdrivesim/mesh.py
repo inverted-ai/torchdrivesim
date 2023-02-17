@@ -19,7 +19,7 @@ import torch
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
-from torchdrive.utils import is_inside_polygon, merge_dicts
+from torchdrivesim.utils import is_inside_polygon, merge_dicts
 
 logger = logging.getLogger(__name__)
 

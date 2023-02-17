@@ -8,19 +8,18 @@ import argparse
 from tqdm import trange
 
 import lanelet2
-from lanelet2.core import LaneletMap
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torchdrive.lanelet2 import road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrive.behavior.replay import ReplayWrapper
-from torchdrive.kinematic import SimpleKinematicModel
-from torchdrive.mesh import BaseMesh, BirdviewMesh
-from torchdrive.rendering import renderer_from_config
-from torchdrive.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
-from torchdrive.utils import Resolution
+from torchdrivesim.lanelet2 import road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.behavior.replay import ReplayWrapper
+from torchdrivesim.kinematic import SimpleKinematicModel
+from torchdrivesim.mesh import BaseMesh, BirdviewMesh
+from torchdrivesim.rendering import renderer_from_config
+from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.utils import Resolution
 
 
 def to_device(items, device):

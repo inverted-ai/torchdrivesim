@@ -14,7 +14,7 @@ from scipy.sparse import lil_matrix
 import torch
 from torch import Tensor
 
-from torchdrive.mesh import BaseMesh, logger, BirdviewMesh, rendering_mesh
+from torchdrivesim.mesh import BaseMesh, logger, BirdviewMesh, rendering_mesh
 
 try:
     import lanelet2

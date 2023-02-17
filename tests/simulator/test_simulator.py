@@ -2,9 +2,9 @@ import os
 import lanelet2
 import pytest
 import torch
-from torchdrive.simulator import TorchDriveConfig, Simulator
-from torchdrive.kinematic import KinematicBicycle
-from torchdrive.mesh import BirdviewMesh
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
+from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.mesh import BirdviewMesh
 from tests import device
 
 
