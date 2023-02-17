@@ -1,6 +1,9 @@
-[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)  
-[pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg  [pypi-link]: https://pypi.org/project/torchdrivesim/
+[pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg
+[pypi-link]: https://pypi.org/project/torchdrivesim/  
 
+
+[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)  
+[![PyPI][pypi-badge]][pypi-link]
 # TorchDriveSim
 
 TorchDriveSim is a lightweight 2D driving simulator, built entirely in [PyTorch](https://pytorch.org/), primarily intended as a training
