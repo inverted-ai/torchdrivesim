@@ -14,7 +14,7 @@ hide-toc: true
 [examples-link]: https://github.com/inverted-ai/invertedai/tree/master/examples
 [![GitHub][github-badge]][github-link]
 [![PyPI][pypi-badge]][pypi-link]
-[![Open In Colab][colab-badge]][colab-link]
+<!-- [![Open In Colab][colab-badge]][colab-link] -->
 
 # TorchDrive
 ```{include} ../../README.md
