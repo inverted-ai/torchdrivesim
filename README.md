@@ -2,7 +2,7 @@
 [pypi-link]: https://pypi.org/project/torchdrivesim/  
 
 
-[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)  
+[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)
 [![PyPI][pypi-badge]][pypi-link]
 # TorchDriveSim
 
