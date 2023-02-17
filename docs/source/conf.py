@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # -- Project information -----------------------------------------------------
 
-project = "torchdrive"
+project = "torchdrivesim"
 copyright = "2023, InvertedAI"
 author = "InvertedAI"
 
