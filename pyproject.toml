@@ -21,8 +21,8 @@ dependencies = [
     "shapely",
     "scipy",
     "imageio",
-    "torch>=1.10.1",
-    "pytorch3d",
+    "torch @ https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html",
+    "pytorch3d @ https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html",
     "invertedai",
     "omegaconf"
 ]
