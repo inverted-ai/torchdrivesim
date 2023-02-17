@@ -68,9 +68,6 @@ class IAIWrapper(NPCWrapper):
             rear_axis_offset = 1.4 * torch.ones_like(lenwid[..., :1])  # TODO: use value proportional to length
         self._agent_attributes = torch.cat([lenwid, rear_axis_offset], dim=-1)
 
-        # self.validate_agent_types()
-        # self.validate_tensor_shapes()
-
     def _get_npc_predictions(self):
         states, recurrent = [], []
         agent_states = HomogeneousWrapper(self.inner_simulator).get_state()
@@ -105,25 +102,3 @@ class IAIWrapper(NPCWrapper):
         other.present_masks = other.across_agent_types(lambda x: x[idx], other.present_masks)
         other._batch_size = len(idx)
         return other
-    #
-    # def validate_agent_types(self):
-    #     assert list(self.npc_mask.keys()) == self.agent_types
-    #     assert list(self.replay_states.keys()) == self.agent_types
-    #     assert list(self.present_masks.keys()) == self.agent_types
-    #
-    # def validate_tensor_shapes(self):
-    #     # check that tensors have the expected number of dimensions
-    #     self.across_agent_types(lambda m: assert_equal(len(m.shape), 1), self.npc_mask)
-    #     self.across_agent_types(lambda s: assert_equal(len(s.shape), 4), self.replay_states)
-    #     self.across_agent_types(lambda m: assert_equal(len(m.shape), 3), self.present_masks)
-    #
-    #     # check that batch size is the same everywhere
-    #     b = self.batch_size
-    #     self.across_agent_types(lambda s: assert_equal(s.shape[0], b), self.replay_states)
-    #     self.across_agent_types(lambda m: assert_equal(m.shape[0], b), self.present_masks)
-    #
-    #     # check that the number of agents in replay is the same as in underlying simulator
-    #     check_counts = lambda i: lambda x, y: assert_equal(x.shape[i], y)
-    #     self.across_agent_types(check_counts(0), self.npc_mask, self.inner_simulator.agent_count)
-    #     self.across_agent_types(check_counts(-3), self.replay_states, self.inner_simulator.agent_count)
-    #     self.across_agent_types(check_counts(-2), self.present_masks, self.inner_simulator.agent_count)

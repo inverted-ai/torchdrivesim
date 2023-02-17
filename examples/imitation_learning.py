@@ -1,3 +1,11 @@
+"""
+Imitation learning of driving behavior using INTERACTION dataset.
+Uses a simple neural policy consuming the current bird's eye view of the simulation,
+and can be trained either with teacher forcing, which corresponds to behavioral cloning,
+or without, where gradients are backpropagated through the simulator.
+Note that the INTERACTION dataset is subject to its own license terms and needs to
+be downloaded separately.
+"""
 import math
 import os
 import glob
@@ -34,7 +42,7 @@ def to_device(items, device):
     return items_new
 
 
-def cycle(iterable): # method for iterating infinitely through dataset
+def cycle(iterable):  # method for iterating infinitely through dataset
     while True:
         for x in iterable:
             yield x
