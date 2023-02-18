@@ -96,8 +96,7 @@ mostly for debugging and benchmarking purposes.
 
 Before running the usual `pip install torchdrivesim` command, correct `torch` and `pytorch3d` versions need to be 
 installed by the user. `torchdrivesim` will assume the user have installed
-the correct version already, otherwise the default versions of `torch` and `pytorch3d` will be installed which usually
-will cause incompatibility errors.   
+the correct version already as `Pytorch` related packages are marked as optional.
 
 To install the correct `torch` using `pip`, go visit the
 [prebuilt whls page](https://download.pytorch.org/whl/torch_stable.html) to select the right `.whl` file based on the
