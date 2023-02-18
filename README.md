@@ -1,11 +1,11 @@
 [pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg
 [pypi-link]: https://pypi.org/project/torchdrivesim/  
-
-
 [![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)
 [![PyPI][pypi-badge]][pypi-link]
-# TorchDriveSim
+[![Documentation Status](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)
 
+# TorchDriveSim
+<!-- start Features-->
 TorchDriveSim is a lightweight 2D driving simulator, built entirely in [PyTorch](https://pytorch.org/), primarily intended as a training
 environment for developing autonomous driving algorithms. Its main features are:
 1. Fully differentiable execution producing a single computation graph, including state transition (kinematic models) and observation (differentiable rendering) models.
@@ -17,9 +17,10 @@ environment for developing autonomous driving algorithms. Its main features are:
 7. Modular collection of wrappers modifying the simulator's behavior.
 8. Ability to ingest any map in [Lanelet2](https://github.com/fzi-forschungszentrum-informatik/Lanelet2) format out of the box.
 9. Integration with [IAI API](https://docs.inverted.ai/en/latest/) for initializing agent states and providing realistic behaviors.
+<!-- end Features-->
 
+<!-- start readme-->
 ## Simulator Architecture
-
 The simulated world consists of the following elements:
 1. Static background, by default including road (drivable surface) and lane markings, represented as a triangular mesh.
 2. Control elements, represented by rectangles with internal state. The simulator does not enforce their semantics.
@@ -115,3 +116,4 @@ for which an early version of TorchDriveSim  was initially developed.
   pages={720-725},
   doi={10.1109/ITSC48978.2021.9565113}}
 ```
+<!-- end readme-->
