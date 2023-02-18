@@ -30,6 +30,22 @@ dynamic = ["version",]
 dev = ["gym"]
 tests = ["pytest==5.4.3"]
 torch = ["torch","pytorch3d"]
+docs = ["Sphinx",
+"myst-parser",
+"furo",
+"sphinx-copybutton",
+"sphinx_design",
+"sphinxcontrib-applehelp",
+"sphinxcontrib-devhelp",
+"sphinxcontrib-htmlhelp",
+"sphinxcontrib-jsmath",
+"sphinxcontrib-qthelp",
+"sphinxcontrib-serializinghtml",
+"sphinx-autoapi",
+"pydata-sphinx-theme",
+"sphinx-autobuild",
+"nbsphinx",
+"breathe"]
 
 [tool.setuptools.dynamic]
 version = {attr = "torchdrivesim.__version__"}

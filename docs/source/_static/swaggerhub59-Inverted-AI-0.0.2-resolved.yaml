@@ -1,0 +1,437 @@
+---
+openapi: 3.0.2
+info:
+  title: Inverted AI
+  description: Inverted AI's REST API for controlling non-playable characters (NPCs) in autonomous driving simulations.
+  termsOfService: https://www.inverted.ai/terms-conditions
+  contact:
+    name: API Support
+    url: https://www.inverted.ai/api
+    email: info@inverted.ai
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.2
+servers:
+- url: https://api.inverted.ai/v0/aws/m1
+paths:
+  /drive:
+    post:
+      summary: Drive
+      operationId: drive_drive_post
+      parameters:
+      - name: api-key
+        in: header
+        required: false
+        style: simple
+        explode: false
+        schema:
+          title: Api-Key
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DrivePayload'
+        required: true
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriveResponse'
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /initialize:
+    post:
+      summary: Initialize
+      operationId: initialize_initialize_post
+      parameters:
+      - name: num_agents_to_spawn
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          title: Num Agents To Spawn
+          type: integer
+          default: 10
+      - name: api-key
+        in: header
+        required: false
+        style: simple
+        explode: false
+        schema:
+          title: Api-Key
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitializePayload'
+        required: true
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitializeResponse'
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /location_info:
+    get:
+      summary: Get Location Info
+      operationId: get_location_info_location_info_get
+      parameters:
+      - name: location
+        in: query
+        required: true
+        style: form
+        explode: true
+        schema:
+          title: Location
+          type: string
+      - name: include_map_source
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          title: Include Map Source
+          type: boolean
+          default: true
+      - name: api-key
+        in: header
+        required: false
+        style: simple
+        explode: false
+        schema:
+          title: Api-Key
+          type: string
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationResponse'
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    ControlStateType:
+      title: ControlStateType
+      type: string
+      description: An enumeration.
+      enum:
+      - none
+      - green
+      - yellow
+      - red
+    ControlType:
+      title: ControlType
+      type: string
+      description: An enumeration.
+      enum:
+      - traffic-light
+      - yield
+      - stop-sign
+    DrivePayload:
+      title: DrivePayload
+      required:
+      - agent_attributes
+      - agent_states
+      type: object
+      properties:
+        location:
+          title: Location
+          type: string
+          default: ""
+        agent_states:
+          title: Agent States
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        agent_attributes:
+          title: Agent Attributes
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        recurrent_states:
+          title: Recurrent States
+          type: array
+          description: One single time step from one sampleof the recurrent states returned bythe previous inference
+          items:
+            type: array
+            items:
+              type: number
+        get_birdview:
+          title: Get Birdview
+          type: boolean
+          default: false
+        get_infractions:
+          title: Get Infractions
+          type: boolean
+          default: false
+        traffic_lights_states:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ControlStateType'
+        random_seed:
+          title: Random Seed
+          type: integer
+    DriveResponse:
+      title: DriveResponse
+      required:
+      - agent_states
+      - birdview
+      - is_inside_supported_area
+      - recurrent_states
+      type: object
+      properties:
+        agent_states:
+          title: Agent States
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        is_inside_supported_area:
+          title: Is Inside Supported Area
+          type: array
+          items:
+            type: number
+        recurrent_states:
+          title: Recurrent States
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        birdview:
+          title: Birdview
+          type: array
+          items:
+            type: integer
+        infraction_indicators:
+          title: Infraction Indicators
+          type: array
+          items:
+            type: array
+            items:
+              type: boolean
+    HTTPValidationError:
+      title: HTTPValidationError
+      type: object
+      properties:
+        detail:
+          title: Detail
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+    InitializePayload:
+      title: InitializePayload
+      type: object
+      properties:
+        location:
+          title: Location
+          type: string
+          default: ""
+        num_agents_to_spawn:
+          title: Num Agents To Spawn
+          type: integer
+          default: 10
+        states_history:
+          title: States History
+          type: array
+          items:
+            type: array
+            items:
+              type: array
+              items:
+                type: number
+        agent_attributes:
+          title: Agent Attributes
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        traffic_light_state_history:
+          title: Traffic Light State History
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              $ref: '#/components/schemas/ControlStateType'
+        get_birdview:
+          title: Get Birdview
+          type: boolean
+          default: false
+        get_infractions:
+          title: Get Infractions
+          type: boolean
+          default: false
+        random_seed:
+          title: Random Seed
+          type: integer
+    InitializeResponse:
+      title: InitializeResponse
+      required:
+      - birdview
+      type: object
+      properties:
+        agent_states:
+          title: Agent States
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+          default:
+          - - - 1
+              - 1
+              - 1
+              - 1
+        agent_attributes:
+          title: Agent Attributes
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+          default:
+          - - 1
+            - 1
+            - 1
+        recurrent_states:
+          title: Recurrent States
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        birdview:
+          title: Birdview
+          type: array
+          items:
+            type: integer
+        infraction_indicators:
+          title: Infraction Indicators
+          type: array
+          items:
+            type: array
+            items:
+              type: boolean
+    LocationResponse:
+      title: LocationResponse
+      required:
+      - birdview_image
+      - bounding_polygon
+      - max_agent_number
+      - static_actors
+      - version
+      type: object
+      properties:
+        version:
+          title: Version
+          type: string
+        max_agent_number:
+          title: Max Agent Number
+          type: integer
+        bounding_polygon:
+          title: Bounding Polygon
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        birdview_image:
+          title: Birdview Image
+          type: array
+          items:
+            type: integer
+        osm_map:
+          title: Osm Map
+          type: string
+        map_origin:
+          title: Map Origin
+          type: array
+          items:
+            type: number
+        static_actors:
+          title: Static Actors
+          type: array
+          items:
+            $ref: '#/components/schemas/StaticMapActors'
+    StaticMapActors:
+      title: StaticMapActors
+      required:
+      - actor_id
+      - agent_type
+      - length
+      - orientation
+      - width
+      - x
+      - "y"
+      type: object
+      properties:
+        actor_id:
+          title: Actor Id
+          type: integer
+        agent_type:
+          $ref: '#/components/schemas/ControlType'
+        x:
+          title: X
+          type: number
+        y:
+          title: "Y"
+          type: number
+        orientation:
+          title: Orientation
+          type: number
+        length:
+          title: Length
+          type: number
+        width:
+          title: Width
+          type: number
+    ValidationError:
+      title: ValidationError
+      required:
+      - loc
+      - msg
+      - type
+      type: object
+      properties:
+        loc:
+          title: Location
+          type: array
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
