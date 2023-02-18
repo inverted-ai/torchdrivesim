@@ -21,8 +21,6 @@ dependencies = [
     "shapely",
     "scipy",
     "imageio",
-    "torch>=1.10.1",
-    "pytorch3d",
     "invertedai",
     "omegaconf"
 ]
@@ -31,6 +29,7 @@ dynamic = ["version",]
 [project.optional-dependencies]
 dev = ["gym"]
 tests = ["pytest==5.4.3"]
+torch = ["torch","pytorch3d"]
 
 [tool.setuptools.dynamic]
 version = {attr = "torchdrivesim.__version__"}
