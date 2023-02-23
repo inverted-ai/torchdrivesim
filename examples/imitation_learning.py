@@ -47,17 +47,17 @@ def cycle(iterable):  # method for iterating infinitely through dataset
         for x in iterable:
             yield x
 
-
+# INTERACTION Dataset v1.2
 class INTERACTIONDataset(torch.utils.data.Dataset):
     agent_type_names = ['vehicle', 'pedestrian']
 
-    def __init__(self, dataset_path, location_names=None, segment_length=40, segment_spacing=50):
-        self.segment_length = segment_length
-        self.segment_spacing = segment_spacing
+    def __init__(self, dataset_path, location_names=None, split='train'):
+        self.split = split
         self.location_names = []
         self.road_meshes = {}
         self.lane_meshes = {}
-        for name in os.listdir(os.path.join(dataset_path, 'recorded_trackfiles')):
+        for name in os.listdir(os.path.join(dataset_path, split)):
+            name = name[:-(len(split)+5)]
             if location_names is not None:
                 if name in location_names:
                     self.location_names.append(name)
@@ -75,69 +75,33 @@ class INTERACTIONDataset(torch.utils.data.Dataset):
         self.idx2segment = []
         self.recording_dfs = []
         for location in self.location_names:
-            all_recordings = glob.glob(os.path.join(dataset_path, 'recorded_trackfiles',
-                                                    location, 'vehicle_tracks_*.csv'))
-            for recording in all_recordings:
-                recording_id = os.path.basename(recording).split('_')[-1][:-4]
-                pedestrian_file_path = os.path.join(dataset_path, 'recorded_trackfiles', location,
-                                                    f'pedestrian_tracks_{recording_id}.csv')
-
-                recording_df = pd.read_csv(recording)
-                if os.path.exists(pedestrian_file_path):
-                    pedestrian_df = pd.read_csv(pedestrian_file_path)
-                    # Pedestrians don't have size defined in the dataset
-                    pedestrian_df['length'] = 1.5
-                    pedestrian_df['width'] = 1.5
-                    recording_df = pd.concat([recording_df, pedestrian_df])
-                recording_df.loc[recording_df['agent_type'] == 'car', 'agent_type'] = 'vehicle'
-                recording_df.loc[recording_df['agent_type'] == 'pedestrian/bicycle', 'agent_type'] = 'pedestrian'
-                self.recording_dfs.append(recording_df)
-
-                for track_id in recording_df['track_id'].unique():
-                    current_vehicle_df = recording_df[(recording_df['track_id'] == track_id)]
-                    if current_vehicle_df['agent_type'].iloc[0] != 'vehicle':
+            recording_path = os.path.join(dataset_path, split, f'{location}_{split}.csv')
+            recording_df = pd.read_csv(recording_path)
+            # Pedestrians don't have psi_rad, length and width defined
+            recording_df['psi_rad'] = recording_df['psi_rad'].fillna(0)
+            recording_df['length'] = recording_df['length'].fillna(1.5)
+            recording_df['width'] = recording_df['width'].fillna(1.5)
+            recording_df.loc[recording_df['agent_type'] == 'car', 'agent_type'] = 'vehicle'
+            recording_df.loc[recording_df['agent_type'] == 'pedestrian/bicycle', 'agent_type'] = 'pedestrian'
+            self.recording_dfs.append(recording_df)
+            for case_id in recording_df['case_id'].unique():
+                case_df = recording_df.loc[recording_df['case_id'] == case_id]
+                for track_id in case_df['track_id'].unique():
+                    track_df = case_df[(case_df['track_id'] == track_id)]
+                    if track_df['agent_type'].iloc[0] != 'vehicle' or len(track_df) != 40:
                         continue
-                    frames = current_vehicle_df.frame_id.to_numpy(dtype=int)
-                    if frames.max() - frames.min() > len(frames) - 1:
-                        # find contiguous frame ranges where vehicle is present
-                        ranges = []
-                        begin = frames[0]
-                        for i in range(1, len(frames)):
-                            if frames[i] > frames[i - 1] + 1:
-                                end = frames[i - 1]
-                                ranges.append((begin, end))
-                                begin = frames[i]
-                        ranges.append((begin, frames[-1]))
-                    else:
-                        ranges = [(frames.min(), frames.max())]
-                    for (min_frame, max_frame) in ranges:
-                        n_frames = max_frame - min_frame + 1
-                        num_segments = math.floor(n_frames / self.segment_spacing)
-                        trailing = n_frames % self.segment_spacing
-                        if trailing >= self.segment_length:
-                            num_segments += 1
-                        else:
-                            while trailing + self.segment_spacing < self.segment_length:
-                                num_segments -= 1
-                                trailing += self.segment_spacing
-                        for seg_num in range(num_segments):
-                            self.idx2segment.append({
-                                'location': location,
-                                 'recording_idx': len(self.recording_dfs)-1,
-                                 'initial_frame': min_frame + (self.segment_spacing * seg_num),
-                                 'ego_track_id': track_id
-                            })
+                    self.idx2segment.append({
+                        'location': location,
+                        'recording_idx': len(self.recording_dfs)-1,
+                        'case_id': case_id,
+                        'ego_track_id': track_id
+                    })
 
-    def split_train_val(self, num_val_segments=50, seed=0):
+    def subsample(self, num_segments=50, seed=0):
         rng = np.random.default_rng(seed=seed)
-        val_inds = rng.choice(len(self), num_val_segments, replace=False)
-        val_segments = [segment for i, segment in enumerate(self.idx2segment) if i in val_inds]
-        train_segments = [segment for i, segment in enumerate(self.idx2segment) if i not in val_inds]
-        train_dataset = copy.deepcopy(self)
-        val_dataset = copy.deepcopy(self)
-        train_dataset.idx2segment = train_segments
-        val_dataset.idx2segment = val_segments
-        return train_dataset, val_dataset
+        inds = rng.choice(len(self), num_segments, replace=False)
+        self.idx2segment = [segment for i, segment in enumerate(self.idx2segment) if i in inds]
+        return self
 
     def __len__(self):
         return len(self.idx2segment)
@@ -146,10 +110,11 @@ class INTERACTIONDataset(torch.utils.data.Dataset):
         segment_info = self.idx2segment[idx]
         df = self.recording_dfs[segment_info['recording_idx']]
         ego_id = segment_info['ego_track_id']
+        case_id = segment_info['case_id']
         location = segment_info['location']
 
-        df_segment = df[(df['frame_id'] >= segment_info['initial_frame']) & \
-                        (df['frame_id'] < segment_info['initial_frame'] + self.segment_length)].copy()
+        df_segment = df[df['case_id'] == case_id].copy()
+        df_segment = df_segment.drop('case_id', axis=1)
         df_segment['agent_role'] = 'others'
         df_segment.loc[df_segment.track_id == ego_id, 'agent_role'] = 'agent'
         df_segment = df_segment.sort_values(['agent_role', 'frame_id', 'track_id'],
@@ -342,13 +307,16 @@ def train(args):
 
     simulator_cfg = TorchDriveConfig()
 
-    dataset = INTERACTIONDataset(args.dataset_path, location_names=args.locations)
-    train_dataset, val_dataset = dataset.split_train_val(num_val_segments=args.num_validation_samples)
+    train_dataset = INTERACTIONDataset(args.dataset_path, location_names=args.locations, split='train')
     train_dataloader = iter(cycle(torch.utils.data.DataLoader(train_dataset, shuffle=True,
                                                               batch_size=args.batch_size,
                                                               collate_fn=INTERACTIONDataset.collate)))
+    val_dataset = INTERACTIONDataset(args.dataset_path, location_names=args.locations, split='val')
+    val_dataset = val_dataset.subsample(num_segments=args.num_validation_samples)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, shuffle=False,
                                                  batch_size=10, collate_fn=INTERACTIONDataset.collate)
+    print(f'Num. of training segments: {len(train_dataset)}')
+    print(f'Num. of validation segments: {len(val_dataset)}')
 
     model = BehaviorModel(h_dim=args.h_dim, input_resolution=args.resolution, fov=args.fov).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
