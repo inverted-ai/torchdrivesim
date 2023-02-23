@@ -84,7 +84,8 @@ def visualize_maps(cfg: AlignmentCheckConfig):
         initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
         renderer=renderer,
     )
-    print(simulator.get_world_center())
+    print(f'Local map center: {simulator.get_world_center().cpu().squeeze(0).numpy().tolist()}')
+    print(f'Agent states:\n{simulator.get_state()["vehicle"].cpu().squeeze(0).numpy()}')
 
     response.birdview.decode_and_save(cfg.remote_save_path)
 
