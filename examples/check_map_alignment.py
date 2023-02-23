@@ -96,7 +96,9 @@ def visualize_maps(cfg: AlignmentCheckConfig):
     camera_psi = torch.ones_like(camera_xy[..., :1]) * cfg.orientation
     local_image = simulator.render(camera_xy=camera_xy, camera_psi=camera_psi, res=res, fov=cfg.fov)
     os.makedirs(os.path.dirname(cfg.local_save_path), exist_ok=True)
-    cv2.imwrite(cfg.local_save_path, local_image.cpu().squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8))
+    cv2.imwrite(cfg.local_save_path,
+                cv2.cvtColor(local_image.cpu().squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8), cv2.COLOR_BGR2RGB)
+                )
 
 
 if __name__ == '__main__':
