@@ -6,10 +6,7 @@ or without, where gradients are backpropagated through the simulator.
 Note that the INTERACTION dataset is subject to its own license terms and needs to
 be downloaded separately.
 """
-import math
 import os
-import glob
-import copy
 import numpy as np
 import pandas as pd
 import argparse
@@ -46,6 +43,7 @@ def cycle(iterable):  # method for iterating infinitely through dataset
     while True:
         for x in iterable:
             yield x
+
 
 # INTERACTION Dataset v1.2
 class INTERACTIONDataset(torch.utils.data.Dataset):
@@ -209,7 +207,7 @@ class BehaviorModel(nn.Module):
             nn.ReLU(),
         )
 
-        intermediate_dim = int(np.prod(self.conv(torch.zeros(1, num_channels, \
+        intermediate_dim = int(np.prod(self.conv(torch.zeros(1, num_channels,
                                                              input_resolution, input_resolution)).shape))
         self.pred = nn.Sequential(
             nn.Linear(in_features=intermediate_dim, out_features=h_dim),
@@ -294,7 +292,7 @@ def predict_state(batch_data, model, simulator_cfg, teacher_forcing=False):
 def validation_metrics(batch_data, model, simulator_cfg, teacher_forcing=False):
     with torch.no_grad():
         pred_state = predict_state(batch_data, model, simulator_cfg, teacher_forcing=teacher_forcing)
-    distances = torch.linalg.norm(pred_state[..., 0, 1:, :2] - \
+    distances = torch.linalg.norm(pred_state[..., 0, 1:, :2] -
                                   batch_data['agent_states'][..., 0, 1:, :2], ord=2, dim=-1)
     ade = torch.mean(distances, dim=-1)
     fde = distances[..., -1]
