@@ -92,6 +92,34 @@ is supported and can sometimes be substantially faster, but it needs to be insta
 to more restrictive license conditions. We also provide a dummy rendering backend that returns an empty image,
 mostly for debugging and benchmarking purposes.
 
+## Installation
+
+Before running the usual `pip install torchdrivesim` command, correct `torch` and `pytorch3d` versions need to be 
+installed by the user. `torchdrivesim` will assume the user have installed
+the correct version already as `Pytorch` related packages are marked as optional.
+
+To install the correct `torch` using `pip`, go visit the
+[prebuilt whls page](https://download.pytorch.org/whl/torch_stable.html) to select the right `.whl` file based on the
+Python version, cuda availability and the operating system. For example, to install version `1.11.0` for `python3.8`
+with `cuda` on Linux, run  
+ `pip install https://download.pytorch.org/whl/cu113/torch-1.10.2%2Bcu113-cp38-cp38-linux_x86_64.whl`  
+or  
+`pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html`  
+
+To install the correct `pytorch3d`, the user need to find the correct prebuilt wheel for the installed `torch` version,
+more details can be found at the
+[official installation page](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md). For example, to 
+install version `0.7.2` for `python3.8` with `pip`, run  
+`pip install https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/pytorch3d-0.7.2-cp38-cp38-linux_x86_64.whl`  
+or  
+`pip install pytorch3d==0.7.2 -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html`  
+
+Here are the summarized example steps for python3.8 and cuda 11.3:
+```bazaar
+1. pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+2. pip install pytorch3d==0.7.2 -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
+3. pip install torchdrivesim
+```
 ## Docker
 
 In order to use TorchDriveSim smoothly without worrying about installing dependencies, we provide a 
