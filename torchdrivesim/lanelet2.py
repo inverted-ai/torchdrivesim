@@ -126,7 +126,7 @@ def find_direction(linestring, location3d) -> float:
         point_a, point_b = linestring[second_closest_point_idx], linestring[closest_point_idx]
     else:
         point_b, point_a = linestring[second_closest_point_idx], linestring[closest_point_idx]
-    direction = np.arctan2(point_b.x - point_a.x, point_b.y - point_a.y)
+    direction = np.arctan2(point_b.y - point_a.y, point_b.x - point_a.x)
 
     return direction
 
