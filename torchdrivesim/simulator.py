@@ -868,7 +868,7 @@ class Simulator(SimulatorInterface):
                 out = flattened.agent_split(out, agent_dim=agent_dim)
                 out = {k: out[k] for k in agent_types if k in out}
                 if out:
-                    out = flattened.agent_concat(x, agent_dim=agent_dim)
+                    out = flattened.agent_concat(out, agent_dim=agent_dim)
                 else:
                     new_shape = list(x.shape)
                     new_shape[agent_dim] = 0
