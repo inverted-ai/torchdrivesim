@@ -214,6 +214,13 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_agent_type(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxA long tensors representing agent type.
+        """
+        pass
+
+    @abc.abstractmethod
     def get_present_mask(self) -> TensorPerAgentType:
         """
         Returns a functor of BxA boolean tensors indicating which agents are currently present in the simulation.
@@ -411,7 +418,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         return violation
 
     @abc.abstractmethod
-    def _compute_collision_of_single_agent(self, box: Tensor, remove_self_overlap: bool = True) -> Tensor:
+    def _compute_collision_of_single_agent(self, box: Tensor, remove_self_overlap: Tensor = None, agent_types: list = []) -> Tensor:
         """
         Computes the collision metric for an agent specified as a bounding box.
         Includes collisions with all agents in the simulation,
@@ -420,7 +427,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
 
         Args:
             box: Bx5 tensor, with the last dimension being (x,y,length,width,psi).
-            remove_self_overlap: if the input agent is present in the simulation, set this to subtract self-overlap
+            remove_self_overlap: B boolean tensor, where if the input agent is present in the simulation,
+                set this to subtract self-overlap. By default it is assumed that self overlapping exists and will be removed.
+            agent_types: An optional list of specific agent types for computing collisions with
         Returns:
             a tensor with a single dimension of B elements
         """
@@ -442,35 +451,48 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         return
 
-    def compute_collision(self) -> TensorPerAgentType:
+    def compute_collision(self, agent_types=[]) -> TensorPerAgentType:
         """
         Compute the collision metric for agents exposed through the interface of this class.
         Includes collisions with agents not exposed through the interface.
         Collisions are defined as overlap of agents' bounding boxes, with details determined
         by the specific method chosen in the config.
 
+        Args:
+            agent_type: An optional list of specific agent types for computing collisions with. Not supported by
+                the collision metrics `nograd` and `nograd-pytorch3d`.
         Returns:
             a functor of BxA tensors
         """
         innermost_simulator = self.get_innermost_simulator()
         if innermost_simulator.cfg.collision_metric in [CollisionMetric.nograd, CollisionMetric.nograd_pytorch3d]:
+            assert not agent_types, 'The argument `agent_types` is not supported by the selected collision metric.'
             agent_collisions = self._compute_collision_of_multi_agents()
         else:
-            def f(box):
+            def f(box, box_type):
                 agent_count = box.shape[-2]
                 if agent_count == 0:
                     return torch.zeros_like(box[..., 0])
                 else:
                     # TODO: batch across agent dimension
-                    return torch.stack([innermost_simulator._compute_collision_of_single_agent(box[..., i, :])
-                                        for i in range(box.shape[-2])], dim=-1)
+                    collisions = []
+                    for i in range(box.shape[-2]):
+                        remove_self_overlap = None
+                        if agent_types:
+                            remove_self_overlap = torch.tensor([innermost_simulator._agent_types[a_type_idx] in agent_types
+                                                            for a_type_idx in box_type[..., i].flatten()], device=box_type.device)
+                            remove_self_overlap = remove_self_overlap.reshape(box_type[..., i].shape)
+                        collision = innermost_simulator._compute_collision_of_single_agent(box[..., i, :],
+                            remove_self_overlap=remove_self_overlap, agent_types=agent_types)
+                        collisions.append(collision)
+                    return torch.stack(collisions, dim=-1)
 
             agent_box = self.across_agent_types(
                 lambda state, size: torch.cat([state[..., :2], size, state[..., 2:3]], dim=-1),
                 self.get_state(), self.get_agent_size()
             )
             agent_collisions = self.across_agent_types(
-                f, agent_box
+                f, agent_box, self.get_agent_type()
             )
 
         return agent_collisions
@@ -507,6 +529,7 @@ class Simulator(SimulatorInterface):
 
         self._agent_types = list(self.kinematic_model.keys())
         self._batch_size = self.road_mesh.batch_size
+        self.agent_type = {a_type: torch.ones_like(a_size[..., 0]).long()*idx for idx, (a_type, a_size) in enumerate(agent_size.items())}
 
         self.validate_agent_types()
         self.validate_tensor_shapes()
@@ -555,6 +578,7 @@ class Simulator(SimulatorInterface):
         self.road_mesh = self.road_mesh.to(device)
         self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
         self.agent_size = self.agent_functor.to_device(self.agent_size, device)
+        self.agent_type = self.agent_functor.to_device(self.agent_type, device)
         self.present_mask = self.agent_functor.to_device(self.present_mask, device)
 
         self.kinematic_model = self.agent_functor.to_device(self.kinematic_model, device)  # type: ignore
@@ -582,6 +606,7 @@ class Simulator(SimulatorInterface):
         self.road_mesh = self.road_mesh.expand(n)
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         self.agent_size = self.across_agent_types(enlarge, self.agent_size)
+        self.agent_type = self.across_agent_types(enlarge, self.agent_type)
         self.present_mask = self.across_agent_types(enlarge, self.present_mask)
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
@@ -611,6 +636,9 @@ class Simulator(SimulatorInterface):
         self.agent_size = self.across_agent_types(
             lambda x: x[idx], self.agent_size
         )
+        self.agent_type = self.across_agent_types(
+            lambda x: x[idx], self.agent_type
+        )
         self.present_mask = self.across_agent_types(
             lambda x: x[idx], self.present_mask
         )
@@ -633,12 +661,14 @@ class Simulator(SimulatorInterface):
         # check that all dicts have the same keys and iterate in the same order
         assert list(self.kinematic_model.keys()) == self.agent_types
         assert list(self.agent_size.keys()) == self.agent_types
+        assert list(self.agent_type.keys()) == self.agent_types
         assert list(self.present_mask.keys()) == self.agent_types
 
     def validate_tensor_shapes(self):
         # check that tensors have the expected number of dimensions
         self.across_agent_types(lambda kin: assert_equal(len(kin.get_state().shape), 3), self.kinematic_model)
         self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), self.agent_size)
+        self.across_agent_types(lambda s: assert_equal(len(s.shape), 2), self.agent_type)
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), self.present_mask)
 
         # check that batch size is the same everywhere
@@ -646,12 +676,14 @@ class Simulator(SimulatorInterface):
         assert_equal(self.road_mesh.batch_size, b)
         self.across_agent_types(lambda kin: assert_equal(kin.get_state().shape[0], b), self.kinematic_model)
         self.across_agent_types(lambda s: assert_equal(s.shape[0], b), self.agent_size)
+        self.across_agent_types(lambda s: assert_equal(s.shape[0], b), self.agent_type)
         self.across_agent_types(lambda m: assert_equal(m.shape[0], b), self.present_mask)
 
         # check that the number of agents is the same everywhere
         self.validate_agent_count(self.across_agent_types(
             lambda kin: kin.get_state().shape[-2], self.kinematic_model))
         self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], self.agent_size))
+        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-1], self.agent_type))
         self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], self.present_mask))
 
     def validate_agent_count(self, count_dict):
@@ -680,6 +712,9 @@ class Simulator(SimulatorInterface):
 
     def get_agent_size(self):
         return self.agent_size
+
+    def get_agent_type(self):
+        return self.agent_type
 
     def get_present_mask(self):
         return self.present_mask
@@ -821,13 +856,29 @@ class Simulator(SimulatorInterface):
         )
         return offroad
 
-    def _compute_collision_of_single_agent(self, box, remove_self_overlap=True):
+    def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=[]):
         assert len(box.shape) == 2
         assert box.shape[0] == self.batch_size
         assert box.shape[-1] == 5
         flattened = HomogeneousWrapper(self)
-        states = flattened.get_state()
-        sizes = flattened.get_agent_size()
+
+        def f(x, agent_dim):
+            out = x
+            if agent_types:
+                out = flattened.agent_split(out, agent_dim=agent_dim)
+                out = {k: out[k] for k in agent_types if k in out}
+                if out:
+                    out = flattened.agent_concat(x, agent_dim=agent_dim)
+                else:
+                    new_shape = list(x.shape)
+                    new_shape[agent_dim] = 0
+                    out = torch.zeros(new_shape, dtype=x.dtype, device=x.device)
+            return out
+
+        states = f(flattened.get_state(), agent_dim=-2)
+        if states.shape[-2] == 0:
+            return torch.zeros_like(box[..., 0])
+        sizes = f(flattened.get_agent_size(), agent_dim=-2)
         all_boxes = torch.cat([states[..., :2], sizes, states[..., 2:3]], dim=-1)  # TODO: cache this result
         expanded_box = box.unsqueeze(-2).expand_as(all_boxes)
         all_boxes = torch.nan_to_num(all_boxes, nan=0.0)
@@ -839,10 +890,11 @@ class Simulator(SimulatorInterface):
         else:
             raise ValueError("Unrecognized collision metric: " + str(self.cfg.collision_metric))
         overlap = torch.nan_to_num(overlap, nan=0.0)
-        overlap = overlap * flattened.get_present_mask().to(overlap.dtype)
+        overlap = overlap * f(flattened.get_present_mask(), agent_dim=-1).to(overlap.dtype)
         collision = overlap.sum(dim=-1)
-        if remove_self_overlap:
-            collision -= overlap.max(dim=-1)[0]  # self-overlap is always highest
+        if remove_self_overlap is None:
+            remove_self_overlap = torch.ones_like(collision)
+        collision = collision - overlap.max(dim=-1)[0] * remove_self_overlap.to(collision.dtype)  # self-overlap is always highest
         return collision
 
     def _compute_collision_of_multi_agents(self, mask=None):
@@ -943,6 +995,9 @@ class SimulatorWrapper(SimulatorInterface):
     def get_agent_size(self):
         return self.inner_simulator.get_agent_size()
 
+    def get_agent_type(self):
+        return self.inner_simulator.get_agent_type()
+
     def get_present_mask(self):
         return self.inner_simulator.get_present_mask()
 
@@ -970,8 +1025,8 @@ class SimulatorWrapper(SimulatorInterface):
     def compute_offroad(self):
         return self.inner_simulator.compute_offroad()
 
-    def _compute_collision_of_single_agent(self, box, remove_self_overlap=True):
-        return self.inner_simulator._compute_collision_of_single_agent(box, remove_self_overlap=remove_self_overlap)
+    def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=[]):
+        return self.inner_simulator._compute_collision_of_single_agent(box, remove_self_overlap=remove_self_overlap, agent_types=agent_types)
 
     def _compute_collision_of_multi_agents(self, mask=None):
         return self.inner_simulator._compute_collision_of_multi_agents(mask)
@@ -1055,6 +1110,12 @@ class NPCWrapper(SimulatorWrapper):
     def get_agent_size(self):
         sizes = self.across_agent_types(
             lambda x, k: x[..., k.logical_not(), :], self.inner_simulator.get_agent_size(), self.npc_mask
+        )
+        return sizes
+
+    def get_agent_type(self):
+        sizes = self.across_agent_types(
+            lambda x, k: x[..., k.logical_not()], self.inner_simulator.get_agent_type(), self.npc_mask
         )
         return sizes
 
@@ -1307,6 +1368,9 @@ class HomogeneousWrapper(SimulatorWrapper):
 
     def get_agent_size(self):
         return self.agent_concat(self.inner_simulator.get_agent_size(), agent_dim=-2)
+
+    def get_agent_type(self):
+        return self.agent_concat(self.inner_simulator.get_agent_type(), agent_dim=-1)
 
     def get_present_mask(self):
         return self.agent_concat(self.inner_simulator.get_present_mask(), agent_dim=-1)
@@ -1688,6 +1752,9 @@ class SelectiveWrapper(SimulatorWrapper):
 
     def get_agent_size(self):
         return self._restrict_tensor(self.inner_simulator.get_agent_size(), agent_dim=-2)
+
+    def get_agent_type(self):
+        return self._restrict_tensor(self.inner_simulator.get_agent_type(), agent_dim=-1)
 
     def get_all_agents_absolute(self):
         return self._restrict_tensor(self.inner_simulator.get_all_agents_absolute(), agent_dim=-2)
