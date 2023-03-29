@@ -85,8 +85,11 @@ def find_lanelet_directions(lanelet_map: LaneletMap, x: float, y: float, tags_to
     directions = []
     for distance, lanelet in all_selected_lanelets:
         centerline = lanelet.centerline
-        if len(centerline) < 2 or any([lanelet_attr in lanelet.attributes for lanelet_attr in tags_to_exclude]):
+        if len(centerline) < 2:
             continue
+        if any([lanelet_attr in lanelet.attributes for lanelet_attr in tags_to_exclude]):
+            directions = []
+            break
         direction = find_direction(centerline, location3d)
         directions.append(direction)
     return directions
@@ -126,7 +129,7 @@ def find_direction(linestring, location3d) -> float:
         point_a, point_b = linestring[second_closest_point_idx], linestring[closest_point_idx]
     else:
         point_b, point_a = linestring[second_closest_point_idx], linestring[closest_point_idx]
-    direction = np.arctan2(point_b.x - point_a.x, point_b.y - point_a.y)
+    direction = np.arctan2(point_b.y - point_a.y, point_b.x - point_a.x)
 
     return direction
 
