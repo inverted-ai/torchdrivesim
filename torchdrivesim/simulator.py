@@ -216,7 +216,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_agent_type(self) -> TensorPerAgentType:
         """
-        Returns a functor of BxA long tensors representing agent type.
+        Returns a functor of BxA long tensors containing agent type indexes relative to the list containing all agent types
+            as returned by `SimulatorInterface.agent_types`.
         """
         pass
 
@@ -418,7 +419,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         return violation
 
     @abc.abstractmethod
-    def _compute_collision_of_single_agent(self, box: Tensor, remove_self_overlap: Tensor = None, agent_types: list = []) -> Tensor:
+    def _compute_collision_of_single_agent(self, box: Tensor, remove_self_overlap: Optional[Tensor] = None, agent_types: Optional[List[str]] = None) -> Tensor:
         """
         Computes the collision metric for an agent specified as a bounding box.
         Includes collisions with all agents in the simulation,
@@ -429,7 +430,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             box: Bx5 tensor, with the last dimension being (x,y,length,width,psi).
             remove_self_overlap: B boolean tensor, where if the input agent is present in the simulation,
                 set this to subtract self-overlap. By default it is assumed that self overlapping exists and will be removed.
-            agent_types: An optional list of specific agent types for computing collisions with
+            agent_types: An optional list of specific agent types for computing collisions with.
+                By default all available agent types will be used.
         Returns:
             a tensor with a single dimension of B elements
         """
@@ -451,7 +453,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         return
 
-    def compute_collision(self, agent_types=[]) -> TensorPerAgentType:
+    def compute_collision(self, agent_types: Optional[List[str]] = None) -> TensorPerAgentType:
         """
         Compute the collision metric for agents exposed through the interface of this class.
         Includes collisions with agents not exposed through the interface.
@@ -459,14 +461,14 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         by the specific method chosen in the config.
 
         Args:
-            agent_type: An optional list of specific agent types for computing collisions with. Not supported by
+            agent_types: An optional list of specific agent types for computing collisions with. Not supported by
                 the collision metrics `nograd` and `nograd-pytorch3d`.
         Returns:
             a functor of BxA tensors
         """
         innermost_simulator = self.get_innermost_simulator()
         if innermost_simulator.cfg.collision_metric in [CollisionMetric.nograd, CollisionMetric.nograd_pytorch3d]:
-            assert not agent_types, 'The argument `agent_types` is not supported by the selected collision metric.'
+            assert agent_types is not None, 'The argument `agent_types` is not supported by the selected collision metric.'
             agent_collisions = self._compute_collision_of_multi_agents()
         else:
             def f(box, box_type):
@@ -478,7 +480,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
                     collisions = []
                     for i in range(box.shape[-2]):
                         remove_self_overlap = None
-                        if agent_types:
+                        if agent_types is not None:
                             remove_self_overlap = torch.tensor([innermost_simulator._agent_types[a_type_idx] in agent_types
                                                             for a_type_idx in box_type[..., i].flatten()], device=box_type.device)
                             remove_self_overlap = remove_self_overlap.reshape(box_type[..., i].shape)
@@ -856,7 +858,7 @@ class Simulator(SimulatorInterface):
         )
         return offroad
 
-    def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=[]):
+    def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=None):
         assert len(box.shape) == 2
         assert box.shape[0] == self.batch_size
         assert box.shape[-1] == 5
@@ -864,7 +866,7 @@ class Simulator(SimulatorInterface):
 
         def f(x, agent_dim):
             out = x
-            if agent_types:
+            if agent_types is not None:
                 out = flattened.agent_split(out, agent_dim=agent_dim)
                 out = {k: out[k] for k in agent_types if k in out}
                 if out:
@@ -1025,7 +1027,7 @@ class SimulatorWrapper(SimulatorInterface):
     def compute_offroad(self):
         return self.inner_simulator.compute_offroad()
 
-    def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=[]):
+    def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=None):
         return self.inner_simulator._compute_collision_of_single_agent(box, remove_self_overlap=remove_self_overlap, agent_types=agent_types)
 
     def _compute_collision_of_multi_agents(self, mask=None):
