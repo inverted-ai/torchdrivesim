@@ -468,7 +468,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         innermost_simulator = self.get_innermost_simulator()
         if innermost_simulator.cfg.collision_metric in [CollisionMetric.nograd, CollisionMetric.nograd_pytorch3d]:
-            assert agent_types is not None, 'The argument `agent_types` is not supported by the selected collision metric.'
+            assert agent_types is None, 'The argument `agent_types` is not supported by the selected collision metric.'
             agent_collisions = self._compute_collision_of_multi_agents()
         else:
             def f(box, box_type):
