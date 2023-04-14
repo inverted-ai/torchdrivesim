@@ -220,7 +220,7 @@ class OrientedKinematicModel(SimpleKinematicModel):
             current_state = self.get_state()
         current_psi = current_state[..., 2:3]
         xy = rotate(parent_action[..., :2], - current_psi)
-        return torch.cat([xy, parent_action[2:]], dim=-1)
+        return torch.cat([xy, parent_action[...,2:]], dim=-1)
 
 
 class KinematicBicycle(KinematicModel):
