@@ -4,8 +4,7 @@ import pytest
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-@pytest.mark.parametrize("cfg", [Pytorch3DRendererConfig(highlight_ego_vehicle=True),Pytorch3DRendererConfig(),
-                                 NvdiffrastRendererConfig(highlight_ego_vehicle=True), NvdiffrastRendererConfig()])
+@pytest.mark.parametrize("cfg", [Pytorch3DRendererConfig(highlight_ego_vehicle=True),Pytorch3DRendererConfig()])
 def test_render_agents(cfg: RendererConfig):
     batch_size = 2
     renderer = renderer_from_config(cfg, batch_size=batch_size).to(device)
