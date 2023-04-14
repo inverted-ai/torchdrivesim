@@ -31,6 +31,7 @@ class RendererConfig:
     backend: str = 'default'
     render_agent_direction: bool = True
     left_handed_coordinates: bool = False
+    highlight_ego_vehicle: bool = False
 
 
 @dataclass
@@ -289,6 +290,13 @@ class BirdviewRenderer(abc.ABC):
             cameras = self.construct_cameras(camera_xy, camera_sc, scale=scale)
 
         static_mesh = self.static_mesh
+        if self.cfg.highlight_ego_vehicle:
+            agent_state = agent_state.copy()
+            agent_state['ego'] = agent_state['vehicle'][:, :1]
+            agent_state['vehicle'] = agent_state['vehicle'][:, 1:]
+            agent_attributes = agent_attributes.copy()
+            agent_attributes['ego'] = agent_attributes['vehicle'][:, :1]
+            agent_attributes['vehicle'] = agent_attributes['vehicle'][:, 1:]
         actor_mesh = self.make_actor_mesh(agent_state, agent_attributes)
 
         actor_mesh = actor_mesh.expand(n_cameras_per_batch)
@@ -512,7 +520,7 @@ def get_default_color_map() -> Dict[str, Tuple[int, int, int]]:
         background=(0, 0, 0),
         road=(155, 155, 155),
         corridor=(0, 155, 0),
-        ego=(32, 74, 135),
+        ego=(255, 0, 0),
         vehicle=(32, 74, 135),
         bicycle=(24, 104, 225),
         pedestrian=(173, 127, 168),

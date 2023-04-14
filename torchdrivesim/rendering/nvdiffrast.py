@@ -89,6 +89,8 @@ class NvdiffrastRenderer(BirdviewRenderer):
                 mesh.colors[k] = tensor_color(self.color_map[k])
             if k not in mesh.zs:
                 mesh.zs[k] = self.rendering_levels[k]
+        if self.cfg.highlight_ego_vehicle:
+            mesh.colors["ego"] = tensor_color((self.color_map["ego"]))
         meshes = mesh.pytorch3d()
         mesh = mesh.fill_attr()
         if not hasattr(self.glctx, 'initial_dummy_frame_rendered') and \

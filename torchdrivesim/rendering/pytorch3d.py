@@ -80,6 +80,8 @@ class Pytorch3DRenderer(BirdviewRenderer):
                 mesh.colors[k] = tensor_color(self.color_map[k])
             if k not in mesh.zs:
                 mesh.zs[k] = self.rendering_levels[k]
+        if self.cfg.highlight_ego_vehicle:
+            mesh.colors["ego"] = tensor_color((self.color_map["ego"]))
         meshes = mesh.pytorch3d()
         if res != self.res:
             renderer = self.make_renderer(res, self.cfg.differentiable_rendering,
