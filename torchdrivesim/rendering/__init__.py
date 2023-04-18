@@ -27,6 +27,7 @@ def renderer_from_config(cfg: RendererConfig, *args, **kwargs) -> BirdviewRender
         cfg = Pytorch3DRendererConfig(
             left_handed_coordinates=cfg.left_handed_coordinates,
             render_agent_direction=cfg.render_agent_direction,
+            highlight_ego_vehicle=cfg.highlight_ego_vehicle
         )
 
     if isinstance(cfg, DummyRendererConfig):
