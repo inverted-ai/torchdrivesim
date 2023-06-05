@@ -88,10 +88,13 @@ class BirdviewRenderer(abc.ABC):
         self.static_mesh: BirdviewMesh = static_mesh
 
         if world_center is None:
-            if 'road' in self.static_mesh.categories:
-                world_center = self.static_mesh.separate_by_category()['road'].center
+            if not hasattr(self.static_mesh, 'categories'):
+                world_center = torch.tensor([[0., 0.]])
             else:
-                world_center = self.static_mesh.center
+                if 'road' in self.static_mesh.categories:
+                    world_center = self.static_mesh.separate_by_category()['road'].center
+                else:
+                    world_center = self.static_mesh.center
         self.world_center = world_center.to(device)
 
     def get_color(self, element_type: str) -> Tuple[int, int, int]:
@@ -322,7 +325,7 @@ class BirdviewRenderer(abc.ABC):
             controls_mesh = self.make_traffic_controls_mesh(traffic_controls)
             meshes.append(controls_mesh)
 
-        mesh = BirdviewMesh.concat(meshes)
+        mesh = static_mesh.concat(meshes)
 
         if res is None:
             res = self.res
