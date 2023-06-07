@@ -3,6 +3,7 @@ Custom classes for representing various triangular meshes as tensors.
 """
 import copy
 import dataclasses
+import json
 import logging
 import math
 import os
@@ -235,6 +236,28 @@ class BaseMesh:
         else:
             raise BadMeshFormat
 
+    def save(self, file_save_path: str):
+        """
+        Save the attributes of the object in a non-pickle format.
+        """
+        if not os.path.exists(os.path.dirname(file_save_path)):
+            os.makedirs(os.path.dirname(file_save_path))
+        data = {
+            'verts': self.verts.tolist(),
+            'faces': self.faces.tolist()
+        }
+        with open(file_save_path + f'.{self.__class__.__name__}', 'w') as file:
+            json.dump(data, file)
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath, 'r') as file:
+            data = json.load(file)
+        return cls(
+            verts=torch.tensor(data['verts']),
+            faces=torch.tensor(data['faces'])
+        )
+
     @classmethod
     def empty(cls, dim: int = 2, batch_size: int = 1):
         """
@@ -407,6 +430,27 @@ class AttributeMesh(BaseMesh):
             return mesh
         else:
             raise BadMeshFormat
+
+    def save(self, file_save_path: str):
+        data = {
+            'verts': self.verts.tolist(),
+            'faces': self.faces.tolist(),
+            "attrs": self.attrs.tolist()
+        }
+        if not os.path.exists(os.path.dirname(file_save_path)):
+            os.makedirs(os.path.dirname(file_save_path))
+        with open(file_save_path + f'.{self.__class__.__name__}', 'w') as file:
+            json.dump(data, file)
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath, 'r') as file:
+            data = json.load(file)
+        return cls(
+            verts=torch.tensor(data['verts']),
+            faces=torch.tensor(data['faces']),
+            attrs=torch.tensor(data['attrs'])
+        )
 
     @classmethod
     def empty(cls, dim=2, batch_size=1, attr_dim=3):
@@ -605,6 +649,36 @@ class BirdviewMesh(BaseMesh):
             return lane_mesh
         else:
             raise BadMeshFormat
+
+    def save(self, file_save_path: str):
+        data = {
+            'verts': self.verts.tolist(),
+            'faces': self.faces.tolist(),
+            'categories': self.categories,
+            'colors': {k: v.tolist() for k, v in self.colors.items()},
+            'zs': self.zs,
+            'vert_category': self.vert_category.tolist(),
+            '_cat_fill': self._cat_fill
+
+        }
+        if not os.path.exists(os.path.dirname(file_save_path)):
+            os.makedirs(os.path.dirname(file_save_path))
+        with open(file_save_path + f'.{self.__class__.__name__}', 'w') as file:
+            json.dump(data, file)
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath, 'r') as file:
+            data = json.load(file)
+        return cls(
+            verts=torch.tensor(data['verts']),
+            faces=torch.tensor(data['faces']),
+            categories=data['categories'],
+            colors={k: torch.tensor(v) for k, v in data['colors'].items()},
+            zs=data['zs'],
+            vert_category=torch.tensor(data['vert_category']),
+            _cat_fill=data['_cat_fill']
+        )
 
     @classmethod
     def empty(cls, dim=2, batch_size=1):

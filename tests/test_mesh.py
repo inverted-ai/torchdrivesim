@@ -62,6 +62,11 @@ class TestBaseMesh:
         self.mesh.trim(torch.zeros(1, 1, 2))
         self.mesh.trim(torch.zeros(1, 1, 2), True)
 
+    def test_save_and_load(self):
+        self.mesh.save(os.path.join(self.save_dir, 'test_mesh.json'))
+        saved_mesh = self.mesh.load(os.path.join(self.save_dir, 'test_mesh.json'))
+        assert torch.equal(self.mesh.verts, saved_mesh.verts)
+        assert torch.equal(self.mesh.faces, saved_mesh.faces)
 
 class TestAttributeMesh(TestBaseMesh):
     mesh = None
@@ -94,6 +99,12 @@ class TestAttributeMesh(TestBaseMesh):
     def test_pickle_and_unpickle(self):
         pass
 
+    def test_save_and_load(self):
+        self.mesh.save(os.path.join(self.save_dir, 'test_mesh.json'))
+        saved_mesh = self.mesh.load(os.path.join(self.save_dir, 'test_mesh.json'))
+        assert torch.equal(self.mesh.verts, saved_mesh.verts)
+        assert torch.equal(self.mesh.faces, saved_mesh.faces)
+        assert torch.equal(self.mesh.attrs, saved_mesh.attrs)
 
 class TestBirdviewMesh(TestBaseMesh):
     mesh = None
@@ -151,3 +162,14 @@ class TestBirdviewMesh(TestBaseMesh):
         assert set(mesh.categories) == set(meshes.keys())
         for k in meshes.keys():
             assert mesh.batch_size == meshes[k].batch_size
+
+    def test_save_and_load(self):
+        self.mesh.save(os.path.join(self.save_dir, 'test_mesh.json'))
+        saved_mesh = self.mesh.load(os.path.join(self.save_dir, 'test_mesh.json'))
+        assert torch.equal(self.mesh.verts, saved_mesh.verts)
+        assert torch.equal(self.mesh.faces, saved_mesh.faces)
+        assert self.mesh.categories == saved_mesh.categories
+        assert self.mesh.colors.keys() == saved_mesh.colors.keys()
+        assert self.mesh.zs == saved_mesh.zs
+        assert torch.equal(self.mesh.vert_category, saved_mesh.vert_category)
+        assert self.mesh._cat_fil == saved_mesh._cat_fil
