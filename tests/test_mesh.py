@@ -172,4 +172,4 @@ class TestBirdviewMesh(TestBaseMesh):
         assert self.mesh.colors.keys() == saved_mesh.colors.keys()
         assert self.mesh.zs == saved_mesh.zs
         assert torch.equal(self.mesh.vert_category, saved_mesh.vert_category)
-        assert self.mesh._cat_fil == saved_mesh._cat_fil
+        assert self.mesh._cat_fill == saved_mesh._cat_fill

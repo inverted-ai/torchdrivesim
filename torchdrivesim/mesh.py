@@ -11,6 +11,7 @@ import pickle
 import pickle as default_pickle_module
 from dataclasses import dataclass
 from typing import Union, Tuple, List, Dict, Optional, Any
+from typing_extensions import Self
 
 import numpy as np
 import pytorch3d
@@ -235,28 +236,45 @@ class BaseMesh:
             return road_mesh
         else:
             raise BadMeshFormat
-
-    def save(self, file_save_path: str):
-        """
-        Save the attributes of the object in a non-pickle format.
-        """
-        if not os.path.exists(os.path.dirname(file_save_path)):
-            os.makedirs(os.path.dirname(file_save_path))
-        data = {
+    def serialize(self):
+        return {
             'verts': self.verts.tolist(),
             'faces': self.faces.tolist()
         }
-        with open(file_save_path + f'.{self.__class__.__name__}', 'w') as file:
+
+    def save(self, file_save_path: str):
+        """
+        Save the attributes of the mesh object in a json where tensors are converted to lists.
+        """
+        directory = os.path.dirname(file_save_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(os.path.dirname(file_save_path))
+        data = self.serialize()
+        with open(file_save_path, 'w') as file:
             json.dump(data, file)
+
+    @classmethod
+    def _deserialize_tensors(cls, data: Dict) -> Dict:
+        """
+        Convert list attributes to tensor attributes if there is any tensor attribute
+        """
+        new_data = data.copy()
+        new_data.update(verts=torch.tensor(data['verts']), faces=torch.tensor(data['faces']))
+        return new_data
+
+    @classmethod
+    def deserialize(cls, data: Dict) -> Self:
+        return cls(**cls._deserialize_tensors(data))
 
     @classmethod
     def load(cls, filepath):
         with open(filepath, 'r') as file:
             data = json.load(file)
-        return cls(
-            verts=torch.tensor(data['verts']),
-            faces=torch.tensor(data['faces'])
-        )
+        try:
+            return cls.deserialize(data)
+        except Exception as e:
+            logger.error(e)
+            raise BadMeshFormat
 
     @classmethod
     def empty(cls, dim: int = 2, batch_size: int = 1):
@@ -431,16 +449,16 @@ class AttributeMesh(BaseMesh):
         else:
             raise BadMeshFormat
 
-    def save(self, file_save_path: str):
-        data = {
-            'verts': self.verts.tolist(),
-            'faces': self.faces.tolist(),
-            "attrs": self.attrs.tolist()
-        }
-        if not os.path.exists(os.path.dirname(file_save_path)):
-            os.makedirs(os.path.dirname(file_save_path))
-        with open(file_save_path + f'.{self.__class__.__name__}', 'w') as file:
-            json.dump(data, file)
+    def serialize(self):
+        data = super().serialize()
+        data.update({"attrs": self.attrs.tolist()})
+        return data
+
+    @classmethod
+    def _deserialize_tensors(cls, data: Dict) -> Dict:
+        new_data = super()._deserialize_tensors(data)
+        new_data.update(attrs=torch.tensor(data['attrs']))
+        return new_data
 
     @classmethod
     def load(cls, filepath):
@@ -650,35 +668,26 @@ class BirdviewMesh(BaseMesh):
         else:
             raise BadMeshFormat
 
-    def save(self, file_save_path: str):
-        data = {
-            'verts': self.verts.tolist(),
-            'faces': self.faces.tolist(),
+    def serialize(self):
+        data = super().serialize()
+        data.update({
             'categories': self.categories,
             'colors': {k: v.tolist() for k, v in self.colors.items()},
             'zs': self.zs,
             'vert_category': self.vert_category.tolist(),
             '_cat_fill': self._cat_fill
-
-        }
-        if not os.path.exists(os.path.dirname(file_save_path)):
-            os.makedirs(os.path.dirname(file_save_path))
-        with open(file_save_path + f'.{self.__class__.__name__}', 'w') as file:
-            json.dump(data, file)
+        })
+        return data
 
     @classmethod
-    def load(cls, filepath):
-        with open(filepath, 'r') as file:
-            data = json.load(file)
-        return cls(
-            verts=torch.tensor(data['verts']),
-            faces=torch.tensor(data['faces']),
-            categories=data['categories'],
-            colors={k: torch.tensor(v) for k, v in data['colors'].items()},
-            zs=data['zs'],
-            vert_category=torch.tensor(data['vert_category']),
-            _cat_fill=data['_cat_fill']
-        )
+    def _deserialize_tensors(cls, data: Dict) -> Dict:
+        new_data = super()._deserialize_tensors(data)
+        new_data.update(categories=data['categories'],
+                        colors={k: torch.tensor(v) for k, v in data['colors'].items()},
+                        zs=data['zs'],
+                        vert_category=torch.tensor(data['vert_category']),
+                        _cat_fill=data['_cat_fill'])
+        return new_data
 
     @classmethod
     def empty(cls, dim=2, batch_size=1):
