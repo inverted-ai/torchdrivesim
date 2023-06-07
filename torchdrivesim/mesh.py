@@ -248,7 +248,7 @@ class BaseMesh:
         """
         directory = os.path.dirname(file_save_path)
         if directory and not os.path.exists(directory):
-            os.makedirs(os.path.dirname(file_save_path))
+            os.makedirs(os.path.dirname(file_save_path), exist_ok=True)
         data = self.serialize()
         with open(file_save_path, 'w') as file:
             json.dump(data, file)
@@ -268,9 +268,9 @@ class BaseMesh:
 
     @classmethod
     def load(cls, filepath):
-        with open(filepath, 'r') as file:
-            data = json.load(file)
         try:
+            with open(filepath, 'r') as file:
+                data = json.load(file)
             return cls.deserialize(data)
         except Exception as e:
             logger.error(e)
