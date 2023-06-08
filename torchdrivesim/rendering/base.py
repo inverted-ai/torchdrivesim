@@ -89,7 +89,7 @@ class BirdviewRenderer(abc.ABC):
 
         if world_center is None:
             if not hasattr(self.static_mesh, 'categories'):
-                world_center = torch.tensor([[0., 0.]])
+                world_center = self.static_mesh.center
             else:
                 if 'road' in self.static_mesh.categories:
                     world_center = self.static_mesh.separate_by_category()['road'].center
