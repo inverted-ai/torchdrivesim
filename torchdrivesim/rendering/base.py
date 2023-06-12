@@ -87,10 +87,11 @@ class BirdviewRenderer(abc.ABC):
             static_mesh = BirdviewMesh.empty(batch_size=batch_size)
         self.static_mesh: BirdviewMesh = static_mesh
 
-        if hasattr(self.static_mesh, 'categories') and 'road' in self.static_mesh.categories:
-            world_center = self.static_mesh.separate_by_category()['road'].center
-        else:
-            world_center = self.static_mesh.center
+        if world_center is None:
+            if hasattr(self.static_mesh, 'categories') and 'road' in self.static_mesh.categories:
+                world_center = self.static_mesh.separate_by_category()['road'].center
+            else:
+                world_center = self.static_mesh.center
 
         self.world_center = world_center.to(device)
 
