@@ -1176,6 +1176,20 @@ class NPCWrapper(SimulatorWrapper):
 
         self.inner_simulator.set_state(states, mask=full_mask)
 
+        # set target state for replay vehicles
+        npc_state = self._npc_teleport_to()
+        if npc_state is not None:
+            full_npc_mask = self.across_agent_types(
+                lambda r, p: r[None, :].expand_as(p), self.npc_mask, self.inner_simulator.get_present_mask()
+            )
+            self.inner_simulator.set_state(npc_state, mask=full_npc_mask)
+
+        # update presence mask of NPCs in case it changed
+        non_replay_present_mask = self.across_agent_types(
+            lambda x, k: x[..., torch.logical_not(k)], self.inner_simulator.get_present_mask(), self.npc_mask
+        )
+        self.update_present_mask(non_replay_present_mask)
+
     def step(self, action):
         # validate tensor shape lengths
         self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), action)
