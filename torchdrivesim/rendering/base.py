@@ -268,7 +268,7 @@ class BirdviewRenderer(abc.ABC):
             res: resolution HxW of the resulting image, currently only square resolutions are supported
             traffic_controls: traffic controls by type (traffic-light, yield, etc.)
             fov: Field of view in meters
-            waypoints: BxNcx3 tensor of waypoints per camera
+            waypoints: BxNcx3 tensor of waypoints per camera (x,y,psi)
             waypoints_rendering_mask: BxNc tensor of waypoints mask per camera, indicating which waypoints should be rendered
 
         Returns:
@@ -471,7 +471,7 @@ class BirdviewRenderer(abc.ABC):
         Create a mesh of the given waypoints.
 
         Args:
-            waypoints: BxNcx3 tensor of waypoints per camera
+            waypoints: BxNcx3 tensor of waypoints per camera (x,y,psi)
         """
         batch_size, n_cameras = waypoints.shape[0], waypoints.shape[1]
         disc_verts, disc_faces = generate_disc_mesh(device=waypoints.device)
