@@ -15,7 +15,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
-from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rendering_mesh
+from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rendering_mesh, generate_disc_mesh
 from torchdrivesim.traffic_controls import BaseTrafficControl
 from torchdrivesim.utils import Resolution, rotate
 
@@ -247,7 +247,8 @@ class BirdviewRenderer(abc.ABC):
         self, agent_state: Dict[str, Tensor], agent_attributes: Dict[str, Tensor],
         camera_xy: Optional[Tensor] = None, camera_sc: Optional[Tensor] = None,
         rendering_mask: Dict[str, Tensor] = None, res: Optional[Resolution] = None,
-        traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None, fov: Optional[float] = None
+        traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None, fov: Optional[float] = None,
+        waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None
     ) -> Tensor:
         """
         Renders the agents and traffic controls on top of the static mesh.
@@ -267,6 +268,8 @@ class BirdviewRenderer(abc.ABC):
             res: resolution HxW of the resulting image, currently only square resolutions are supported
             traffic_controls: traffic controls by type (traffic-light, yield, etc.)
             fov: Field of view in meters
+            waypoints: BxNcx3 tensor of waypoints per camera
+            waypoints_rendering_mask: BxNc tensor of waypoints mask per camera, indicating which waypoints should be rendered
 
         Returns:
             tensor image of float RGB values in [0,255] range with shape shape (B*Nc)xAxCxHxW
@@ -324,6 +327,19 @@ class BirdviewRenderer(abc.ABC):
             meshes.append(controls_mesh)
 
         mesh = static_mesh.concat(meshes)
+
+        if waypoints is not None:
+            if waypoints.shape[1] != n_cameras_per_batch:
+                raise ValueError((f"The given waypoints ({waypoints.shape[1]} do not match "
+                    f"the number of cameras ({n_cameras_per_batch})."))
+            waypoints_mesh = self.make_waypoint_mesh(waypoints)
+            if waypoints_rendering_mask is not None:
+                waypoints_faces = waypoints_mesh.faces
+                waypoints_faces = waypoints_faces * waypoints_rendering_mask.reshape(-1, 1, 1).expand_as(waypoints_faces)
+                waypoints_mesh = dataclasses.replace(
+                    waypoints_mesh, faces=waypoints_faces
+                )
+            mesh = mesh.concat([mesh, waypoints_mesh])
 
         if res is None:
             res = self.res
@@ -450,6 +466,20 @@ class BirdviewRenderer(abc.ABC):
         # faces = faces.expand(batch_size, n_actors, 3)
         return BaseMesh(verts=verts, faces=faces)
 
+    def make_waypoint_mesh(self, waypoints: Tensor) -> BirdviewMesh:
+        """
+        Create a mesh of the given waypoints.
+
+        Args:
+            waypoints: BxNcx3 tensor of waypoints per camera
+        """
+        batch_size, n_cameras = waypoints.shape[0], waypoints.shape[1]
+        disc_verts, disc_faces = generate_disc_mesh(device=waypoints.device)
+        disc_verts = disc_verts[None, ...].expand(batch_size*n_cameras, *disc_verts.shape)
+        disc_faces = disc_faces[None, ...].expand(batch_size*n_cameras, *disc_faces.shape)
+        disc_verts = self.transform(disc_verts, waypoints.reshape(-1, 3))
+        return rendering_mesh(BaseMesh(verts=disc_verts, faces=disc_faces), 'goal_waypoint')
+
 
 class DummyRenderer(BirdviewRenderer):
     """
@@ -496,18 +526,19 @@ def get_default_rendering_levels() -> Dict[str, float]:
         bicycle=5,
         pedestrian=6,
         map_boundary=7,
-        ground_truth=8,
-        prediction=9,
-        traffic_light=10,
-        traffic_light_green=10,
-        traffic_light_yellow=10,
-        traffic_light_red=10,
-        stop_sign=10,
-        yield_sign=10,
-        left_lane=11,
-        joint_lane=12,
-        right_lane=13,
-        road=14,
+        goal_waypoint=8,
+        ground_truth=9,
+        prediction=10,
+        traffic_light=11,
+        traffic_light_green=11,
+        traffic_light_yellow=11,
+        traffic_light_red=11,
+        stop_sign=11,
+        yield_sign=11,
+        left_lane=12,
+        joint_lane=13,
+        right_lane=14,
+        road=15,
     )
     return levels
 
@@ -538,5 +569,6 @@ def get_default_color_map() -> Dict[str, Tuple[int, int, int]]:
         traffic_light_red=(224, 53, 49),
         yield_sign=(210, 125, 45),
         stop_sign=(72, 60, 50),
+        goal_waypoint=(139, 64, 0),
     )
     return color_map
