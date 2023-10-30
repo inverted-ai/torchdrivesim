@@ -326,8 +326,6 @@ class BirdviewRenderer(abc.ABC):
             controls_mesh = self.make_traffic_controls_mesh(traffic_controls)
             meshes.append(controls_mesh)
 
-        mesh = static_mesh.concat(meshes)
-
         if waypoints is not None:
             if waypoints.shape[1] != n_cameras_per_batch:
                 raise ValueError((f"The given waypoints ({waypoints.shape[1]} do not match "
@@ -339,7 +337,9 @@ class BirdviewRenderer(abc.ABC):
                 waypoints_mesh = dataclasses.replace(
                     waypoints_mesh, faces=waypoints_faces
                 )
-            mesh = mesh.concat([mesh, waypoints_mesh])
+            meshes.append(waypoints_mesh)
+
+        mesh = static_mesh.concat(meshes)
 
         if res is None:
             res = self.res
