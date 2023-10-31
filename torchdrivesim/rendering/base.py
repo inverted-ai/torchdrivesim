@@ -481,11 +481,11 @@ class BirdviewRenderer(abc.ABC):
         batch_size, n_cameras, n_waypoints = waypoints.shape[0], waypoints.shape[1], waypoints.shape[2]
         disc_verts, disc_faces = generate_disc_mesh(device=waypoints.device, radius=radius, num_triangles=num_triangles)
         disc_verts = disc_verts[None, ...].expand(batch_size*n_cameras*n_waypoints, *disc_verts.shape)
+        n_verts = disc_verts.shape[-2]
         disc_verts = self.transform(disc_verts, waypoints.reshape(-1, 3))
         disc_verts = disc_verts.reshape(batch_size*n_cameras, n_waypoints*disc_verts.shape[1], 2)
         disc_faces = disc_faces[None, None, ...].expand(batch_size*n_cameras, n_waypoints, *disc_faces.shape)
-        n_faces = disc_faces.shape[-2] + 1
-        disc_faces = disc_faces + n_faces*torch.arange(n_waypoints, device=disc_faces.device)[None, :, None, None]
+        disc_faces = disc_faces + n_verts*torch.arange(n_waypoints, device=disc_faces.device)[None, :, None, None]
         disc_faces = disc_faces.flatten(1, 2)
         return rendering_mesh(BaseMesh(verts=disc_verts, faces=disc_faces), 'goal_waypoint')
 
