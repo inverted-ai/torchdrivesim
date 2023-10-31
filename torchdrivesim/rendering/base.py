@@ -268,8 +268,9 @@ class BirdviewRenderer(abc.ABC):
             res: resolution HxW of the resulting image, currently only square resolutions are supported
             traffic_controls: traffic controls by type (traffic-light, yield, etc.)
             fov: Field of view in meters
-            waypoints: BxNcx3 tensor of waypoints per camera (x,y,psi)
-            waypoints_rendering_mask: BxNc tensor of waypoints mask per camera, indicating which waypoints should be rendered
+            waypoints: BxNcxMx3 tensor of `M` waypoints per camera (x,y,psi)
+            waypoints_rendering_mask: BxNcxM tensor of `M` waypoint masks per camera,
+                indicating which waypoints should be rendered
 
         Returns:
             tensor image of float RGB values in [0,255] range with shape shape (B*Nc)xAxCxHxW
@@ -330,10 +331,12 @@ class BirdviewRenderer(abc.ABC):
             if waypoints.shape[1] != n_cameras_per_batch:
                 raise ValueError((f"The given waypoints ({waypoints.shape[1]} do not match "
                     f"the number of cameras ({n_cameras_per_batch})."))
-            waypoints_mesh = self.make_waypoint_mesh(waypoints)
+            n_waypoints = waypoints.shape[-2]
+            waypoints_mesh = self.make_waypoint_mesh(waypoints, radius=2.0, num_triangles=10)
             if waypoints_rendering_mask is not None:
                 waypoints_faces = waypoints_mesh.faces
-                waypoints_faces = waypoints_faces * waypoints_rendering_mask.reshape(-1, 1, 1).expand_as(waypoints_faces)
+                waypoints_mask = waypoints_rendering_mask.reshape(-1, n_waypoints, 1, 1).expand(-1, -1, 10, 3)
+                waypoints_faces = waypoints_faces * waypoints_mask.reshape(-1, n_waypoints*10, 3)
                 waypoints_mesh = dataclasses.replace(
                     waypoints_mesh, faces=waypoints_faces
                 )
@@ -466,18 +469,25 @@ class BirdviewRenderer(abc.ABC):
         # faces = faces.expand(batch_size, n_actors, 3)
         return BaseMesh(verts=verts, faces=faces)
 
-    def make_waypoint_mesh(self, waypoints: Tensor) -> BirdviewMesh:
+    def make_waypoint_mesh(self, waypoints: Tensor, radius: Optional[float] = 2.0,
+                           num_triangles: Optional[int] = 10) -> BirdviewMesh:
         """
         Create a mesh of the given waypoints.
 
         Args:
-            waypoints: BxNcx3 tensor of waypoints per camera (x,y,psi)
+            waypoints: BxNcxMx3 tensor of `M` waypoints per camera (x,y,psi)
+            radius: float radius of the disc
+            num_triangles: int number of triangles used for the disc
         """
-        batch_size, n_cameras = waypoints.shape[0], waypoints.shape[1]
-        disc_verts, disc_faces = generate_disc_mesh(device=waypoints.device)
-        disc_verts = disc_verts[None, ...].expand(batch_size*n_cameras, *disc_verts.shape)
-        disc_faces = disc_faces[None, ...].expand(batch_size*n_cameras, *disc_faces.shape)
+        batch_size, n_cameras, n_waypoints = waypoints.shape[0], waypoints.shape[1], waypoints.shape[2]
+        disc_verts, disc_faces = generate_disc_mesh(device=waypoints.device, radius=radius, num_triangles=num_triangles)
+        disc_verts = disc_verts[None, ...].expand(batch_size*n_cameras*n_waypoints, *disc_verts.shape)
         disc_verts = self.transform(disc_verts, waypoints.reshape(-1, 3))
+        disc_verts = disc_verts.reshape(batch_size*n_cameras, n_waypoints*disc_verts.shape[1], 2)
+        disc_faces = disc_faces[None, None, ...].expand(batch_size*n_cameras, n_waypoints, *disc_faces.shape)
+        n_faces = disc_faces.shape[-2] + 1
+        disc_faces = disc_faces + n_faces*torch.arange(n_waypoints, device=disc_faces.device)[None, :, None, None]
+        disc_faces = disc_faces.flatten(1, 2)
         return rendering_mesh(BaseMesh(verts=disc_verts, faces=disc_faces), 'goal_waypoint')
 
 
