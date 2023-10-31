@@ -469,8 +469,7 @@ class BirdviewRenderer(abc.ABC):
         # faces = faces.expand(batch_size, n_actors, 3)
         return BaseMesh(verts=verts, faces=faces)
 
-    def make_waypoint_mesh(self, waypoints: Tensor, radius: Optional[float] = 2.0,
-                           num_triangles: Optional[int] = 10) -> BirdviewMesh:
+    def make_waypoint_mesh(self, waypoints: Tensor, radius: float = 2.0, num_triangles: int = 10) -> BirdviewMesh:
         """
         Create a mesh of the given waypoints.
 

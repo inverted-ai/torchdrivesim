@@ -801,8 +801,7 @@ def generate_annulus_polygon_mesh(polygon: Tensor, scaling_factor: float, origin
     return mesh
 
 
-def generate_disc_mesh(radius: Optional[float] = 2, num_triangles: Optional[int] = 10,
-                       device: Optional[str] = 'cpu') -> Tuple[Tensor, Tensor]:
+def generate_disc_mesh(radius: float = 2, num_triangles: int = 10, device: str = 'cpu') -> Tuple[Tensor, Tensor]:
     """
     For a given radius, it will create a disc mesh using `num_triangles` triangles.
 
