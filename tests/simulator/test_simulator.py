@@ -5,6 +5,7 @@ import torch
 from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.goals import WaypointGoal
 from tests import device
 
 
@@ -72,8 +73,9 @@ class TestBaseSimulator:
         projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
         lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
         lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
+        waypoint_goals = WaypointGoal(dict(vehicle=torch.zeros_like(cls.mock_agent_state[..., :2])[:, :, None, None, :]))
         return Simulator(road_mesh, kinematic_model, agent_size,
-                         initial_present_mask, cls.config, lanelet_map=lanelet_map).to(device)
+                         initial_present_mask, cls.config, lanelet_map=lanelet_map, waypoint_goals=waypoint_goals).to(device)
 
     @staticmethod
     def get_tensor(item):
