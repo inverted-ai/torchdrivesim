@@ -1,19 +1,20 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import torch
 from torch import Tensor
 from typing_extensions import Self
+from invertedai.common import TrafficLightState
 
-from torchdrivesim.behavior.common import InitializationFailedError
+from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError, LightFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
+from torchdrivesim.traffic_controls import BaseTrafficControl, TrafficLightControl
 
-
-def iai_initialize(location, agent_count, center=(0, 0)):
+def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history=None):
     import invertedai
     try:
         response = invertedai.api.initialize(
-            location=location, agent_count=agent_count, location_of_interest=center
-
+            location=location, agent_count=agent_count, location_of_interest=center,
+            traffic_light_state_history=traffic_light_state_history
         )
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
@@ -26,19 +27,58 @@ def iai_initialize(location, agent_count, center=(0, 0)):
     return agent_attributes, agent_states, response.recurrent_states
 
 
-def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List):
+def iai_area_initialize(location, agent_density, center=(0, 0), traffic_light_state_history=None):
+    import invertedai
+    from invertedai.utils import area_initialization
+    try:
+        response = area_initialization(
+            location=location, agent_density=agent_density,
+            traffic_lights_states=traffic_light_state_history,
+            width=500, height=500
+        )
+    except invertedai.error.InvalidRequestError:
+        raise InitializationFailedError()
+    agent_attributes = torch.stack(
+        [torch.tensor(at.tolist()) for at in response.agent_attributes], dim=-2
+    )
+    agent_states = torch.stack(
+        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
+    )
+    return agent_attributes, agent_states, response.recurrent_states
+
+
+def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List, traffic_lights_states: Dict = None):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
     agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
     agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
     response = invertedai.api.drive(
         location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-        recurrent_states=recurrent_states
+        recurrent_states=recurrent_states,
+        traffic_lights_states=traffic_lights_states
     )
     agent_states = torch.stack(
         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
     )
     return agent_states, response.recurrent_states
+
+
+def iai_location_info(location: str):
+    import invertedai
+    try:
+        response = invertedai.api.location_info(
+            location=location
+        )
+    except invertedai.error.InvalidRequestError:
+        raise LocationInfoFailedError()
+    return response
+
+
+def get_static_actors(location_info_response):
+    static_actors = dict()
+    for actor in location_info_response.static_actors:
+        static_actors[actor.actor_id] = torch.Tensor([actor.center.x, actor.center.y, actor.length, actor.width, actor.orientation])
+    return static_actors
 
 
 class IAIWrapper(NPCWrapper):
@@ -71,9 +111,18 @@ class IAIWrapper(NPCWrapper):
     def _get_npc_predictions(self):
         states, recurrent = [], []
         agent_states = HomogeneousWrapper(self.inner_simulator).get_state()
+        traffic_controls = self.get_innermost_simulator().get_traffic_controls()
+        if (traffic_controls is not None) and ("traffic-light" in traffic_controls):
+            traffic_light_control = traffic_controls["traffic-light"]
+            traffic_lights_states = dict(zip(traffic_light_control.ids, traffic_light_control.state.squeeze()))
+            traffic_lights_states = {k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_lights_states[k])]) for k in traffic_lights_states}
+        else:
+            traffic_lights_states = [None]
+
         for i in range(self.batch_size):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
-                             agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i])
+                             agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
+                             traffic_lights_states=traffic_lights_states)
             states.append(s)
             recurrent.append(r)
         states = torch.stack(states, dim=0).to(self.get_state().device)

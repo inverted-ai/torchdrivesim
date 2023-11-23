@@ -22,12 +22,16 @@ class BaseTrafficControl:
         mask: BxN boolean tensor indicating whether a given traffic control element is present and not a padding.
     """
     def __init__(self, pos: Tensor, allowed_states: Optional[List[str]] = None,
-                 replay_states: Optional[Tensor] = None, mask: Optional[Tensor] = None):
+                 replay_states: Optional[Tensor] = None, mask: Optional[Tensor] = None, ids: Optional[List] = None,
+                 use_mock_lights: bool = False):
         self.pos = pos
+        self.ids = ids
+        self.use_mock_lights = use_mock_lights
         self.allowed_states = allowed_states if allowed_states is not None else self._default_allowed_states()
         self.replay_states = replay_states if replay_states is not None else self._default_replay_states()
         self.mask = mask if mask is not None else self._default_mask()
 
+        self.pos[...,2] = 1
         self.corners = box2corners_th(self.pos)
         corner_mask = self.mask.to(self.corners.dtype).reshape(self.mask.shape[0], self.mask.shape[1], 1, 1)
         self.corners = self.corners * corner_mask + (1 - corner_mask) * -1000  # Set masked bboxes far from center
@@ -60,6 +64,7 @@ class BaseTrafficControl:
         other = self.__class__(
             pos=self.pos.clone(), allowed_states=self.allowed_states.copy(),
             replay_states=self.replay_states.clone(), mask=self.mask.clone(),
+            ids=self.ids.copy(), use_mock_lights=self.use_mock_lights
         )
         other.state = self.state.clone()
         return other
@@ -155,8 +160,6 @@ class TrafficLightControl(BaseTrafficControl):
     An agent is regarded to violate the traffic light if the light is red and the agent
     bounding box substantially overlaps with the stop line.
     """
-    violation_rear_factor = 0.1
-
     @classmethod
     def _default_allowed_states(cls) -> List[str]:
         return ['red', 'yellow', 'green']
@@ -176,6 +179,19 @@ class TrafficLightControl(BaseTrafficControl):
         else:
             red_light_violations = torch.zeros(batch_size, num_agents, dtype=torch.bool, device=agent_state.device)
         return red_light_violations
+
+    def compute_state(self, time: int) -> Tensor:
+        if self.use_mock_lights:
+            # 0: red, 1:yellow, 2:green
+            # red -> green -> yellow
+            time_len = {"red": 300, "yellow": 30}
+            time_len["green"] = time_len["red"] - time_len["yellow"]
+            cycled_states = torch.Tensor([self.allowed_states.index("red")] * time_len["red"] + \
+                                         [self.allowed_states.index("green")] * time_len["green"] + \
+                                         [self.allowed_states.index("yellow")] * time_len["yellow"])
+            return cycled_states[(time + 260 + (torch.cos(self.pos[..., -1] * 2 + 1e-5) > 0) * time_len["red"]) % sum(time_len.values())]
+        else:
+            return self.state
 
 
 class YieldControl(BaseTrafficControl):

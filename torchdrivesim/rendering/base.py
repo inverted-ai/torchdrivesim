@@ -320,7 +320,7 @@ class BirdviewRenderer(abc.ABC):
 
         if traffic_controls is not None:
             traffic_controls = {k: v.extend(n_cameras_per_batch) for k, v in traffic_controls.items()}
-            controls_mesh = self.make_traffic_controls_mesh(traffic_controls)
+            controls_mesh = self.make_traffic_controls_mesh(traffic_controls).to(self.device)
             meshes.append(controls_mesh)
 
         mesh = static_mesh.concat(meshes)
@@ -401,7 +401,7 @@ class BirdviewRenderer(abc.ABC):
                 continue
             verts, faces = self.build_verts_faces_from_bounding_box(element.corners)
             if control_type == 'traffic-light':
-                categories = [f'{control_type}_{state}' for state in element.allowed_states]
+                categories = [f'traffic_light_{state}' for state in element.allowed_states]
                 vert_category = element.state.unsqueeze(-1).expand(element.state.shape + (4,)).flatten(-2, -1)
                 meshes.append(BirdviewMesh(
                     verts=verts, faces=faces, categories=categories, vert_category=vert_category,
@@ -495,6 +495,8 @@ def get_default_rendering_levels() -> Dict[str, float]:
         vehicle=4,
         bicycle=5,
         pedestrian=6,
+        start_point=6.1,
+        goal_point=6.2,
         map_boundary=7,
         ground_truth=8,
         prediction=9,
@@ -518,6 +520,8 @@ def get_default_color_map() -> Dict[str, Tuple[int, int, int]]:
     to RGB 3-tuples in [0,255] range.
     """
     color_map = dict(
+        start_point=(0, 255, 0),
+        goal_point=(0, 0, 255),
         background=(0, 0, 0),
         road=(155, 155, 155),
         corridor=(0, 155, 0),

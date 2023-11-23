@@ -777,6 +777,12 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_action))
 
         self.across_agent_types(lambda kin, act: kin.step(act), self.kinematic_model, agent_action)
+#        if self.traffic_controls is not None:
+#            for traffic_control_type, traffic_control in self.traffic_controls.items():
+#                traffic_control.step(self.internal_time)
+        self.traffic_controls_step()
+
+    def traffic_controls_step(self):
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
@@ -1210,6 +1216,9 @@ class NPCWrapper(SimulatorWrapper):
         )
         self.update_present_mask(non_replay_present_mask)
 
+        innermost_simulator = self.get_innermost_simulator()
+        innermost_simulator.traffic_controls_step()
+
     def update_present_mask(self, present_mask):
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), present_mask)
         self.across_agent_types(lambda m: assert_equal(m.shape[0], self.batch_size), present_mask)
@@ -1508,7 +1517,7 @@ class BirdviewRecordingWrapper(RecordingWrapper):
 
         def record_birdview(simulator):
             s = simulator
-            bv = s.render(s.camera_xy, s.camera_psi, res=s.res, fov=s.fov)
+            bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov)
             if self.to_cpu:
                 bv = bv.cpu()
             return bv
@@ -1563,7 +1572,7 @@ class BirdviewRecordingWrapper(RecordingWrapper):
         if os.path.dirname(filename) != '':
             os.makedirs(os.path.dirname(filename), exist_ok=True)
         imageio.mimsave(
-            filename, [bv[batch_index].cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for bv in bvs],
+            filename, [bv[batch_index].floor().cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for bv in bvs],
             format="GIF-PIL", fps=fps
         )
         try:

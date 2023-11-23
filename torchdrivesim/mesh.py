@@ -799,3 +799,31 @@ def generate_annulus_polygon_mesh(polygon: Tensor, scaling_factor: float, origin
     if category is not None:
         mesh = rendering_mesh(mesh, category=category)
     return mesh
+
+
+# area shape: 1 * N * 2
+def area_to_mesh(area, category):
+    from torchdrivesim.lanelet2 import line_segments_to_mesh
+    edges = []
+    area = torch.Tensor(area)
+    for i in range(area.shape[-2]):
+        edges.append(torch.stack([area[0][i], area[0, (i + 1) % 4]]))
+    points = torch.stack(edges).unsqueeze(0)
+
+    mesh = rendering_mesh(
+        line_segments_to_mesh(points, line_width=0.5), category=category
+    ).to("cuda")
+    return mesh
+
+
+def point_to_mesh(point, category):
+    d = 3
+#    d = 0.5
+    point = torch.Tensor(point)
+    area = torch.stack([point + torch.tensor([d, d]),
+                        point + torch.tensor([d, -d]),
+                        point + torch.tensor([-d, -d]),
+                        point + torch.tensor([-d, d])]).unsqueeze(0)
+    return area_to_mesh(area, category)
+
+
