@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 from torchdrivesim.rendering import RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig
 from torchdrivesim.simulator import TorchDriveConfig, CollisionMetric
-from gym_env import IAIGymEnvConfig, TaskGymEnvConfig
+from torchdrivesim.gym_env import IAIGymEnvConfig, TaskGymEnvConfig
 
 
 def load_task_env_config(yaml_path):
