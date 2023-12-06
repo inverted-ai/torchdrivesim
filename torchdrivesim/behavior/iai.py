@@ -19,7 +19,7 @@ def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_his
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
     agent_attributes = torch.stack(
-        [torch.tensor(at.tolist()) for at in response.agent_attributes], dim=-2
+        [torch.tensor(at.tolist()[:-1]) for at in response.agent_attributes], dim=-2
     )
     agent_states = torch.stack(
         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
@@ -39,7 +39,7 @@ def iai_area_initialize(location, agent_density, center=(0, 0), traffic_light_st
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
     agent_attributes = torch.stack(
-        [torch.tensor(at.tolist()) for at in response.agent_attributes], dim=-2
+        [torch.tensor(at.tolist()[:-1]) for at in response.agent_attributes], dim=-2
     )
     agent_states = torch.stack(
         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
