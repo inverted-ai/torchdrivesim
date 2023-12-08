@@ -61,7 +61,7 @@ class BirdviewRenderer(abc.ABC):
                  static_mesh: Optional[BirdviewMesh] = None, world_center: Optional[Tensor] = None,
                  color_map: Optional[Dict[str, Tuple[int, int, int]]] = None,
                  rendering_levels: Optional[Dict[str, float]] = None,
-                 res: Resolution = Resolution(64, 64), fov: float = 35):
+                 res: Resolution = Resolution(64, 64), fov: float = 35, waypoint_mesh: Optional[BirdviewMesh] = None):
 
         self.cfg: RendererConfig = cfg
         self.res = res
@@ -94,6 +94,7 @@ class BirdviewRenderer(abc.ABC):
                 world_center = self.static_mesh.center
 
         self.world_center = world_center.to(device)
+        self.waypoint_mesh = waypoint_mesh
 
     def get_color(self, element_type: str) -> Tuple[int, int, int]:
         return self.color_map[element_type]
@@ -114,6 +115,12 @@ class BirdviewRenderer(abc.ABC):
         self.static_mesh = self.static_mesh.concat(
             [self.static_mesh] + meshes
         )
+
+    def set_waypoint_mesh(self, mesh: BirdviewMesh) -> None:
+        """
+        Set the meshes for waypoints.
+        """
+        self.waypoint_mesh = mesh
 
     def copy(self):
         return self.expand(1)
@@ -323,6 +330,10 @@ class BirdviewRenderer(abc.ABC):
             controls_mesh = self.make_traffic_controls_mesh(traffic_controls).to(self.device)
             meshes.append(controls_mesh)
 
+        if self.waypoint_mesh is not None:
+            waypoint_mesh = self.waypoint_mesh.expand(n_cameras_per_batch).to(self.device)
+            meshes.append(waypoint_mesh)
+
         mesh = static_mesh.concat(meshes)
 
         if res is None:
@@ -492,12 +503,12 @@ def get_default_rendering_levels() -> Dict[str, float]:
     levels = dict(
         direction=2,
         ego=3,
+        waypoint=3.3,
         vehicle=4,
         bicycle=5,
         pedestrian=6,
         start_point=6.1,
         goal_point=6.2,
-        waypoint=6.3,
         map_boundary=7,
         ground_truth=8,
         prediction=9,

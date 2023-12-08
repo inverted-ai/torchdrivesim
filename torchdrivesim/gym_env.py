@@ -17,7 +17,7 @@ from invertedai.common import TrafficLightState
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
     iai_area_initialize, iai_initialize
-from torchdrivesim.kinematic import BicycleByDisplacement, BicycleNoReversing
+from torchdrivesim.kinematic import BicycleNoReversing
 from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
 from torchdrivesim.utils import Resolution, save_video
@@ -208,7 +208,6 @@ class IAIGymEnv(GymEnv):
         agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
             torch.float32)
         kinematic_model = BicycleNoReversing()
-#        kinematic_model = BicycleByDisplacement()
         kinematic_model.set_params(lr=agent_attributes[..., 2])
         kinematic_model.set_state(agent_states)
         renderer = renderer_from_config(
@@ -320,10 +319,7 @@ class WaypointEnv(IAIGymEnv):
 
         super().__init__(cfg.iai_gym)
         innermost_simulator = self.simulator.get_innermost_simulator()
-        annotated_mesh = []
-        for waypoint in self.waypoints:
-            annotated_mesh.append(point_to_mesh(waypoint, "waypoint"))
-        innermost_simulator.renderer.add_static_meshes(annotated_mesh)
+        innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
         self.start_sim = self.simulator.copy()
         logger.info(inspect.getsource(WaypointEnv.get_reward))
 
@@ -332,12 +328,18 @@ class WaypointEnv(IAIGymEnv):
         self.current_target_idx = 1
         self.current_target = self.waypoints[self.current_target_idx]
         obs, info = super().reset()
+        innermost_simulator = self.simulator.get_innermost_simulator()
+        innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
         return obs, info
 
     def set_start_pos(self):
-        self.start_point = self.waypoints[0]
-        self.start_speed = 3
-        self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map, x=self.start_point[0], y=self.start_point[1])[0])
+        p0 = np.array(self.waypoints[0])
+        p1 = np.array(self.waypoints[1])
+        self.start_point = p0 + np.random.rand() * (p1 - p0)
+        self.start_speed = np.random.rand() * 10
+        self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
+                                                               x=self.start_point[0], y=self.start_point[1])[0]) \
+                                 + np.random.normal(0, 0.1)
 
     def step(self, action: Tensor):
         obs, reward, terminated, truncated, info = super().step(action)
@@ -345,12 +347,18 @@ class WaypointEnv(IAIGymEnv):
             self.current_target_idx += 1
             if self.current_target_idx < len(self.waypoints):
                 self.current_target = self.waypoints[self.current_target_idx]
+                innermost_simulator = self.simulator.get_innermost_simulator()
+                innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+            else:
+                self.current_target = None
+                innermost_simulator = self.simulator.get_innermost_simulator()
+                innermost_simulator.renderer.set_waypoint_mesh(None)
         return obs, reward, terminated, truncated, info
 
     def check_reach_target(self):
         x = self.simulator.get_state()[..., 0]
         y = self.simulator.get_state()[..., 1]
-        return (self.current_target is not None) and (math.dist((x, y), self.current_target) < 1)
+        return (self.current_target is not None) and (math.dist((x, y), self.current_target) < 3)
 
     def get_reward(self):
         offroad_penalty = -self.simulator.compute_offroad()
