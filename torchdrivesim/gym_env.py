@@ -7,7 +7,7 @@ import logging
 import math
 import inspect
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import gymnasium as gym
 import torch
@@ -58,6 +58,12 @@ class TaskGymEnvConfig:
     start_orientation: Optional[float] = None
     start_point: Tuple[float, float] = (0, 0)
     goal_point: Tuple[float, float] = (0, 0)
+
+
+@dataclass
+class WaypointEnvConfig:
+    iai_gym: IAIGymEnvConfig = IAIGymEnvConfig()
+    waypoints: List[List[float]] = None
 
 
 class GymEnv(gym.Env):
@@ -201,8 +207,8 @@ class IAIGymEnv(GymEnv):
             0), agent_states.unsqueeze(0)
         agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
             torch.float32)
-#        kinematic_model = BicycleNoReversing()
-        kinematic_model = BicycleByDisplacement()
+        kinematic_model = BicycleNoReversing()
+#        kinematic_model = BicycleByDisplacement()
         kinematic_model.set_params(lr=agent_attributes[..., 2])
         kinematic_model.set_state(agent_states)
         renderer = renderer_from_config(
@@ -292,6 +298,77 @@ class TaskGymEnv(IAIGymEnv):
         reach_goal = math.dist((x, y), self.goal_point) < 0.5
         return pass_goal or reach_goal
 
+
+class WaypointEnv(IAIGymEnv):
+    def __init__(self, cfg: WaypointEnvConfig):
+        self.waypoints = cfg.waypoints
+        assert(self.waypoints is not None)
+        assert(len(self.waypoints) >= 2)
+        self.current_target_idx = 1
+        self.current_target = self.waypoints[self.current_target_idx]
+
+        lanelet_map_path = os.path.join(
+                os.path.dirname(os.path.realpath(
+                    __file__)), f"../resources/maps/carla/maps/{cfg.iai_gym.location}.osm"
+            )
+        self.lanelet_map = load_lanelet_map(lanelet_map_path)
+
+        self.set_start_pos()
+
+        cfg.iai_gym.ego_state = (self.start_point[0], self.start_point[1], self.start_orientation, self.start_speed)
+        cfg.iai_gym.center = self.start_point
+
+        super().__init__(cfg.iai_gym)
+        innermost_simulator = self.simulator.get_innermost_simulator()
+        annotated_mesh = []
+        for waypoint in self.waypoints:
+            annotated_mesh.append(point_to_mesh(waypoint, "waypoint"))
+        innermost_simulator.renderer.add_static_meshes(annotated_mesh)
+        self.start_sim = self.simulator.copy()
+        logger.info(inspect.getsource(WaypointEnv.get_reward))
+
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        self.set_start_pos()
+        self.current_target_idx = 1
+        self.current_target = self.waypoints[self.current_target_idx]
+        obs, info = super().reset()
+        return obs, info
+
+    def set_start_pos(self):
+        self.start_point = self.waypoints[0]
+        self.start_speed = 3
+        self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map, x=self.start_point[0], y=self.start_point[1])[0])
+
+    def step(self, action: Tensor):
+        obs, reward, terminated, truncated, info = super().step(action)
+        if self.check_reach_target():
+            self.current_target_idx += 1
+            if self.current_target_idx < len(self.waypoints):
+                self.current_target = self.waypoints[self.current_target_idx]
+        return obs, reward, terminated, truncated, info
+
+    def check_reach_target(self):
+        x = self.simulator.get_state()[..., 0]
+        y = self.simulator.get_state()[..., 1]
+        return (self.current_target is not None) and (math.dist((x, y), self.current_target) < 1)
+
+    def get_reward(self):
+        offroad_penalty = -self.simulator.compute_offroad()
+        collision_penalty = -self.simulator.compute_collision()
+        x = self.simulator.get_state()[..., 0]
+        y = self.simulator.get_state()[..., 1]
+        orientation = self.simulator.get_state()[..., 2]
+        speed = self.simulator.get_state()[..., 3]
+        lanelet_orientations = torch.Tensor(find_lanelet_directions(lanelet_map=self.lanelet_map, x=x, y=y)).cuda()
+        if len(lanelet_orientations) > 0:
+            lanelet_orientation = float(lanelet_orientations[torch.argmin(abs(lanelet_orientations - orientation)).item()])
+            orientation_reward = math.cos(orientation - lanelet_orientation)
+        else:
+            orientation_reward = 0
+        reach_target_reward = 100 if self.check_reach_target() else 0
+        r = torch.zeros_like(x)
+        r += reach_target_reward + orientation_reward * speed
+        return r
 
 
 class SingleAgentWrapper(gym.Wrapper):

@@ -817,8 +817,7 @@ def area_to_mesh(area, category):
 
 
 def point_to_mesh(point, category):
-    d = 3
-#    d = 0.5
+    d = 0.5
     point = torch.Tensor(point)
     area = torch.stack([point + torch.tensor([d, d]),
                         point + torch.tensor([d, -d]),

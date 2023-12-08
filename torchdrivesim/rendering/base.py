@@ -497,6 +497,7 @@ def get_default_rendering_levels() -> Dict[str, float]:
         pedestrian=6,
         start_point=6.1,
         goal_point=6.2,
+        waypoint=6.3,
         map_boundary=7,
         ground_truth=8,
         prediction=9,
@@ -522,6 +523,7 @@ def get_default_color_map() -> Dict[str, Tuple[int, int, int]]:
     color_map = dict(
         start_point=(0, 255, 0),
         goal_point=(0, 0, 255),
+        waypoint=(0, 0, 255),
         background=(0, 0, 0),
         road=(155, 155, 155),
         corridor=(0, 155, 0),
