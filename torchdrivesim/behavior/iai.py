@@ -8,17 +8,20 @@ from torchdrivesim.behavior.common import InitializationFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 
 
+def unpack_attributes(attributes) -> torch.Tensor:
+    return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
+
+
 def iai_initialize(location, agent_count, center=(0, 0)):
     import invertedai
     try:
         response = invertedai.api.initialize(
             location=location, agent_count=agent_count, location_of_interest=center
-
         )
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
     agent_attributes = torch.stack(
-        [torch.tensor(at.tolist()) for at in response.agent_attributes], dim=-2
+        [torch.tensor(unpack_attributes(at)) for at in response.agent_attributes], dim=-2
     )
     agent_states = torch.stack(
         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
