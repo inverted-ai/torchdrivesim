@@ -78,6 +78,7 @@ class WaypointSuiteEnvConfig:
     iai_gym: IAIGymEnvConfig = IAIGymEnvConfig()
     locations: List[str] = None
     waypointsuite: List[List[List[float]]] = None
+    car_sequence_suite: List[Optional[Dict[int, List[List[float]]]]] = None
     scenarios: List[Optional[Scenario]] = None
 
 
@@ -260,7 +261,7 @@ class IAIGymEnv(GymEnv):
         return r
 
 
-def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None):
+def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None):
     device = torch.device('cuda')
     driving_surface_mesh_path = os.path.join(
         os.path.dirname(os.path.realpath(
@@ -288,6 +289,11 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None):
             agent_states = torch.cat([torch.Tensor(cfg.ego_state).unsqueeze(0), agent_states])
             agent_attributes = torch.cat([agent_attributes[0, :].unsqueeze(0), agent_attributes])
             recurrent_states =  [recurrent_states[0]] + recurrent_states
+            if car_sequences is not None:
+                new_car_sequences = {}
+                for agent_idx in car_sequences:
+                    new_car_sequences[agent_idx + 1] = car_sequences[agent_idx].copy()
+                car_sequences = new_car_sequences
     else:
         if cfg.use_area_initialize:
             agent_attributes, agent_states, recurrent_states = \
@@ -327,7 +333,8 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None):
         simulator=simulator, npc_mask=npc_mask, recurrent_states=[
             recurrent_states],
         rear_axis_offset=agent_attributes[..., 2:3], locations=[
-            iai_location]
+            iai_location],
+        car_sequences=car_sequences
     )
     if cfg.render_mode == "video":
         simulator = BirdviewRecordingWrapper(
@@ -473,6 +480,7 @@ class WaypointSuiteEnv(GymEnv):
     def __init__(self, cfg: WaypointSuiteEnvConfig):
         self.locations = cfg.locations
         self.waypointsuite = cfg.waypointsuite
+        self.car_sequence_suite = cfg.car_sequence_suite
         self.scenarios = cfg.scenarios
         self.lanelet_maps = {}
         for location in self.locations:
@@ -488,8 +496,8 @@ class WaypointSuiteEnv(GymEnv):
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-#        self.current_waypoint_suite_idx = 0
+#        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
+        self.current_waypoint_suite_idx = 0
         location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
 
@@ -501,7 +509,7 @@ class WaypointSuiteEnv(GymEnv):
         self.iai_cfg.center = self.start_point
         self.iai_cfg.location = location
 
-        self.simulator = build_iai_simulator(self.iai_cfg, self.scenarios[self.current_waypoint_suite_idx])
+        self.simulator = build_iai_simulator(self.iai_cfg, self.scenarios[self.current_waypoint_suite_idx], self.car_sequence_suite[self.current_waypoint_suite_idx])
 
         self.innermost_simulator = self.simulator.get_innermost_simulator()
         self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))

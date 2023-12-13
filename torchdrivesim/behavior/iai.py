@@ -5,9 +5,8 @@ from torch import Tensor
 from typing_extensions import Self
 from invertedai.common import TrafficLightState
 
-from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError, LightFailedError
+from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
-from torchdrivesim.traffic_controls import BaseTrafficControl, TrafficLightControl
 
 def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history=None):
     import invertedai
@@ -96,12 +95,14 @@ class IAIWrapper(NPCWrapper):
             used in the kinematic bicycle model. By default, a realistic value based on the vehicle length is used.
     """
     def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
-                 recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None):
+                 recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None, car_sequences: Optional[Dict[int, List[List[float]]]] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
 
         self._locations = locations
         self._npc_predictions = None
         self._recurrent_states = recurrent_states
+        self._car_sequences = car_sequences
+        self._iai_timestep = 0
 
         lenwid = HomogeneousWrapper(self.inner_simulator).get_agent_size()[..., :2]
         if rear_axis_offset is None:
@@ -123,6 +124,10 @@ class IAIWrapper(NPCWrapper):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
                              traffic_lights_states=traffic_lights_states)
+            if self._car_sequences is not None:
+                for agent_idx in self._car_sequences:
+                    if self._iai_timestep < len(self._car_sequences[agent_idx]):
+                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
             states.append(s)
             recurrent.append(r)
         states = torch.stack(states, dim=0).to(self.get_state().device)
@@ -135,6 +140,7 @@ class IAIWrapper(NPCWrapper):
         self._npc_predictions, self._recurrent_states = self._get_npc_predictions()  # TODO: run async after step
         super().step(action)
         self._npc_predictions = None
+        self._iai_timestep += 1
 
     def to(self, device) -> Self:
         super().to(device)
