@@ -418,6 +418,29 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             )
         return violation
 
+    def compute_stop_sign_violations(self, time) -> TensorPerAgentType:
+        """
+        Boolean value indicating whether each agent is committing a stop sign violation.
+        See `torchdrivesim.infractions.traffic_controls.StopSignControl.compute_violations` for details.
+
+        Returns:
+            a functor of BxA tensors
+        """
+        if self.get_traffic_controls() is not None and 'stop_sign' in self.get_traffic_controls():
+            violation = self.across_agent_types(
+                lambda state, lenwid, mask: self.get_traffic_controls()['stop_sign'].compute_violation(
+                    torch.cat([state[..., :2], lenwid, state[..., 2:3]], dim=-1), time=time
+                ) * mask.to(state.dtype),
+                self.get_state(), self.get_agent_size(), self.get_present_mask(),
+            )
+        else:
+            violation = self.across_agent_types(
+                lambda state, lenwid, mask: torch.zeros(state.shape[0], state.shape[1],
+                                                        dtype=torch.bool, device=state.device),
+                self.get_state(), self.get_agent_size(), self.get_present_mask(),
+            )
+        return violation
+
     @abc.abstractmethod
     def _compute_collision_of_single_agent(self, box: Tensor, remove_self_overlap: Optional[Tensor] = None, agent_types: Optional[List[str]] = None) -> Tensor:
         """

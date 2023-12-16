@@ -22,7 +22,7 @@ from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
 from torchdrivesim.utils import Resolution, save_video
 from torchdrivesim.lanelet2 import find_lanelet_directions, load_lanelet_map
-from torchdrivesim.traffic_controls import TrafficLightControl
+from torchdrivesim.traffic_controls import TrafficLightControl, StopSignControl
 from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
     BirdviewRecordingWrapper, Simulator, HomogeneousWrapper
 
@@ -79,6 +79,8 @@ class WaypointSuiteEnvConfig:
     locations: List[str] = None
     waypointsuite: List[List[List[float]]] = None
     car_sequence_suite: List[Optional[Dict[int, List[List[float]]]]] = None
+    traffic_light_state_suite: List[Optional[Dict[int, List[str]]]] = None
+    stop_sign_suite: List[Optional[List[int]]] = None
     scenarios: List[Optional[Scenario]] = None
 
 
@@ -261,7 +263,7 @@ class IAIGymEnv(GymEnv):
         return r
 
 
-def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None):
+def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None, preset_traffic_light_states=None, stop_sign_ids=None):
     device = torch.device('cuda')
     driving_surface_mesh_path = os.path.join(
         os.path.dirname(os.path.realpath(
@@ -274,12 +276,30 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None)
 
     if cfg.use_mock_lights:
         static_actors = get_static_actors(iai_location_info(iai_location))
-        traffic_light_control = TrafficLightControl(pos=torch.stack(tuple(static_actors.values())).unsqueeze(0), use_mock_lights=True, ids=list(static_actors.keys()))
+        if stop_sign_ids is not None:
+            stop_sign_poses = []
+            for id in stop_sign_ids:
+                stop_sign_poses.append(static_actors[id])
+            stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
+
+            traffic_light_ids = list(static_actors.keys())
+            traffic_light_poses = list(static_actors.values())
+            for id in static_actors:
+                if id not in stop_sign_ids:
+                    traffic_light_ids.append(id)
+                    traffic_light_poses.append(static_actors[id])
+        else:
+            stop_sign_control = None
+            traffic_light_poses = list(static_actors.values())
+            traffic_light_ids = list(static_actors.keys())
+
+        traffic_light_control = TrafficLightControl(pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
         traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
         traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
     else:
         traffic_light_control = None
         traffic_light_state_history = None
+        stop_sign_control = None
 
     if scenario is not None:
         agent_states = torch.Tensor(scenario.agent_states)
@@ -317,13 +337,19 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None)
     renderer = renderer_from_config(
         simulator_cfg.renderer, static_mesh=driving_surface_mesh)
 
+    traffic_controls = {}
+    if traffic_light_control is not None:
+        traffic_controls["traffic-light"] = traffic_light_control
+    if stop_sign_control is not None:
+        traffic_controls["stop_sign"] = stop_sign_control
+
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
         kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
         initial_present_mask=dict(vehicle=torch.ones_like(
             agent_states[..., 0], dtype=torch.bool)),
         renderer=renderer,
-        traffic_controls={"traffic-light": traffic_light_control}
+        traffic_controls=traffic_controls
     )
     simulator = HomogeneousWrapper(simulator)
     npc_mask = torch.ones(
@@ -483,6 +509,8 @@ class WaypointSuiteEnv(GymEnv):
         self.car_sequence_suite = cfg.car_sequence_suite
         self.scenarios = cfg.scenarios
         self.lanelet_maps = {}
+        self.traffic_light_state_suite = cfg.traffic_light_state_suite
+        self.stop_sign_suite = cfg.stop_sign_suite
         for location in self.locations:
             if location not in self.lanelet_maps:
                 lanelet_map_path = os.path.join(
@@ -497,7 +525,7 @@ class WaypointSuiteEnv(GymEnv):
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
 #        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-        self.current_waypoint_suite_idx = 0
+        self.current_waypoint_suite_idx = 1
         location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
 
@@ -509,7 +537,11 @@ class WaypointSuiteEnv(GymEnv):
         self.iai_cfg.center = self.start_point
         self.iai_cfg.location = location
 
-        self.simulator = build_iai_simulator(self.iai_cfg, self.scenarios[self.current_waypoint_suite_idx], self.car_sequence_suite[self.current_waypoint_suite_idx])
+        self.simulator = build_iai_simulator(self.iai_cfg,
+                                             self.scenarios[self.current_waypoint_suite_idx],
+                                             self.car_sequence_suite[self.current_waypoint_suite_idx],
+                                             self.traffic_light_state_suite[self.current_waypoint_suite_idx],
+                                             self.stop_sign_suite[self.current_waypoint_suite_idx])
 
         self.innermost_simulator = self.simulator.get_innermost_simulator()
         self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
@@ -550,6 +582,7 @@ class WaypointSuiteEnv(GymEnv):
         offroad_penalty = -self.simulator.compute_offroad()
         collision_penalty = -self.simulator.compute_collision()
         traffic_light_violation_penalty = -self.simulator.compute_traffic_lights_violations() * 10
+        stop_sign_violation_penalty = -self.simulator.compute_stop_sign_violations(self.environment_steps) * 10
 
         x = self.simulator.get_state()[..., 0]
         y = self.simulator.get_state()[..., 1]
@@ -563,7 +596,7 @@ class WaypointSuiteEnv(GymEnv):
             orientation_reward = 0
         reach_target_reward = 100 if self.check_reach_target() else 0
         r = torch.zeros_like(x)
-        r += reach_target_reward + orientation_reward * speed + traffic_light_violation_penalty
+        r += reach_target_reward + orientation_reward * speed + traffic_light_violation_penalty + stop_sign_violation_penalty
         return r
 
 

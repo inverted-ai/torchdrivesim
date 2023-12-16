@@ -1,8 +1,9 @@
 """
 Definitions of traffic controls. Currently, we support traffic lights, stop signs, and yield signs.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 
+import math
 import torch
 from torch import Tensor
 
@@ -23,16 +24,30 @@ class BaseTrafficControl:
     """
     def __init__(self, pos: Tensor, allowed_states: Optional[List[str]] = None,
                  replay_states: Optional[Tensor] = None, mask: Optional[Tensor] = None, ids: Optional[List] = None,
-                 use_mock_lights: bool = False):
+                 use_mock_lights: bool = False, preset_states: Optional[Dict[int, List[str]]] = None):
         self.pos = pos
         self.ids = ids
         self.use_mock_lights = use_mock_lights
         self.allowed_states = allowed_states if allowed_states is not None else self._default_allowed_states()
         self.replay_states = replay_states if replay_states is not None else self._default_replay_states()
         self.mask = mask if mask is not None else self._default_mask()
+        self.preset_states = preset_states
+        self.virtual_overlap = None
 
         self.pos[...,2] = 1
         self.corners = box2corners_th(self.pos)
+
+        moved_dist = 5
+        new_pos = pos.clone()
+        for i in range(pos.shape[0]):
+          for j in range(pos.shape[1]):
+            dx = moved_dist * math.cos(pos[i][j][-1])
+            dy = moved_dist * math.sin(pos[i][j][-1])
+            new_pos[i][j][0] = pos[i][j][0] - dx
+            new_pos[i][j][1] = pos[i][j][1] + dy
+
+        self.moved_corners = box2corners_th(new_pos)
+
         corner_mask = self.mask.to(self.corners.dtype).reshape(self.mask.shape[0], self.mask.shape[1], 1, 1)
         self.corners = self.corners * corner_mask + (1 - corner_mask) * -1000  # Set masked bboxes far from center
         self.state = self._default_state()
@@ -189,7 +204,13 @@ class TrafficLightControl(BaseTrafficControl):
             cycled_states = torch.Tensor([self.allowed_states.index("red")] * time_len["red"] + \
                                          [self.allowed_states.index("green")] * time_len["green"] + \
                                          [self.allowed_states.index("yellow")] * time_len["yellow"])
-            return cycled_states[(time + 260 + (torch.cos(self.pos[..., -1] * 2 + 1e-5) > 0) * time_len["red"]) % sum(time_len.values())]
+            states = cycled_states[(time + 260 + (torch.cos(self.pos[..., -1] * 2 + 1e-5) > 0) * time_len["red"]) % sum(time_len.values())]
+            if self.preset_states is not None:
+                for i in range(len(self.ids)):
+                    id = self.ids[i]
+                    if id in self.preset_states:
+                        states[..., i] = self.allowed_states.index(self.preset_states[id][time % len(self.preset_states[id])])
+            return states
         else:
             return self.state
 
@@ -207,4 +228,23 @@ class StopSignControl(BaseTrafficControl):
     Stop sign, indicating the vehicle should stop and yield to cross traffic.
     Violations are not computed.
     """
-    pass
+    def compute_violation(self, agent_state: Tensor, time: int) -> Tensor:
+        batch_size, num_agents = agent_state.shape[0], agent_state.shape[1]
+        num_lights = self.corners.shape[1]
+        if batch_size > 0 and num_agents > 0 and num_lights > 0:
+            agent_corners = box2corners_with_rear_factor(agent_state)
+            agent_corners = agent_corners.reshape(-1, 1, 4, 2).expand(-1, num_lights, -1, -1).cuda()
+            control_corners_0 = self.corners.unsqueeze(1).expand(-1, num_agents, -1, -1, -1).reshape(-1, num_lights, 4, 2).cuda()
+            overlap_0 = (oriented_box_intersection_2d(agent_corners, control_corners_0)[0] > 0)
+            control_corners_1 = self.moved_corners.unsqueeze(1).expand(-1, num_agents, -1, -1, -1).reshape(-1, num_lights, 4, 2).cuda()
+            overlap_1 = (oriented_box_intersection_2d(agent_corners, control_corners_1)[0] > 0)
+            if self.virtual_overlap is None:
+                self.virtual_overlap = overlap_1
+            else:
+                # the time to pass two lines should be longer than 2 seconds
+                time_gap = 2
+                self.virtual_overlap = torch.cat((self.virtual_overlap[-(time_gap * 10 - 1):], overlap_1))
+            violations = overlap_0.logical_and(self.virtual_overlap.sum(dim=0)).any(dim=-1).reshape(batch_size, num_agents)
+        else:
+            violations = torch.zeros(batch_size, num_agents, dtype=torch.bool, device=agent_state.device)
+        return violations
