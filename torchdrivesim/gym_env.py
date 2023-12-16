@@ -524,8 +524,8 @@ class WaypointSuiteEnv(GymEnv):
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-#        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-        self.current_waypoint_suite_idx = 1
+        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
+#        self.current_waypoint_suite_idx = 1
         location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
 
@@ -536,6 +536,9 @@ class WaypointSuiteEnv(GymEnv):
         self.iai_cfg.ego_state = (self.start_point[0], self.start_point[1], self.start_orientation, self.start_speed)
         self.iai_cfg.center = self.start_point
         self.iai_cfg.location = location
+
+        self.last_x = None
+        self.last_y = None
 
         self.simulator = build_iai_simulator(self.iai_cfg,
                                              self.scenarios[self.current_waypoint_suite_idx],
@@ -579,13 +582,16 @@ class WaypointSuiteEnv(GymEnv):
         return (self.current_target is not None) and (math.dist((x, y), self.current_target) < 3)
 
     def get_reward(self):
-        offroad_penalty = -self.simulator.compute_offroad()
-        collision_penalty = -self.simulator.compute_collision()
-        traffic_light_violation_penalty = -self.simulator.compute_traffic_lights_violations() * 10
-        stop_sign_violation_penalty = -self.simulator.compute_stop_sign_violations(self.environment_steps) * 10
+        offroad_penalty = -10.0 if self.simulator.compute_offroad() > 0 else 0
+        collision_penalty = -10.0 if self.simulator.compute_collision() > 0 else 0
+        traffic_light_violation_penalty = -10.0 if self.simulator.compute_traffic_lights_violations() > 0 else 0
+        stop_sign_violation_penalty = -10.0 if self.simulator.compute_stop_sign_violations(self.environment_steps) > 0 else 0
 
         x = self.simulator.get_state()[..., 0]
         y = self.simulator.get_state()[..., 1]
+        d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
+        self.last_x = x
+        self.last_y = y
         orientation = self.simulator.get_state()[..., 2]
         speed = self.simulator.get_state()[..., 3]
         lanelet_orientations = torch.Tensor(find_lanelet_directions(lanelet_map=self.lanelet_map, x=x, y=y)).cuda()
@@ -594,9 +600,9 @@ class WaypointSuiteEnv(GymEnv):
             orientation_reward = math.cos(orientation - lanelet_orientation)
         else:
             orientation_reward = 0
-        reach_target_reward = 100 if self.check_reach_target() else 0
+        reach_target_reward = 30 if self.check_reach_target() else 0
         r = torch.zeros_like(x)
-        r += reach_target_reward + orientation_reward * speed + traffic_light_violation_penalty + stop_sign_violation_penalty
+        r += reach_target_reward + offroad_penalty + collision_penalty + traffic_light_violation_penalty + stop_sign_violation_penalty + d
         return r
 
 
