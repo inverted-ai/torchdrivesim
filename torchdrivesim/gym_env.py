@@ -11,6 +11,7 @@ from typing import Optional, Tuple, List, Dict
 
 import gymnasium as gym
 import torch
+import pickle
 import numpy as np
 from torch import Tensor
 from invertedai.common import TrafficLightState, RecurrentState
@@ -49,6 +50,7 @@ class IAIGymEnvConfig:
     use_mock_lights: bool = True
     use_area_initialize: bool = False
     max_environment_steps: int = 200
+    use_background_traffic: bool = True
 
 
 @dataclass
@@ -286,31 +288,43 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         traffic_light_state_history = None
         stop_sign_control = None
 
-    if scenario is not None:
-        agent_states = torch.Tensor(scenario.agent_states)
-        agent_attributes = torch.Tensor(scenario.agent_attributes)
-        recurrent_states = [RecurrentState(packed=recurrent_state) for recurrent_state in scenario.recurrent_states]
-        if cfg.ego_state is not None:
-            agent_states = torch.cat([torch.Tensor(cfg.ego_state).unsqueeze(0), agent_states])
-            agent_attributes = torch.cat([agent_attributes[0, :].unsqueeze(0), agent_attributes])
-            recurrent_states =  [recurrent_states[0]] + recurrent_states
-            if car_sequences is not None:
-                new_car_sequences = {}
-                for agent_idx in car_sequences:
-                    new_car_sequences[agent_idx + 1] = car_sequences[agent_idx].copy()
-                car_sequences = new_car_sequences
-    else:
-        if cfg.use_area_initialize:
-            agent_attributes, agent_states, recurrent_states = \
-                iai_area_initialize(location=iai_location,
-                                    agent_density=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
-        else:
-            agent_attributes, agent_states, recurrent_states = \
-                iai_initialize(location=iai_location,
-                               agent_count=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
+#    if scenario is not None:
+#        agent_states = torch.Tensor(scenario.agent_states)
+#        agent_attributes = torch.Tensor(scenario.agent_attributes)
+#        recurrent_states = [RecurrentState(packed=recurrent_state) for recurrent_state in scenario.recurrent_states]
+#        if cfg.ego_state is not None:
+#            agent_states = torch.cat([torch.Tensor(cfg.ego_state).unsqueeze(0), agent_states])
+#            agent_attributes = torch.cat([agent_attributes[0, :].unsqueeze(0), agent_attributes])
+#            recurrent_states =  [recurrent_states[0]] + recurrent_states
+#            if car_sequences is not None:
+#                new_car_sequences = {}
+#                for agent_idx in car_sequences:
+#                    new_car_sequences[agent_idx + 1] = car_sequences[agent_idx].copy()
+#                car_sequences = new_car_sequences
+#    else:
+#        if cfg.use_area_initialize:
+#            agent_attributes, agent_states, recurrent_states = \
+#                iai_area_initialize(location=iai_location,
+#                                    agent_density=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
+#        else:
+#            agent_attributes, agent_states, recurrent_states = \
+#                iai_initialize(location=iai_location,
+#                               agent_count=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
+#
+#        if cfg.ego_state is not None:
+#            agent_states[0, :] = torch.Tensor(cfg.ego_state)
+    if cfg.use_background_traffic:
+        background_traffic_file = "background_traffic/Town07_10_0.pkl"
+        with open(background_traffic_file, "rb") as f:
+            background_traffic = pickle.load(f)
+        agent_attributes = torch.stack(
+            [torch.tensor(at.tolist()[:-1]) for at in background_traffic.agent_attributes], dim=-2
+        )
+        agent_states = torch.stack(
+            [torch.tensor(st.tolist()) for st in background_traffic.agent_states], dim=-2
+        )
 
-        if cfg.ego_state is not None:
-            agent_states[0, :] = torch.Tensor(cfg.ego_state)
+
 
     agent_attributes, agent_states = agent_attributes.unsqueeze(
         0), agent_states.unsqueeze(0)
@@ -375,8 +389,8 @@ class WaypointSuiteEnv(GymEnv):
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-#        self.current_waypoint_suite_idx = 1
+#        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
+        self.current_waypoint_suite_idx = 1
         location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
 
