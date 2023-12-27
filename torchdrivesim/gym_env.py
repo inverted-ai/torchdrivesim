@@ -12,9 +12,10 @@ from typing import Optional, Tuple, List, Dict
 import gymnasium as gym
 import torch
 import pickle
+import random
 import numpy as np
 from torch import Tensor
-from invertedai.common import TrafficLightState, RecurrentState
+from invertedai.common import TrafficLightState, AgentState, Point
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
     iai_area_initialize, iai_initialize
@@ -313,20 +314,26 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
 #
 #        if cfg.ego_state is not None:
 #            agent_states[0, :] = torch.Tensor(cfg.ego_state)
+
     if cfg.use_background_traffic:
-        background_traffic_file = "background_traffic/Town07_10_0.pkl"
+        background_traffic_dir = "background_traffic"
+        background_traffic_file = os.path.join(background_traffic_dir, random.choice(list(filter(lambda x: x.split("_")[0]==cfg.location, os.listdir(background_traffic_dir)))))
+
         with open(background_traffic_file, "rb") as f:
             background_traffic = pickle.load(f)
-        agent_attributes = torch.stack(
-            [torch.tensor(at.tolist()[:-1]) for at in background_traffic["agent_attributes"]], dim=-2
-        )
-        agent_states = torch.stack(
-            [torch.tensor(st.tolist()) for st in background_traffic["agent_states"]], dim=-2
-        )
-        recurrent_states = background_traffic["recurrent_states"]
-        print("background_traffic")
-        print(agent_states.shape)
 
+        ego_state = AgentState(center=Point(x=cfg.ego_state[0], y=cfg.ego_state[1]), orientation=cfg.ego_state[2], speed=cfg.ego_state[3])
+        remain_agent_states = [ego_state]
+        remain_agent_attributes = [background_traffic["agent_attributes"][0]]
+        remain_recurrent_states = [background_traffic["recurrent_states"][0]]
+        for i in range(len(background_traffic["agent_states"])):
+            agent_state = background_traffic["agent_states"][i]
+            if math.dist(cfg.ego_state[:2], (agent_state.center.x, agent_state.center.y)) > 100:
+                remain_agent_states.append(agent_state)
+                remain_agent_attributes.append(background_traffic["agent_attributes"][i])
+                remain_recurrent_states.append(background_traffic["recurrent_states"][i])
+        agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
+               agent_count=(background_traffic["agent_desity"] + len(remain_agent_states)), agent_attributes=remain_agent_attributes, states_history=[remain_agent_states], center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
 
     agent_attributes, agent_states = agent_attributes.unsqueeze(
@@ -392,8 +399,8 @@ class WaypointSuiteEnv(GymEnv):
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-#        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-        self.current_waypoint_suite_idx = 1
+        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
+#        self.current_waypoint_suite_idx = 1
         location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
 

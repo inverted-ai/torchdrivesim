@@ -8,15 +8,21 @@ from invertedai.common import TrafficLightState
 from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 
-def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history=None):
+def iai_initialize(location, agent_attributes, states_history, agent_count, center=(0, 0), traffic_light_state_history=None):
     import invertedai
     try:
+        # TODO use states_history and agent_attributes
         response = invertedai.api.initialize(
-            location=location, agent_count=agent_count, location_of_interest=center,
+            location=location,
+            agent_attributes=agent_attributes,
+            states_history=states_history,
+            agent_count=agent_count,
+            location_of_interest=center,
             traffic_light_state_history=traffic_light_state_history
         )
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
+
     agent_attributes = torch.stack(
         [torch.tensor(at.tolist()[:-1]) for at in response.agent_attributes], dim=-2
     )
