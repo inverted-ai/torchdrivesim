@@ -318,11 +318,14 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         with open(background_traffic_file, "rb") as f:
             background_traffic = pickle.load(f)
         agent_attributes = torch.stack(
-            [torch.tensor(at.tolist()[:-1]) for at in background_traffic.agent_attributes], dim=-2
+            [torch.tensor(at.tolist()[:-1]) for at in background_traffic["agent_attributes"]], dim=-2
         )
         agent_states = torch.stack(
-            [torch.tensor(st.tolist()) for st in background_traffic.agent_states], dim=-2
+            [torch.tensor(st.tolist()) for st in background_traffic["agent_states"]], dim=-2
         )
+        recurrent_states = background_traffic["recurrent_states"]
+        print("background_traffic")
+        print(agent_states.shape)
 
 
 
