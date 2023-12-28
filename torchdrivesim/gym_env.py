@@ -333,7 +333,7 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
                 remain_agent_attributes.append(background_traffic["agent_attributes"][i])
                 remain_recurrent_states.append(background_traffic["recurrent_states"][i])
         agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
-               agent_count=(background_traffic["agent_desity"] + len(remain_agent_states)), agent_attributes=remain_agent_attributes, states_history=[remain_agent_states], center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
+               agent_count=(background_traffic["agent_density"] + len(remain_agent_states)), agent_attributes=remain_agent_attributes, states_history=[remain_agent_states], center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
 
     agent_attributes, agent_states = agent_attributes.unsqueeze(
