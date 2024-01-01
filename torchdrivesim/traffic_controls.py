@@ -2,8 +2,12 @@
 Definitions of traffic controls. Currently, we support traffic lights, stop signs, and yield signs.
 """
 from typing import List, Optional, Dict
+from functools import reduce
 
 import math
+import os
+import json
+import random
 import torch
 from torch import Tensor
 
@@ -169,12 +173,69 @@ class BaseTrafficControl:
         return torch.zeros(agent_state.shape[0], agent_state.shape[1], dtype=torch.bool, device=agent_state.device)
 
 
+class TrafficLightStateMachine:
+    def __init__(self, state_data):
+        # Extract states and transitions
+        self.states = state_data
+        random_index = random.randint(0, len(self.states) - 1)
+
+        self.current_state = self.states[random_index]
+
+        # Initialize duration counter
+        self.duration_counter = 0
+
+    def tick(self, dt):
+        # Increment duration counter
+        self.duration_counter += dt
+        #print('ticking individual fsm')
+        # Check if it's time to transition
+        if self.duration_counter >= float(self.current_state['duration']):
+            # Transition to the next state or through several states depending
+            while self.duration_counter >= float(self.current_state['duration']):
+                self.duration_counter = self.duration_counter - float(self.current_state['duration'])
+                self.current_state = self.states[int(self.current_state['next_state'])]
+
+    def get_current_state(self):
+        return self.current_state
+
+    def get_current_actor_states(self):
+        return self.current_state['actor_states']
+
+
+class WholeMapTrafficLightController:
+    def __init__(self, data_dir):
+        self.traffic_fsms = []
+        for file in os.listdir(data_dir):
+            file_path = os.path.join(data_dir, file)
+            with open(file_path, "r") as f:
+                self.traffic_fsms.append(TrafficLightStateMachine(json.load(f)))
+
+    def tick(self, dt=0.1):
+        [fsm.tick(dt) for fsm in self.traffic_fsms]
+
+    def get_current_actor_states(self):
+        self.state = reduce(lambda x, y: {**x, **y}, [fsm.get_current_actor_states() for fsm in self.traffic_fsms], {})
+        print("get_current_actor_states")
+        print(self.state)
+        print(len(self.state))
+        return self.state
+
+
 class TrafficLightControl(BaseTrafficControl):
     """
     Traffic lights, with default allowed states of ['red', 'yellow', 'green'].
     An agent is regarded to violate the traffic light if the light is red and the agent
     bounding box substantially overlaps with the stop line.
     """
+    def __init__(self, location, *args, **kwargs):
+        self.location = location
+        STATE_DATA_DIR = os.path.join(
+            os.path.dirname(os.path.realpath(
+                __file__)), f"../../traffic_light_states/{location}"
+        )
+        self.controller = WholeMapTrafficLightController(STATE_DATA_DIR)
+        super(TrafficLightControl, self).__init__(*args, **kwargs)
+
     @classmethod
     def _default_allowed_states(cls) -> List[str]:
         return ['red', 'yellow', 'green']
@@ -196,23 +257,45 @@ class TrafficLightControl(BaseTrafficControl):
         return red_light_violations
 
     def compute_state(self, time: int) -> Tensor:
-        if self.use_mock_lights:
-            # 0: red, 1:yellow, 2:green
-            # red -> green -> yellow
-            time_len = {"red": 300, "yellow": 30}
-            time_len["green"] = time_len["red"] - time_len["yellow"]
-            cycled_states = torch.Tensor([self.allowed_states.index("red")] * time_len["red"] + \
-                                         [self.allowed_states.index("green")] * time_len["green"] + \
-                                         [self.allowed_states.index("yellow")] * time_len["yellow"])
-            states = cycled_states[(time + 260 + (torch.cos(self.pos[..., -1] * 2 + 1e-5) > 0) * time_len["red"]) % sum(time_len.values())]
-            if self.preset_states is not None:
-                for i in range(len(self.ids)):
-                    id = self.ids[i]
-                    if id in self.preset_states:
-                        states[..., i] = self.allowed_states.index(self.preset_states[id][time % len(self.preset_states[id])])
-            return states
-        else:
-            return self.state
+#        if self.use_mock_lights:
+#            # 0: red, 1:yellow, 2:green
+#            # red -> green -> yellow
+#            time_len = {"red": 300, "yellow": 30}
+#            time_len["green"] = time_len["red"] - time_len["yellow"]
+#            cycled_states = torch.Tensor([self.allowed_states.index("red")] * time_len["red"] + \
+#                                         [self.allowed_states.index("green")] * time_len["green"] + \
+#                                         [self.allowed_states.index("yellow")] * time_len["yellow"])
+#            states = cycled_states[(time + 260 + (torch.cos(self.pos[..., -1] * 2 + 1e-5) > 0) * time_len["red"]) % sum(time_len.values())]
+#            if self.preset_states is not None:
+#                for i in range(len(self.ids)):
+#                    id = self.ids[i]
+#                    if id in self.preset_states:
+#                        states[..., i] = self.allowed_states.index(self.preset_states[id][time % len(self.preset_states[id])])
+#            return states
+#        else:
+#            return self.state
+        print("ids")
+        print(self.ids)
+        self.controller.tick()
+        current_actor_states = self.controller.get_current_actor_states()
+        states = [self.allowed_states.index(current_actor_states[str(id)]) if str(id) in current_actor_states else 0 for id in self.ids]
+        print("states")
+        print(states)
+        return torch.Tensor(states).unsqueeze(0)
+
+
+    def copy(self):
+        """
+        Duplicates this object, allowing for independent subsequent execution.
+        """
+        other = self.__class__(
+            location=self.location,
+            pos=self.pos.clone(), allowed_states=self.allowed_states.copy(),
+            replay_states=self.replay_states.clone(), mask=self.mask.clone(),
+            ids=self.ids.copy(), use_mock_lights=self.use_mock_lights
+        )
+        other.state = self.state.clone()
+        return other
 
 
 class YieldControl(BaseTrafficControl):

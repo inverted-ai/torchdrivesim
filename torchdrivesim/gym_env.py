@@ -264,24 +264,35 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
 
     if cfg.use_mock_lights:
         static_actors = get_static_actors(iai_location_info(iai_location))
-        if stop_sign_ids is not None:
-            stop_sign_poses = []
-            for id in stop_sign_ids:
-                stop_sign_poses.append(static_actors[id])
-            stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
+#        if stop_sign_ids is not None:
+#            stop_sign_poses = []
+#            for id in stop_sign_ids:
+#                stop_sign_poses.append(static_actors[id])
+#            stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
+#
+#            traffic_light_ids = list(static_actors.keys())
+#            traffic_light_poses = list(static_actors.values())
+#            for id in static_actors:
+#                if id not in stop_sign_ids:
+#                    traffic_light_ids.append(id)
+#                    traffic_light_poses.append(static_actors[id])
+#        else:
+#            stop_sign_control = None
+#            traffic_light_poses = list(static_actors.values())
+#            traffic_light_ids = list(static_actors.keys())
+        stop_sign_control = None
+        traffic_light_ids = []
+        traffic_light_poses = []
+        for id in static_actors:
+            print(id)
+            print(static_actors[id]['agent_type'])
+            if static_actors[id]['agent_type'] == "traffic-light":
+                traffic_light_ids.append(id)
+                traffic_light_poses.append(static_actors[id]['pos'])
 
-            traffic_light_ids = list(static_actors.keys())
-            traffic_light_poses = list(static_actors.values())
-            for id in static_actors:
-                if id not in stop_sign_ids:
-                    traffic_light_ids.append(id)
-                    traffic_light_poses.append(static_actors[id])
-        else:
-            stop_sign_control = None
-            traffic_light_poses = list(static_actors.values())
-            traffic_light_ids = list(static_actors.keys())
-
-        traffic_light_control = TrafficLightControl(pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
+        print("id num: ")
+        print(len(traffic_light_ids))
+        traffic_light_control = TrafficLightControl(location=cfg.location, pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
         traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
         traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
     else:
@@ -402,6 +413,9 @@ class WaypointSuiteEnv(GymEnv):
         self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
 #        self.current_waypoint_suite_idx = 1
         location = self.locations[self.current_waypoint_suite_idx]
+        while location not in ["Town01", "Town02", "Town07", "Town10HD"]:
+            self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
+            location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
 
         self.set_start_pos()

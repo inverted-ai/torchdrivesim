@@ -82,7 +82,8 @@ def iai_location_info(location: str):
 def get_static_actors(location_info_response):
     static_actors = dict()
     for actor in location_info_response.static_actors:
-        static_actors[actor.actor_id] = torch.Tensor([actor.center.x, actor.center.y, actor.length, actor.width, actor.orientation])
+        static_actors[actor.actor_id] = {'pos': torch.Tensor([actor.center.x, actor.center.y, actor.length, actor.width, actor.orientation]),
+                                         'agent_type': actor.agent_type}
     return static_actors
 
 
