@@ -15,7 +15,7 @@ import pickle
 import random
 import numpy as np
 from torch import Tensor
-from invertedai.common import TrafficLightState, AgentState, Point
+from invertedai.common import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
     iai_initialize
@@ -255,6 +255,14 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         remain_agent_states = [ego_state]
         remain_agent_attributes = [background_traffic["agent_attributes"][0]]
         remain_recurrent_states = [background_traffic["recurrent_states"][0]]
+        if scenario is not None:
+            for agent_state in scenario.agent_states:
+                remain_agent_states.append(AgentState(center=Point(x=agent_state[0], y=agent_state[1]), orientation=agent_state[2], speed=agent_state[3]))
+            for agent_attribute in scenario.agent_attributes:
+                remain_agent_attributes.append(AgentAttributes(length=agent_attribute[0], width=agent_attribute[1], rear_axis_offset=agent_attribute[2]))
+            for recurrent_state in scenario.recurrent_states:
+                remain_recurrent_states.append(RecurrentState(packed=recurrent_state))
+
         for i in range(len(background_traffic["agent_states"])):
             agent_state = background_traffic["agent_states"][i]
             if math.dist(cfg.ego_state[:2], (agent_state.center.x, agent_state.center.y)) > 100:
@@ -333,8 +341,8 @@ class WaypointSuiteEnv(GymEnv):
         self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
 #        self.current_waypoint_suite_idx = 1
         location = self.locations[self.current_waypoint_suite_idx]
-#        while location not in ["Town01", "Town02", "Town07", "Town10HD"]:
-        while location != "Town07":
+        while location not in ["Town01", "Town02", "Town07", "Town10HD"]:
+#        while location != "Town07":
             self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
             location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
