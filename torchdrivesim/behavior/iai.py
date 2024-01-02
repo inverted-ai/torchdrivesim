@@ -120,8 +120,8 @@ class IAIWrapper(NPCWrapper):
         states, recurrent = [], []
         agent_states = HomogeneousWrapper(self.inner_simulator).get_state()
         traffic_controls = self.get_innermost_simulator().get_traffic_controls()
-        if (traffic_controls is not None) and ("traffic-light" in traffic_controls):
-            traffic_light_control = traffic_controls["traffic-light"]
+        if (traffic_controls is not None) and ("traffic_light" in traffic_controls):
+            traffic_light_control = traffic_controls["traffic_light"]
             traffic_lights_states = dict(zip(traffic_light_control.ids, traffic_light_control.state.squeeze()))
             traffic_lights_states = {k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_lights_states[k])]) for k in traffic_lights_states}
         else:

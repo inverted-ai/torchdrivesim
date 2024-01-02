@@ -187,7 +187,6 @@ class TrafficLightStateMachine:
     def tick(self, dt):
         # Increment duration counter
         self.duration_counter += dt
-        #print('ticking individual fsm')
         # Check if it's time to transition
         if self.duration_counter >= float(self.current_state['duration']):
             # Transition to the next state or through several states depending
@@ -215,9 +214,6 @@ class WholeMapTrafficLightController:
 
     def get_current_actor_states(self):
         self.state = reduce(lambda x, y: {**x, **y}, [fsm.get_current_actor_states() for fsm in self.traffic_fsms], {})
-        print("get_current_actor_states")
-        print(self.state)
-        print(len(self.state))
         return self.state
 
 
@@ -274,13 +270,9 @@ class TrafficLightControl(BaseTrafficControl):
 #            return states
 #        else:
 #            return self.state
-        print("ids")
-        print(self.ids)
         self.controller.tick()
         current_actor_states = self.controller.get_current_actor_states()
         states = [self.allowed_states.index(current_actor_states[str(id)]) if str(id) in current_actor_states else 0 for id in self.ids]
-        print("states")
-        print(states)
         return torch.Tensor(states).unsqueeze(0)
 
 
