@@ -18,7 +18,7 @@ from torch import Tensor
 from invertedai.common import TrafficLightState, AgentState, Point
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
-    iai_area_initialize, iai_initialize
+    iai_initialize
 from torchdrivesim.kinematic import BicycleNoReversing
 from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
@@ -173,82 +173,6 @@ class GymEnv(gym.Env):
         if isinstance(self.simulator, BirdviewRecordingWrapper):
             bvs = self.simulator.get_birdviews()
             save_video(bvs, self.config.video_filename)
-
-
-class IAIGymEnv(GymEnv):
-    """
-    A gym environment for driving with background traffic animated by the IAI API.
-    In the current version, reset will use the same initial conditions, but different behaviors.
-    """
-
-    def __init__(self, cfg: IAIGymEnvConfig):
-        device = torch.device('cuda')
-        driving_surface_mesh = BirdviewMesh.unpickle(
-            cfg.driving_surface_mesh_path).to(device)
-        simulator_cfg = cfg.simulator
-        iai_location = f'carla:{":".join(cfg.location.split("_"))}'
-
-        if cfg.use_mock_lights:
-            static_actors = get_static_actors(iai_location_info(iai_location))
-            traffic_light_control = TrafficLightControl(pos=torch.stack(tuple(static_actors.values())).unsqueeze(0), use_mock_lights=True, ids=list(static_actors.keys()))
-            traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
-            traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
-        else:
-            traffic_light_control = None
-            traffic_light_state_history = None
-
-        if cfg.use_area_initialize:
-            agent_attributes, agent_states, recurrent_states = \
-                iai_area_initialize(location=iai_location,
-                                    agent_density=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
-        else:
-            agent_attributes, agent_states, recurrent_states = \
-                iai_initialize(location=iai_location,
-                               agent_count=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
-
-        if cfg.ego_state is not None:
-            agent_states[0, :] = torch.Tensor(cfg.ego_state)
-
-        agent_attributes, agent_states = agent_attributes.unsqueeze(
-            0), agent_states.unsqueeze(0)
-        agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
-            torch.float32)
-        kinematic_model = BicycleNoReversing()
-        kinematic_model.set_params(lr=agent_attributes[..., 2])
-        kinematic_model.set_state(agent_states)
-        renderer = renderer_from_config(
-            simulator_cfg.renderer, static_mesh=driving_surface_mesh)
-
-        simulator = Simulator(
-            cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-            kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-            initial_present_mask=dict(vehicle=torch.ones_like(
-                agent_states[..., 0], dtype=torch.bool)),
-            renderer=renderer,
-            traffic_controls={"traffic-light": traffic_light_control}
-        )
-        simulator = HomogeneousWrapper(simulator)
-        npc_mask = torch.ones(
-            agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
-        npc_mask[0] = False
-        simulator = IAIWrapper(
-            simulator=simulator, npc_mask=npc_mask, recurrent_states=[
-                recurrent_states],
-            rear_axis_offset=agent_attributes[..., 2:3], locations=[
-                iai_location]
-        )
-        super().__init__(cfg=cfg, simulator=simulator)
-
-    def get_reward(self):
-        offroad_penalty = -self.simulator.compute_offroad()
-        collision = -self.simulator.compute_collision()
-        economy_penalty = -self.current_action.norm(2)
-        speed_bonus = self.simulator.get_state()[..., 3]
-        x = self.simulator.get_state()[..., 0]
-        r = torch.zeros_like(x)
-        r += offroad_penalty + collision + economy_penalty + speed_bonus
-        r = torch.clamp(r, min=-10., max=10.)
-        return r
 
 
 def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None, preset_traffic_light_states=None, stop_sign_ids=None):
