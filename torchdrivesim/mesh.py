@@ -21,7 +21,7 @@ import torch
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
-from torchdrivesim.utils import is_inside_polygon, merge_dicts
+from torchdrivesim.utils import is_inside_polygon, merge_dicts, rotate
 
 logger = logging.getLogger(__name__)
 
@@ -799,3 +799,34 @@ def generate_annulus_polygon_mesh(polygon: Tensor, scaling_factor: float, origin
     if category is not None:
         mesh = rendering_mesh(mesh, category=category)
     return mesh
+
+
+def generate_disc_mesh(radius: float = 2, num_triangles: int = 10, device: str = 'cpu') -> Tuple[Tensor, Tensor]:
+    """
+    For a given radius, it will create a disc mesh using `num_triangles` triangles.
+
+    Args:
+        radius: float defining the radius of the disc
+        num_triangles: int defining the number of triangles to be used for creating the disc
+        device: the device to be used for the generated PyTorch tensors
+    """
+    angleStep = torch.deg2rad(torch.tensor([[360 / num_triangles]], dtype=torch.float32, device=device))
+
+    vertices = [
+        torch.zeros(1, 2, dtype=torch.float32, device=device),
+        torch.tensor([[radius, 0]], dtype=torch.float32, device=device),
+        rotate(torch.tensor([[radius, 0]], dtype=torch.float32, device=device), angleStep)
+    ]
+    faces = [
+        torch.tensor([[0, 1, 2]], dtype=torch.long, device=device)
+    ]
+
+    for i in range(num_triangles - 1):
+        if i == num_triangles - 2:
+            faces.append(torch.tensor([[0, len(vertices)-1, 1]], dtype=torch.long, device=device))
+        else:
+            faces.append(torch.tensor([[0, len(vertices)-1, len(vertices)]], dtype=torch.long, device=device))
+            vertices.append(rotate(vertices[-1], angleStep))
+    vertices = torch.cat(vertices, dim=0)
+    faces = torch.cat(faces, dim=0)
+    return vertices, faces

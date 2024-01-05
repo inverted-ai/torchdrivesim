@@ -10,4 +10,6 @@ def test_render_agents(cfg: RendererConfig):
     renderer = renderer_from_config(cfg, batch_size=batch_size).to(device)
     agents_states = {"vehicle": torch.zeros(batch_size, 3, 4).to(device)}
     agents_attributes = {"vehicle": torch.ones(batch_size, 3, 3).to(device)}
-    renderer.render_frame(agents_states, agents_attributes)
+    waypoints = torch.zeros(batch_size, 3, 2, 3).to(device)
+    waypoints_mask = torch.ones(waypoints.shape[:-1], device=waypoints.device, dtype=torch.bool)
+    renderer.render_frame(agents_states, agents_attributes, waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
