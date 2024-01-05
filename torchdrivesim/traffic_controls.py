@@ -272,7 +272,7 @@ class TrafficLightControl(BaseTrafficControl):
 #            return self.state
         self.controller.tick()
         current_actor_states = self.controller.get_current_actor_states()
-        states = [self.allowed_states.index(current_actor_states[str(id)]) if str(id) in current_actor_states else 0 for id in self.ids]
+        states = [self.allowed_states.index(current_actor_states[str(id)]) for id in self.ids]
         return torch.Tensor(states).unsqueeze(0)
 
 
