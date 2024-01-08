@@ -194,10 +194,10 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         stop_sign_poses = []
         yield_sign_ids = []
         yield_sign_poses = []
-        print(cfg.location)
+#        print(cfg.location)
         for id in static_actors:
-            print(id)
-            print(static_actors[id]['agent_type'])
+#            print(id)
+#            print(static_actors[id]['agent_type'])
             if static_actors[id]['agent_type'] == "traffic-light":
                 traffic_light_ids.append(id)
                 traffic_light_poses.append(static_actors[id]['pos'])
@@ -208,11 +208,24 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
                 yield_sign_ids.append(id)
                 yield_sign_poses.append(static_actors[id]['pos'])
 
-        traffic_light_control = TrafficLightControl(location=cfg.location, pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
-        traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
-        traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
-        stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
-        yield_control = YieldControl(pos=torch.stack(yield_sign_poses).unsqueeze(0), ids=yield_sign_ids)
+        if len(traffic_light_ids) > 0:
+            traffic_light_control = TrafficLightControl(location=cfg.location, pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
+            traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
+            traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
+        else:
+            traffic_light_control = None
+            traffic_light_state_history = None
+
+        if len(stop_sign_ids) > 0:
+            stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
+        else:
+            stop_sign_control = None
+
+        if len(yield_sign_ids) > 0:
+            yield_control = YieldControl(pos=torch.stack(yield_sign_poses).unsqueeze(0), ids=yield_sign_ids)
+        else:
+            yield_control = None
+
     else:
         traffic_light_control = None
         traffic_light_state_history = None
@@ -246,10 +259,12 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
 
     if cfg.use_background_traffic:
         background_traffic_dir = "background_traffic"
-        background_traffic_file = os.path.join(background_traffic_dir, random.choice(list(filter(lambda x: x.split("_")[0]==cfg.location, os.listdir(background_traffic_dir)))))
-
-        with open(background_traffic_file, "rb") as f:
-            background_traffic = pickle.load(f)
+        while True:
+            background_traffic_file = os.path.join(background_traffic_dir, random.choice(list(filter(lambda x: x.split("_")[0]==cfg.location, os.listdir(background_traffic_dir)))))
+            with open(background_traffic_file, "rb") as f:
+                background_traffic = pickle.load(f)
+            if len(background_traffic["agent_states"]) + background_traffic["agent_density"] < 100:
+                break
 
         ego_state = AgentState(center=Point(x=cfg.ego_state[0], y=cfg.ego_state[1]), orientation=cfg.ego_state[2], speed=cfg.ego_state[3])
         remain_agent_states = [ego_state]
@@ -270,7 +285,8 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
                 remain_agent_attributes.append(background_traffic["agent_attributes"][i])
                 remain_recurrent_states.append(background_traffic["recurrent_states"][i])
         agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
-               agent_count=(background_traffic["agent_density"] + len(remain_agent_states)), agent_attributes=remain_agent_attributes, states_history=[remain_agent_states], center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
+               agent_count=background_traffic["agent_density"], agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
+               center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
 
     agent_attributes, agent_states = agent_attributes.unsqueeze(
@@ -339,10 +355,10 @@ class WaypointSuiteEnv(GymEnv):
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-#        self.current_waypoint_suite_idx = 1
+#        self.current_waypoint_suite_idx = 4
         location = self.locations[self.current_waypoint_suite_idx]
-        while location not in ["Town01", "Town02", "Town07", "Town10HD"]:
-#        while location != "Town07":
+        while location not in ["Town01", "Town02",  "Town03", "Town07", "Town10HD"]:
+#        while location != "Town06":
             self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
             location = self.locations[self.current_waypoint_suite_idx]
         self.lanelet_map = self.lanelet_maps[location]
