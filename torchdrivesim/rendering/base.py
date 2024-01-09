@@ -532,9 +532,9 @@ def get_default_color_map() -> Dict[str, Tuple[int, int, int]]:
     to RGB 3-tuples in [0,255] range.
     """
     color_map = dict(
-        start_point=(0, 255, 0),
+        start_point=(255, 0, 0),
         goal_point=(0, 0, 255),
-        waypoint=(0, 0, 255),
+        waypoint=(0, 255, 0),
         background=(0, 0, 0),
         road=(155, 155, 155),
         corridor=(0, 155, 0),

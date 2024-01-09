@@ -85,7 +85,8 @@ class GymEnv(gym.Env):
         self.render_mode = cfg.render_mode
 
         acceleration_range = (-1.0, 1.0)
-        steering_range = (-1.0, 1.0)
+#        steering_range = (-1.0, 1.0)
+        steering_range = (-0.3, 0.3)
         action_range = np.ndarray(shape=(2, 2), dtype=np.float32)
         action_range[:, 0] = acceleration_range
         action_range[:, 1] = steering_range
@@ -153,9 +154,9 @@ class GymEnv(gym.Env):
 
     def get_info(self):
         info = dict(
-            offroad=self.simulator.compute_offroad() > self.offroad_threshold,
-            collision=self.simulator.compute_collision() > self.collision_threshold,
-            outcome=None
+            offroad=self.simulator.compute_offroad(),
+            collision=self.simulator.compute_collision(),
+            traffic_light_violation=self.simulator.compute_traffic_lights_violations(),
         )
         return info
 
@@ -419,25 +420,29 @@ class WaypointSuiteEnv(GymEnv):
         offroad_penalty = -10.0 if self.simulator.compute_offroad() > 0 else 0
         collision_penalty = -10.0 if self.simulator.compute_collision() > 0 else 0
         traffic_light_violation_penalty = -10.0 if self.simulator.compute_traffic_lights_violations() > 0 else 0
-        stop_sign_violation_penalty = -10.0 if self.simulator.compute_stop_sign_violations(self.environment_steps) > 0 else 0
+#        stop_sign_violation_penalty = -10.0 if self.simulator.compute_stop_sign_violations(self.environment_steps) > 0 else 0
 
         x = self.simulator.get_state()[..., 0]
         y = self.simulator.get_state()[..., 1]
         d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
         self.last_x = x
         self.last_y = y
-        orientation = self.simulator.get_state()[..., 2]
-        speed = self.simulator.get_state()[..., 3]
-        lanelet_orientations = torch.Tensor(find_lanelet_directions(lanelet_map=self.lanelet_map, x=x, y=y)).cuda()
-        if len(lanelet_orientations) > 0:
-            lanelet_orientation = float(lanelet_orientations[torch.argmin(abs(lanelet_orientations - orientation)).item()])
-            orientation_reward = math.cos(orientation - lanelet_orientation)
-        else:
-            orientation_reward = 0
+#        orientation = self.simulator.get_state()[..., 2]
+#        speed = self.simulator.get_state()[..., 3]
+#        lanelet_orientations = torch.Tensor(find_lanelet_directions(lanelet_map=self.lanelet_map, x=x, y=y)).cuda()
+#        if len(lanelet_orientations) > 0:
+#            lanelet_orientation = float(lanelet_orientations[torch.argmin(abs(lanelet_orientations - orientation)).item()])
+#            orientation_reward = math.cos(orientation - lanelet_orientation)
+#        else:
+#            orientation_reward = 0
         reach_target_reward = 30 if self.check_reach_target() else 0
         r = torch.zeros_like(x)
-        r += reach_target_reward + offroad_penalty + collision_penalty + traffic_light_violation_penalty + stop_sign_violation_penalty + d
+        r += reach_target_reward + offroad_penalty + collision_penalty + traffic_light_violation_penalty + d # stop_sign_violation_penalty + d
         return r
+
+    def is_terminated(self):
+        return (self.simulator.compute_offroad() > 0) or (self.simulator.compute_collision() > 0) or ((self.simulator.compute_traffic_lights_violations()) > 0)
+#        return False
 
 
 class SingleAgentWrapper(gym.Wrapper):
