@@ -52,6 +52,8 @@ class IAIGymEnvConfig:
     use_area_initialize: bool = False
     max_environment_steps: int = 200
     use_background_traffic: bool = True
+    # True for training, and False for evaluation
+    terminated_at_infraction: bool = False
 
 
 @dataclass
@@ -351,6 +353,7 @@ class WaypointSuiteEnv(GymEnv):
                 self.lanelet_maps[location] = load_lanelet_map(lanelet_map_path)
         self.iai_cfg = cfg.iai_gym
         super().__init__(cfg=cfg.iai_gym, simulator=None)
+#        self.reset()
 
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
@@ -441,8 +444,10 @@ class WaypointSuiteEnv(GymEnv):
         return r
 
     def is_terminated(self):
-        return (self.simulator.compute_offroad() > 0) or (self.simulator.compute_collision() > 0) or ((self.simulator.compute_traffic_lights_violations()) > 0)
-#        return False
+        if self.iai_cfg.terminated_at_infraction:
+            return (self.simulator.compute_offroad() > 0) or (self.simulator.compute_collision() > 0) or ((self.simulator.compute_traffic_lights_violations()) > 0)
+        else:
+            return False
 
 
 class SingleAgentWrapper(gym.Wrapper):
