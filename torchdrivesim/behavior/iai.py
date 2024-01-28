@@ -1,6 +1,8 @@
 from typing import List, Optional, Dict
 
+import os
 import math
+import pickle
 import torch
 from torch import Tensor
 from typing_extensions import Self
@@ -9,6 +11,7 @@ from invertedai.common import TrafficLightState
 from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 
+IAI_LOCATION_INFO_DIR = "location_info"
 
 def iai_initialize(location, agent_count, agent_attributes=None, agent_states=None, recurrent_states=None, center=(0, 0), traffic_light_state_history=None):
     import invertedai
@@ -91,28 +94,53 @@ def iai_area_initialize(location, agent_density, center=(0, 0), traffic_light_st
 def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List, traffic_lights_states: Dict = None):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
-    agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
-    agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
-    response = invertedai.api.drive(
-        location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-        recurrent_states=recurrent_states,
-        traffic_lights_states=traffic_lights_states
-    )
-    agent_states = torch.stack(
-        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
-    )
+    try:
+        agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
+        agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
+        response = invertedai.api.drive(
+            location=location, agent_states=agent_states, agent_attributes=agent_attributes,
+            recurrent_states=recurrent_states,
+            traffic_lights_states=traffic_lights_states
+        )
+        agent_states = torch.stack(
+            [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
+        )
+    except Exception as e:
+        print(e)
+        print(location)
+        print(agent_attributes)
+        print(agent_states)
+        raise e
     return agent_states, response.recurrent_states
 
 
 def iai_location_info(location: str):
+#    import invertedai
+#    try:
+#        response = invertedai.api.location_info(
+#            location=location
+#        )
+#    except invertedai.error.InvalidRequestError:
+#        raise LocationInfoFailedError()
+#    return response
+    with open(f"{IAI_LOCATION_INFO_DIR}/{location}.pkl", "rb") as f:
+        response = pickle.load(f)
+    return response
+
+
+def cache_iai_location_info(locations: List[str]):
     import invertedai
     try:
-        response = invertedai.api.location_info(
-            location=location
-        )
+        if not os.path.isdir(IAI_LOCATION_INFO_DIR):
+            os.mkdir(IAI_LOCATION_INFO_DIR)
+        for location in locations:
+            response = invertedai.api.location_info(
+                location=location
+            )
+            with open(f"{IAI_LOCATION_INFO_DIR}/{location}.pkl", "wb") as f:
+                pickle.dump(response, f)
     except invertedai.error.InvalidRequestError:
         raise LocationInfoFailedError()
-    return response
 
 
 def get_static_actors(location_info_response):
@@ -167,10 +195,10 @@ class IAIWrapper(NPCWrapper):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
                              traffic_lights_states=traffic_lights_states)
-            if self._car_sequences is not None:
-                for agent_idx in self._car_sequences:
-                    if self._iai_timestep < len(self._car_sequences[agent_idx]):
-                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
+#            if self._car_sequences is not None:
+#                for agent_idx in self._car_sequences:
+#                    if self._iai_timestep < len(self._car_sequences[agent_idx]):
+#                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
             states.append(s)
             recurrent.append(r)
         states = torch.stack(states, dim=0).to(self.get_state().device)

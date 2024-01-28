@@ -18,7 +18,7 @@ from torch import Tensor
 from invertedai.common import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
-    iai_initialize
+    iai_initialize, cache_iai_location_info
 from torchdrivesim.kinematic import BicycleNoReversing
 from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
@@ -143,10 +143,11 @@ class GymEnv(gym.Env):
         return r
 
     def is_done(self):
-        x = self.simulator.get_state()[..., 0]
-        done = torch.zeros_like(x, dtype=torch.bool)
-        done += self.environment_steps >= self.max_environment_steps
-        return done
+#        x = self.simulator.get_state()[..., 0]
+#        done = torch.zeros_like(x, dtype=torch.bool)
+#        done += self.environment_steps >= self.max_environment_steps
+#        return done
+         return self.is_truncated() or self.is_terminated()
 
     def is_truncated(self):
         return self.environment_steps >= self.max_environment_steps
@@ -159,6 +160,8 @@ class GymEnv(gym.Env):
             offroad=self.simulator.compute_offroad(),
             collision=self.simulator.compute_collision(),
             traffic_light_violation=self.simulator.compute_traffic_lights_violations(),
+            is_success=(self.environment_steps >= self.max_environment_steps),
+            occur_exception=False
         )
         return info
 
@@ -172,6 +175,20 @@ class GymEnv(gym.Env):
         else:
             raise NotImplementedError
 
+    def mock_step(self):
+        obs = np.zeros((1, 3, 64, 64)) # self.last_obs
+        reward = 0
+        terminated = False
+        truncated = True
+        info = dict(
+            offroad=torch.Tensor([[0]]),
+            collision=torch.Tensor([[0]]),
+            traffic_light_violation=torch.Tensor([[0]]),
+            is_success=False,
+            occur_exception=True
+        )
+        return obs, reward, terminated, truncated, info
+
     def close(self):
         if isinstance(self.simulator, BirdviewRecordingWrapper):
             bvs = self.simulator.get_birdviews()
@@ -179,165 +196,173 @@ class GymEnv(gym.Env):
 
 
 def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None, preset_traffic_light_states=None, stop_sign_ids=None):
-    device = torch.device('cuda')
-    driving_surface_mesh_path = os.path.join(
-        os.path.dirname(os.path.realpath(
-            __file__)), f"../resources/maps/carla/meshes/{cfg.location}_driving_surface_mesh.pkl"
-    )
-    driving_surface_mesh = BirdviewMesh.unpickle(
-        driving_surface_mesh_path).to(device)
-    simulator_cfg = cfg.simulator
-    iai_location = f'carla:{":".join(cfg.location.split("_"))}'
+    with torch.no_grad():
+        device = torch.device("cuda")
+        driving_surface_mesh_path = os.path.join(
+            os.path.dirname(os.path.realpath(
+                __file__)), f"../resources/maps/carla/meshes/{cfg.location}_driving_surface_mesh.pkl"
+        )
+        driving_surface_mesh = BirdviewMesh.unpickle(
+            driving_surface_mesh_path).to(device)
+        simulator_cfg = cfg.simulator
+        iai_location = f'carla:{":".join(cfg.location.split("_"))}'
 
-    if cfg.use_mock_lights:
-        static_actors = get_static_actors(iai_location_info(iai_location))
-        traffic_light_ids = []
-        traffic_light_poses = []
-        stop_sign_ids = []
-        stop_sign_poses = []
-        yield_sign_ids = []
-        yield_sign_poses = []
-#        print(cfg.location)
-        for id in static_actors:
-#            print(id)
-#            print(static_actors[id]['agent_type'])
-            if static_actors[id]['agent_type'] == "traffic-light":
-                traffic_light_ids.append(id)
-                traffic_light_poses.append(static_actors[id]['pos'])
-            if static_actors[id]['agent_type'] == "stop-sign":
-                stop_sign_ids.append(id)
-                stop_sign_poses.append(static_actors[id]['pos'])
-            if static_actors[id]['agent_type'] == "yield":
-                yield_sign_ids.append(id)
-                yield_sign_poses.append(static_actors[id]['pos'])
+        if cfg.use_mock_lights:
+            static_actors = get_static_actors(iai_location_info(iai_location))
+            traffic_light_ids = []
+            traffic_light_poses = []
+            stop_sign_ids = []
+            stop_sign_poses = []
+            yield_sign_ids = []
+            yield_sign_poses = []
+    #        print(cfg.location)
+            for id in static_actors:
+    #            print(id)
+    #            print(static_actors[id]['agent_type'])
+                if static_actors[id]['agent_type'] == "traffic-light":
+                    traffic_light_ids.append(id)
+                    traffic_light_poses.append(static_actors[id]['pos'])
+                if static_actors[id]['agent_type'] == "stop-sign":
+                    stop_sign_ids.append(id)
+                    stop_sign_poses.append(static_actors[id]['pos'])
+                if static_actors[id]['agent_type'] == "yield":
+                    yield_sign_ids.append(id)
+                    yield_sign_poses.append(static_actors[id]['pos'])
 
-        if len(traffic_light_ids) > 0:
-            traffic_light_control = TrafficLightControl(location=cfg.location, pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
-            traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
-            traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
+            if len(traffic_light_ids) > 0:
+                traffic_light_control = TrafficLightControl(location=cfg.location, pos=torch.stack(traffic_light_poses).unsqueeze(0), use_mock_lights=True, ids=traffic_light_ids, preset_states=preset_traffic_light_states)
+                traffic_light_states = dict(zip(static_actors.keys(), traffic_light_control.compute_state(0).squeeze()))
+                traffic_light_state_history = [{k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_light_states[k])]) for k in traffic_light_states}]
+            else:
+                traffic_light_control = None
+                traffic_light_state_history = None
+
+            if len(stop_sign_ids) > 0:
+                stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
+            else:
+                stop_sign_control = None
+
+            if len(yield_sign_ids) > 0:
+                yield_control = YieldControl(pos=torch.stack(yield_sign_poses).unsqueeze(0), ids=yield_sign_ids)
+            else:
+                yield_control = None
+
         else:
             traffic_light_control = None
             traffic_light_state_history = None
-
-        if len(stop_sign_ids) > 0:
-            stop_sign_control = StopSignControl(pos=torch.stack(stop_sign_poses).unsqueeze(0), ids=stop_sign_ids)
-        else:
             stop_sign_control = None
-
-        if len(yield_sign_ids) > 0:
-            yield_control = YieldControl(pos=torch.stack(yield_sign_poses).unsqueeze(0), ids=yield_sign_ids)
-        else:
             yield_control = None
 
-    else:
-        traffic_light_control = None
-        traffic_light_state_history = None
-        stop_sign_control = None
+    #    if scenario is not None:
+    #        agent_states = torch.Tensor(scenario.agent_states)
+    #        agent_attributes = torch.Tensor(scenario.agent_attributes)
+    #        recurrent_states = [RecurrentState(packed=recurrent_state) for recurrent_state in scenario.recurrent_states]
+    #        if cfg.ego_state is not None:
+    #            agent_states = torch.cat([torch.Tensor(cfg.ego_state).unsqueeze(0), agent_states])
+    #            agent_attributes = torch.cat([agent_attributes[0, :].unsqueeze(0), agent_attributes])
+    #            recurrent_states =  [recurrent_states[0]] + recurrent_states
+    #            if car_sequences is not None:
+    #                new_car_sequences = {}
+    #                for agent_idx in car_sequences:
+    #                    new_car_sequences[agent_idx + 1] = car_sequences[agent_idx].copy()
+    #                car_sequences = new_car_sequences
+    #    else:
+    #        if cfg.use_area_initialize:
+    #            agent_attributes, agent_states, recurrent_states = \
+    #                iai_area_initialize(location=iai_location,
+    #                                    agent_density=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
+    #        else:
+    #            agent_attributes, agent_states, recurrent_states = \
+    #                iai_initialize(location=iai_location,
+    #                               agent_count=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
+    #
+    #        if cfg.ego_state is not None:
+    #            agent_states[0, :] = torch.Tensor(cfg.ego_state)
 
-#    if scenario is not None:
-#        agent_states = torch.Tensor(scenario.agent_states)
-#        agent_attributes = torch.Tensor(scenario.agent_attributes)
-#        recurrent_states = [RecurrentState(packed=recurrent_state) for recurrent_state in scenario.recurrent_states]
-#        if cfg.ego_state is not None:
-#            agent_states = torch.cat([torch.Tensor(cfg.ego_state).unsqueeze(0), agent_states])
-#            agent_attributes = torch.cat([agent_attributes[0, :].unsqueeze(0), agent_attributes])
-#            recurrent_states =  [recurrent_states[0]] + recurrent_states
-#            if car_sequences is not None:
-#                new_car_sequences = {}
-#                for agent_idx in car_sequences:
-#                    new_car_sequences[agent_idx + 1] = car_sequences[agent_idx].copy()
-#                car_sequences = new_car_sequences
-#    else:
-#        if cfg.use_area_initialize:
-#            agent_attributes, agent_states, recurrent_states = \
-#                iai_area_initialize(location=iai_location,
-#                                    agent_density=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
-#        else:
-#            agent_attributes, agent_states, recurrent_states = \
-#                iai_initialize(location=iai_location,
-#                               agent_count=cfg.agent_count, center=tuple(cfg.center), traffic_light_state_history=traffic_light_state_history)
-#
-#        if cfg.ego_state is not None:
-#            agent_states[0, :] = torch.Tensor(cfg.ego_state)
+        if cfg.use_background_traffic:
+            background_traffic_dir = "background_traffic"
+            while True:
+                background_traffic_file = os.path.join(background_traffic_dir, random.choice(list(filter(lambda x: x.split("_")[0]==cfg.location, os.listdir(background_traffic_dir)))))
+                with open(background_traffic_file, "rb") as f:
+                    background_traffic = pickle.load(f)
+                if len(background_traffic["agent_states"]) + background_traffic["agent_density"] < 100:
+                    break
 
-    if cfg.use_background_traffic:
-        background_traffic_dir = "background_traffic"
-        while True:
-            background_traffic_file = os.path.join(background_traffic_dir, random.choice(list(filter(lambda x: x.split("_")[0]==cfg.location, os.listdir(background_traffic_dir)))))
-            with open(background_traffic_file, "rb") as f:
-                background_traffic = pickle.load(f)
-            if len(background_traffic["agent_states"]) + background_traffic["agent_density"] < 100:
-                break
+            ego_state = AgentState(center=Point(x=cfg.ego_state[0], y=cfg.ego_state[1]), orientation=cfg.ego_state[2], speed=cfg.ego_state[3])
+            remain_agent_states = [ego_state]
+            remain_agent_attributes = [background_traffic["agent_attributes"][0]]
+            remain_recurrent_states = [background_traffic["recurrent_states"][0]]
+            if scenario is not None:
+                for agent_state in scenario.agent_states:
+                    remain_agent_states.append(AgentState(center=Point(x=agent_state[0], y=agent_state[1]), orientation=agent_state[2], speed=agent_state[3]))
+                for agent_attribute in scenario.agent_attributes:
+                    remain_agent_attributes.append(AgentAttributes(length=agent_attribute[0], width=agent_attribute[1], rear_axis_offset=agent_attribute[2]))
+                for recurrent_state in scenario.recurrent_states:
+                    remain_recurrent_states.append(RecurrentState(packed=recurrent_state))
 
-        ego_state = AgentState(center=Point(x=cfg.ego_state[0], y=cfg.ego_state[1]), orientation=cfg.ego_state[2], speed=cfg.ego_state[3])
-        remain_agent_states = [ego_state]
-        remain_agent_attributes = [background_traffic["agent_attributes"][0]]
-        remain_recurrent_states = [background_traffic["recurrent_states"][0]]
-        if scenario is not None:
-            for agent_state in scenario.agent_states:
-                remain_agent_states.append(AgentState(center=Point(x=agent_state[0], y=agent_state[1]), orientation=agent_state[2], speed=agent_state[3]))
-            for agent_attribute in scenario.agent_attributes:
-                remain_agent_attributes.append(AgentAttributes(length=agent_attribute[0], width=agent_attribute[1], rear_axis_offset=agent_attribute[2]))
-            for recurrent_state in scenario.recurrent_states:
-                remain_recurrent_states.append(RecurrentState(packed=recurrent_state))
+            for i in range(len(background_traffic["agent_states"])):
+                agent_state = background_traffic["agent_states"][i]
+                if math.dist(cfg.ego_state[:2], (agent_state.center.x, agent_state.center.y)) > 100:
+                    remain_agent_states.append(agent_state)
+                    remain_agent_attributes.append(background_traffic["agent_attributes"][i])
+                    remain_recurrent_states.append(background_traffic["recurrent_states"][i])
+            agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
+                   agent_count=background_traffic["agent_density"], agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
+                   center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
-        for i in range(len(background_traffic["agent_states"])):
-            agent_state = background_traffic["agent_states"][i]
-            if math.dist(cfg.ego_state[:2], (agent_state.center.x, agent_state.center.y)) > 100:
-                remain_agent_states.append(agent_state)
-                remain_agent_attributes.append(background_traffic["agent_attributes"][i])
-                remain_recurrent_states.append(background_traffic["recurrent_states"][i])
-        agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
-               agent_count=background_traffic["agent_density"], agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
-               center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
+#            agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
+#                   agent_count=1, agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
+#                   center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
 
-    agent_attributes, agent_states = agent_attributes.unsqueeze(
-        0), agent_states.unsqueeze(0)
-    agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
-        torch.float32)
-    kinematic_model = BicycleNoReversing()
-    kinematic_model.set_params(lr=agent_attributes[..., 2])
-    kinematic_model.set_state(agent_states)
-    renderer = renderer_from_config(
-        simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+        agent_attributes, agent_states = agent_attributes.unsqueeze(
+            0), agent_states.unsqueeze(0)
+        agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
+            torch.float32)
+        kinematic_model = BicycleNoReversing()
+        kinematic_model.set_params(lr=agent_attributes[..., 2])
+        kinematic_model.set_state(agent_states)
+        renderer = renderer_from_config(
+            simulator_cfg.renderer, static_mesh=driving_surface_mesh)
 
-    traffic_controls = {}
-    if traffic_light_control is not None:
-        traffic_controls["traffic_light"] = traffic_light_control
-    if stop_sign_control is not None:
-        traffic_controls["stop_sign"] = stop_sign_control
-    if yield_control is not None:
-        traffic_controls["yield_sign"] = yield_control
+        traffic_controls = {}
+        if traffic_light_control is not None:
+            traffic_controls["traffic_light"] = traffic_light_control
+        if stop_sign_control is not None:
+            traffic_controls["stop_sign"] = stop_sign_control
+        if yield_control is not None:
+            traffic_controls["yield_sign"] = yield_control
 
-    simulator = Simulator(
-        cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-        kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-        initial_present_mask=dict(vehicle=torch.ones_like(
-            agent_states[..., 0], dtype=torch.bool)),
-        renderer=renderer,
-        traffic_controls=traffic_controls
-    )
-    simulator = HomogeneousWrapper(simulator)
-    npc_mask = torch.ones(
-        agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
-    npc_mask[0] = False
-    simulator = IAIWrapper(
-        simulator=simulator, npc_mask=npc_mask, recurrent_states=[
-            recurrent_states],
-        rear_axis_offset=agent_attributes[..., 2:3], locations=[
-            iai_location],
-        car_sequences=car_sequences
-    )
-    if cfg.render_mode == "video":
-        simulator = BirdviewRecordingWrapper(
-            simulator, res=Resolution(cfg.res, cfg.res), fov=cfg.fov, to_cpu=True)
-    return simulator
+        simulator = Simulator(
+            cfg=simulator_cfg, road_mesh=driving_surface_mesh,
+            kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
+            initial_present_mask=dict(vehicle=torch.ones_like(
+                agent_states[..., 0], dtype=torch.bool)),
+            renderer=renderer,
+            traffic_controls=traffic_controls
+        )
+        simulator = HomogeneousWrapper(simulator)
+        npc_mask = torch.ones(
+            agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
+        npc_mask[0] = False
+        simulator = IAIWrapper(
+            simulator=simulator, npc_mask=npc_mask, recurrent_states=[
+                recurrent_states],
+            rear_axis_offset=agent_attributes[..., 2:3], locations=[
+                iai_location],
+            car_sequences=car_sequences
+        )
+        if cfg.render_mode == "video":
+            simulator = BirdviewRecordingWrapper(
+                simulator, res=Resolution(cfg.res, cfg.res), fov=cfg.fov, to_cpu=True)
+        return simulator
 
 
 class WaypointSuiteEnv(GymEnv):
     def __init__(self, cfg: WaypointSuiteEnvConfig):
         self.locations = cfg.locations
+        self.iai_locations = [f'carla:{":".join(location.split("_"))}' for location in self.locations]
+
         self.waypointsuite = cfg.waypointsuite
         self.car_sequence_suite = cfg.car_sequence_suite
         self.scenarios = cfg.scenarios
@@ -352,6 +377,7 @@ class WaypointSuiteEnv(GymEnv):
                     )
                 self.lanelet_maps[location] = load_lanelet_map(lanelet_map_path)
         self.iai_cfg = cfg.iai_gym
+        cache_iai_location_info(self.iai_locations)
         super().__init__(cfg=cfg.iai_gym, simulator=None)
 #        self.reset()
 
@@ -378,6 +404,12 @@ class WaypointSuiteEnv(GymEnv):
         self.last_x = None
         self.last_y = None
 
+        self.last_obs = None
+        self.last_reward = None
+        self.last_info = None
+
+        self.reached_waypoint_num = 0
+
         self.simulator = build_iai_simulator(self.iai_cfg,
                                              self.scenarios[self.current_waypoint_suite_idx],
                                              self.car_sequence_suite[self.current_waypoint_suite_idx],
@@ -388,31 +420,52 @@ class WaypointSuiteEnv(GymEnv):
         self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
 
         self.environment_steps = 0
+        self.occur_exception = False
         return self.get_obs(), {}
 
     def set_start_pos(self):
         self.waypoints = self.waypointsuite[self.current_waypoint_suite_idx]
         p0 = np.array(self.waypoints[0])
         p1 = np.array(self.waypoints[1])
-        self.start_point = p0 + np.random.rand() * (p1 - p0)
-        self.start_speed = np.random.rand() * 10
-        self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
-                                                               x=self.start_point[0], y=self.start_point[1])[0]) \
-                                 + np.random.normal(0, 0.1)
+        # in case the start_point is offroad
+        while True:
+            try:
+                self.start_point = p0 + np.random.rand() * (p1 - p0)
+                self.start_speed = np.random.rand() * 10
+                self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
+                                                                       x=self.start_point[0], y=self.start_point[1])[0]) \
+                                         + np.random.normal(0, 0.1)
+                break
+            except Exception as e:
+                print(e)
 
     def step(self, action: Tensor):
-        obs, reward, terminated, truncated, info = super().step(action)
-        if self.check_reach_target():
-            self.current_target_idx += 1
-            if self.current_target_idx < len(self.waypoints):
-                self.current_target = self.waypoints[self.current_target_idx]
-                innermost_simulator = self.simulator.get_innermost_simulator()
-                innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
-            else:
-                self.current_target = None
-                innermost_simulator = self.simulator.get_innermost_simulator()
-                innermost_simulator.renderer.set_waypoint_mesh(None)
+        try:
+            obs, reward, terminated, truncated, info = super().step(action)
+            if self.check_reach_target():
+                self.current_target_idx += 1
+                if self.current_target_idx < len(self.waypoints):
+                    self.current_target = self.waypoints[self.current_target_idx]
+                    innermost_simulator = self.simulator.get_innermost_simulator()
+                    innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+                else:
+                    self.current_target = None
+                    innermost_simulator = self.simulator.get_innermost_simulator()
+                    innermost_simulator.renderer.set_waypoint_mesh(None)
+            self.last_obs = obs
+            self.last_reward = reward
+            self.last_info = info
+        except Exception as e:
+            print(e)
+            self.occur_exception = True
+            obs, reward, terminated, truncated, info = self.mock_step()
+#            obs = np.zeros((1, 3, 64, 64)) # self.last_obs
+#            reward = 0
+#            terminated = False
+#            truncated = True
+#            info = self.last_info
         return obs, reward, terminated, truncated, info
+
 
     def check_reach_target(self):
         x = self.simulator.get_state()[..., 0]
@@ -438,7 +491,11 @@ class WaypointSuiteEnv(GymEnv):
 #            orientation_reward = math.cos(orientation - lanelet_orientation)
 #        else:
 #            orientation_reward = 0
-        reach_target_reward = 30 if self.check_reach_target() else 0
+        if self.check_reach_target():
+            reach_target_reward = 30
+            self.reached_waypoint_num += 1
+        else:
+            reach_target_reward = 0
         r = torch.zeros_like(x)
         r += reach_target_reward + offroad_penalty + collision_penalty + traffic_light_violation_penalty + d # stop_sign_violation_penalty + d
         return r
@@ -448,6 +505,17 @@ class WaypointSuiteEnv(GymEnv):
             return (self.simulator.compute_offroad() > 0) or (self.simulator.compute_collision() > 0) or ((self.simulator.compute_traffic_lights_violations()) > 0)
         else:
             return False
+
+    def get_info(self):
+        info = dict(
+            offroad=self.simulator.compute_offroad(),
+            collision=self.simulator.compute_collision(),
+            traffic_light_violation=self.simulator.compute_traffic_lights_violations(),
+            is_success=(self.environment_steps >= self.max_environment_steps),
+            occur_exception=False,
+            reached_waypoint_num=self.reached_waypoint_num
+        )
+        return info
 
 
 class SingleAgentWrapper(gym.Wrapper):

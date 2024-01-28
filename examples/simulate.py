@@ -2,6 +2,9 @@
 Simple demonstration for how to initialize the simulator and use behavioral models to move the cars.
 The behavioral models are provided by the IAI API and a key is required to use it and run this script.
 """
+import sys
+sys.path.insert(0, "/opt/rl-env/torchdrivesim")
+
 import os
 import sys
 from dataclasses import dataclass
