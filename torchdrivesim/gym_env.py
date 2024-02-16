@@ -13,6 +13,7 @@ import gymnasium as gym
 import torch
 import pickle
 import random
+import traceback
 import numpy as np
 from torch import Tensor
 from invertedai.common import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
@@ -438,6 +439,7 @@ class WaypointSuiteEnv(GymEnv):
                                          + np.random.normal(0, 0.1)
                 break
             except Exception as e:
+                print("set_start_pos")
                 print(e)
 
     def step(self, action: Tensor):
@@ -457,7 +459,9 @@ class WaypointSuiteEnv(GymEnv):
             self.last_reward = reward
             self.last_info = info
         except Exception as e:
+            print("step")
             print(e)
+            print(traceback.format_exc())
             self.occur_exception = True
             obs, reward, terminated, truncated, info = self.mock_step()
 #            obs = np.zeros((1, 3, 64, 64)) # self.last_obs
@@ -484,8 +488,8 @@ class WaypointSuiteEnv(GymEnv):
         psi = self.simulator.get_state()[..., 2]
 
         d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
-        distance_reward = 1 if d > 0.1 else 0
-        psi_reward = (1 - math.cos(psi - self.last_psi)) * (-0.01) if (self.last_psi is not None) else 0
+        distance_reward = 1 if d > 0.5 else 0
+        psi_reward = (1 - math.cos(psi - self.last_psi)) * (-0.05) if (self.last_psi is not None) else 0
         self.last_x = x
         self.last_y = y
         self.last_psi = psi
