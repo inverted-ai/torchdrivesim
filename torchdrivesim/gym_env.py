@@ -20,7 +20,7 @@ from invertedai.common import TrafficLightState, AgentState, Point, AgentAttribu
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
     iai_initialize, cache_iai_location_info
-from torchdrivesim.kinematic import BicycleNoReversing
+from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
 from torchdrivesim.utils import Resolution, save_video
@@ -55,6 +55,7 @@ class IAIGymEnvConfig:
     use_background_traffic: bool = True
     # True for training, and False for evaluation
     terminated_at_infraction: bool = False
+    ego_only: bool = False
 
 
 @dataclass
@@ -280,6 +281,16 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
     #        if cfg.ego_state is not None:
     #            agent_states[0, :] = torch.Tensor(cfg.ego_state)
 
+        if cfg.ego_only:
+#            ego_state = AgentState(center=Point(x=cfg.ego_state[0], y=cfg.ego_state[1]), orientation=cfg.ego_state[2], speed=cfg.ego_state[3])
+            agent_states = torch.Tensor([cfg.ego_state[0], cfg.ego_state[1], cfg.ego_state[2], cfg.ego_state[3]]).unsqueeze(0)
+            length = np.random.random() * (5.5 - 4.8) + 4.8
+            width = np.random.random() * (2.2 - 1.8) + 1.8
+            rear_axis_offset = np.random.random() * (0.97 - 0.82) + 0.82
+            agent_attributes = torch.Tensor([length, width, rear_axis_offset]).unsqueeze(0)
+            recurrent_states = torch.Tensor([0] * 132).unsqueeze(0)
+
+
         if cfg.use_background_traffic:
             background_traffic_dir = "background_traffic"
             while True:
@@ -320,7 +331,7 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
             0), agent_states.unsqueeze(0)
         agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
             torch.float32)
-        kinematic_model = BicycleNoReversing()
+        kinematic_model = KinematicBicycle()
         kinematic_model.set_params(lr=agent_attributes[..., 2])
         kinematic_model.set_state(agent_states)
         renderer = renderer_from_config(
@@ -346,13 +357,14 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         npc_mask = torch.ones(
             agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
         npc_mask[0] = False
-        simulator = IAIWrapper(
-            simulator=simulator, npc_mask=npc_mask, recurrent_states=[
-                recurrent_states],
-            rear_axis_offset=agent_attributes[..., 2:3], locations=[
-                iai_location],
-            car_sequences=car_sequences
-        )
+        if not cfg.ego_only:
+            simulator = IAIWrapper(
+                simulator=simulator, npc_mask=npc_mask, recurrent_states=[
+                    recurrent_states],
+                rear_axis_offset=agent_attributes[..., 2:3], locations=[
+                    iai_location],
+                car_sequences=car_sequences
+            )
         if cfg.render_mode == "video":
             simulator = BirdviewRecordingWrapper(
                 simulator, res=Resolution(cfg.res, cfg.res), fov=cfg.fov, to_cpu=True)
@@ -464,11 +476,6 @@ class WaypointSuiteEnv(GymEnv):
             print(traceback.format_exc())
             self.occur_exception = True
             obs, reward, terminated, truncated, info = self.mock_step()
-#            obs = np.zeros((1, 3, 64, 64)) # self.last_obs
-#            reward = 0
-#            terminated = False
-#            truncated = True
-#            info = self.last_info
         return obs, reward, terminated, truncated, info
 
 
