@@ -390,7 +390,7 @@ class WaypointSuiteEnv(GymEnv):
                     )
                 self.lanelet_maps[location] = load_lanelet_map(lanelet_map_path)
         self.iai_cfg = cfg.iai_gym
-        cache_iai_location_info(self.iai_locations)
+#        cache_iai_location_info(self.iai_locations)
         super().__init__(cfg=cfg.iai_gym, simulator=None)
 #        self.reset()
 
