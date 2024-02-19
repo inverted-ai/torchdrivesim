@@ -442,17 +442,20 @@ class WaypointSuiteEnv(GymEnv):
         p0 = np.array(self.waypoints[0])
         p1 = np.array(self.waypoints[1])
         # in case the start_point is offroad
-        while True:
-            try:
-                self.start_point = p0 + np.random.rand() * (p1 - p0)
-                self.start_speed = np.random.rand() * 10
-                self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
-                                                                       x=self.start_point[0], y=self.start_point[1])[0]) \
-                                         + np.random.normal(0, 0.1)
-                break
-            except Exception as e:
-                print("set_start_pos")
-                print(e)
+        try:
+            self.start_point = p0 + np.random.rand() * (p1 - p0)
+            self.start_speed = np.random.rand() * 10
+            self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
+                                                                   x=self.start_point[0], y=self.start_point[1])[0]) \
+                                     + np.random.normal(0, 0.1)
+        except Exception as e:
+            print("set_start_pos")
+            print(e)
+            self.start_point = p0
+            self.start_speed = np.random.rand() * 10
+            self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
+                                                                   x=self.start_point[0], y=self.start_point[1])[0]) \
+                                     + np.random.normal(0, 0.1)
 
     def step(self, action: Tensor):
         try:
