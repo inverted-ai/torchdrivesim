@@ -158,14 +158,14 @@ class GymEnv(gym.Env):
         return False
 
     def get_info(self):
-        info = dict(
+        self.info = dict(
             offroad=self.simulator.compute_offroad(),
             collision=self.simulator.compute_collision(),
             traffic_light_violation=self.simulator.compute_traffic_lights_violations(),
             is_success=(self.environment_steps >= self.max_environment_steps),
             occur_exception=False
         )
-        return info
+        return self.info
 
     def seed(self, seed=None):
         pass
@@ -459,6 +459,12 @@ class WaypointSuiteEnv(GymEnv):
 
     def step(self, action: Tensor):
         try:
+            state = self.simulator.get_state()
+            self.last_x = state[..., 0]
+            self.last_y = state[..., 1]
+            self.last_psi = state[..., 2]
+            self.last_speed = state[..., 3]
+
             obs, reward, terminated, truncated, info = super().step(action)
             if self.check_reach_target():
                 self.current_target_idx += 1
@@ -500,9 +506,9 @@ class WaypointSuiteEnv(GymEnv):
         d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
         distance_reward = 1 if d > 0.5 else 0
         psi_reward = (1 - math.cos(psi - self.last_psi)) * (-0.05) if (self.last_psi is not None) else 0
-        self.last_x = x
-        self.last_y = y
-        self.last_psi = psi
+#        self.last_x = x
+#        self.last_y = y
+#        self.last_psi = psi
 #        orientation = self.simulator.get_state()[..., 2]
 #        speed = self.simulator.get_state()[..., 3]
 #        lanelet_orientations = torch.Tensor(find_lanelet_directions(lanelet_map=self.lanelet_map, x=x, y=y)).cuda()
@@ -528,15 +534,19 @@ class WaypointSuiteEnv(GymEnv):
             return False
 
     def get_info(self):
-        info = dict(
+        psi = self.simulator.get_state()[..., 2]
+        speed = self.simulator.get_state()[..., 3]
+        self.info = dict(
             offroad=self.simulator.compute_offroad(),
             collision=self.simulator.compute_collision(),
             traffic_light_violation=self.simulator.compute_traffic_lights_violations(),
             is_success=(self.environment_steps >= self.max_environment_steps),
             occur_exception=False,
-            reached_waypoint_num=self.reached_waypoint_num
+            reached_waypoint_num=self.reached_waypoint_num,
+            psi_smoothness=((self.last_psi - psi) / 0.1).item(),
+            speed_smoothness=((self.last_speed - speed) / 0.1).item()
         )
-        return info
+        return self.info
 
 
 class SingleAgentWrapper(gym.Wrapper):
