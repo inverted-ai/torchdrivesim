@@ -6,6 +6,7 @@ from functools import reduce
 from typing import Tuple, List, Dict
 
 import os
+import random
 import numpy as np
 import torch
 from torch import Tensor
@@ -151,3 +152,17 @@ def save_video(imgs, filename, batch_index=0, fps=10, web_browser_friendly=False
         os.system(
             f"ffmpeg -y -i {temp_filename} -hide_banner -loglevel error -vcodec libx264 -f mp4 {filename}")
         os.remove(temp_filename)
+
+
+def set_seeds(seed, logger=None):
+    if seed is None:
+        seed = np.random.randint(low=0, high=2**32 - 1)
+    if logger is not None:
+        logger.info(f"seed: {seed}")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    return seed

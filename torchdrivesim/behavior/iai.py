@@ -3,6 +3,7 @@ from typing import List, Optional, Dict
 import os
 import math
 import pickle
+import random
 import torch
 from torch import Tensor
 from typing_extensions import Self
@@ -39,13 +40,15 @@ def iai_initialize(location, agent_count, agent_attributes=None, agent_states=No
         agent_count -= len(conditional_agent_states)
         if agent_count > 0:
             try:
+                seed = random.randint(1, 10000)
                 response = invertedai.api.initialize(
                     location=location,
                     agent_attributes=conditional_agent_attributes,
                     states_history=[conditional_agent_states],
                     agent_count=agent_count,
                     location_of_interest=center,
-                    traffic_light_state_history=traffic_light_state_history
+                    traffic_light_state_history=traffic_light_state_history,
+                    random_seed = seed
                 )
                 agent_attribute_list = response.agent_attributes + outside_agent_attributes
                 agent_state_list = response.agent_states + outside_agent_states
@@ -97,10 +100,12 @@ def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, rec
     try:
         agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
         agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
+        seed = random.randint(1, 10000)
         response = invertedai.api.drive(
             location=location, agent_states=agent_states, agent_attributes=agent_attributes,
             recurrent_states=recurrent_states,
-            traffic_lights_states=traffic_lights_states
+            traffic_lights_states=traffic_lights_states,
+            random_seed=seed
         )
         agent_states = torch.stack(
             [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2

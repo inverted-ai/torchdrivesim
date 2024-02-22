@@ -24,6 +24,7 @@ from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
 from torchdrivesim.utils import Resolution, save_video
+from torchdrivesim.utils import set_seeds
 from torchdrivesim.lanelet2 import find_lanelet_directions, load_lanelet_map
 from torchdrivesim.traffic_controls import TrafficLightControl, StopSignControl, YieldControl
 from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
@@ -56,6 +57,7 @@ class IAIGymEnvConfig:
     # True for training, and False for evaluation
     terminated_at_infraction: bool = False
     ego_only: bool = False
+    seed: Optional[int] = None
 
 
 @dataclass
@@ -318,8 +320,11 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
                     remain_agent_states.append(agent_state)
                     remain_agent_attributes.append(background_traffic["agent_attributes"][i])
                     remain_recurrent_states.append(background_traffic["recurrent_states"][i])
+#            agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
+#                   agent_count=background_traffic["agent_density"], agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
+#                   center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
             agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
-                   agent_count=background_traffic["agent_density"], agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
+                   agent_count=max(95 - len(remain_agent_states), background_traffic["agent_density"]), agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
                    center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
 #            agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
@@ -373,6 +378,8 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
 
 class WaypointSuiteEnv(GymEnv):
     def __init__(self, cfg: WaypointSuiteEnvConfig):
+        self.iai_cfg = cfg.iai_gym
+        set_seeds(self.iai_cfg.seed, logger)
         self.locations = cfg.locations
         self.iai_locations = [f'carla:{":".join(location.split("_"))}' for location in self.locations]
 
@@ -389,7 +396,6 @@ class WaypointSuiteEnv(GymEnv):
                             __file__)), f"../resources/maps/carla/maps/{location}.osm"
                     )
                 self.lanelet_maps[location] = load_lanelet_map(lanelet_map_path)
-        self.iai_cfg = cfg.iai_gym
 #        cache_iai_location_info(self.iai_locations)
         super().__init__(cfg=cfg.iai_gym, simulator=None)
 #        self.reset()
@@ -536,15 +542,16 @@ class WaypointSuiteEnv(GymEnv):
     def get_info(self):
         psi = self.simulator.get_state()[..., 2]
         speed = self.simulator.get_state()[..., 3]
+        reached_waypoint_num = self.reached_waypoint_num
         self.info = dict(
             offroad=self.simulator.compute_offroad(),
             collision=self.simulator.compute_collision(),
             traffic_light_violation=self.simulator.compute_traffic_lights_violations(),
             is_success=(self.environment_steps >= self.max_environment_steps),
             occur_exception=False,
-            reached_waypoint_num=self.reached_waypoint_num,
-            psi_smoothness=((self.last_psi - psi) / 0.1).item(),
-            speed_smoothness=((self.last_speed - speed) / 0.1).item()
+            reached_waypoint_num=reached_waypoint_num,
+            psi_smoothness=((self.last_psi - psi) / 0.1).norm(p=2).item(),
+            speed_smoothness=((self.last_speed - speed) / 0.1).norm(p=2).item()
         )
         return self.info
 
