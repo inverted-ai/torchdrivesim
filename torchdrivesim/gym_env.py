@@ -543,8 +543,6 @@ class WaypointSuiteEnv(GymEnv):
         psi = self.simulator.get_state()[..., 2]
         speed = self.simulator.get_state()[..., 3]
         reached_waypoint_num = self.reached_waypoint_num
-        psi_smoothness = self.psi_smoothness
-        speed_smoothness = self.speed_smoothness
         self.info = dict(
             offroad=self.simulator.compute_offroad(),
             collision=self.simulator.compute_collision(),
