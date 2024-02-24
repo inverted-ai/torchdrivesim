@@ -200,10 +200,10 @@ class IAIWrapper(NPCWrapper):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
                              traffic_lights_states=traffic_lights_states)
-#            if self._car_sequences is not None:
-#                for agent_idx in self._car_sequences:
-#                    if self._iai_timestep < len(self._car_sequences[agent_idx]):
-#                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
+            if self._car_sequences is not None:
+                for agent_idx in self._car_sequences:
+                    if self._iai_timestep < len(self._car_sequences[agent_idx]):
+                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
             states.append(s)
             recurrent.append(r)
         states = torch.stack(states, dim=0).to(self.get_state().device)

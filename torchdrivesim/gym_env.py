@@ -404,7 +404,7 @@ class WaypointSuiteEnv(GymEnv):
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-#        self.current_waypoint_suite_idx = 4
+#        self.current_waypoint_suite_idx = 0
         location = self.locations[self.current_waypoint_suite_idx]
         while location not in ["Town01", "Town02",  "Town03", "Town07", "Town10HD"]:
 #        while location != "Town06":
