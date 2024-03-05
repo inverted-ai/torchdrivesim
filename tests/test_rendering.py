@@ -8,7 +8,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 @pytest.mark.parametrize("cfg", [
-    Pytorch3DRendererConfig(highlight_ego_vehicle=True),
+    RendererConfig(highlight_ego_vehicle=True),
     Pytorch3DRendererConfig(),
     CV2RendererConfig(),
     DummyRendererConfig(),
