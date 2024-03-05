@@ -1,5 +1,4 @@
 import os
-import lanelet2
 import pytest
 import torch
 from torchdrivesim.simulator import TorchDriveConfig, Simulator
@@ -62,6 +61,7 @@ class TestBaseSimulator:
 
     @classmethod
     def get_simulator(cls):
+        import lanelet2
         road_mesh = BirdviewMesh.empty(batch_size=cls.data_batch_size)
         kinematic_model = KinematicBicycle()
         kinematic_model.set_params(lr=cls.mock_agent_attributes[..., 2])
@@ -157,6 +157,7 @@ class TestBaseSimulator:
         collision_metrics = self.get_tensor(self.simulator.compute_collision())
         assert len(collision_metrics.shape) == 2 and torch.all(collision_metrics)
 
+    @pytest.mark.depends_on_pytorch3d
     def test_compute_offroad(self):
         assert self.get_tensor(self.simulator.compute_offroad()).shape == self.offroad_shape
 

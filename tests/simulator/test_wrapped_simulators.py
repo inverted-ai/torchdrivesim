@@ -49,7 +49,7 @@ class TestHomogenousSimulator(TestBaseWrappedSimulator):
         return HomogeneousWrapper(super().get_simulator())
 
     @pytest.mark.parametrize('collision_metric_type', [cm for cm in (CollisionMetric.nograd,
-                                                                     CollisionMetric.nograd_pytorch3d,
+                                                                     # CollisionMetric.nograd_pytorch3d,
                                                                      CollisionMetric.iou, CollisionMetric.discs)])
     def test_compute_collision(self, collision_metric_type):
 

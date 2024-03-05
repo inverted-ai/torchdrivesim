@@ -14,6 +14,7 @@ import torch
 from torch import Tensor
 from torch.nn.functional import pad
 
+import torchdrivesim.rendering.pytorch3d
 from torchdrivesim.goals import WaypointGoal
 from torchdrivesim.kinematic import KinematicModel
 from torchdrivesim.lanelet2 import LaneletMap
@@ -977,6 +978,10 @@ class Simulator(SimulatorInterface):
                 compute_agent_collisions_metric(all_presented_boxes, all_presented_collision_masks, present_mask),
                 device=device)
         elif self.cfg.collision_metric == CollisionMetric.nograd_pytorch3d:
+            if not torchdrivesim.rendering.pytorch3d.is_available:
+                raise torchdrivesim.rendering.pytorch3d.Pytorch3DNotFound(
+                    "You can use a different collision metric, e.g. CollisionMetric.nograd"
+                )
             all_boxes = torch.cat([states[..., :2], sizes, states[..., 2:3]], dim=-1)
             collision = compute_agent_collisions_metric_pytorch3d(all_boxes, collision_mask)
         else:
