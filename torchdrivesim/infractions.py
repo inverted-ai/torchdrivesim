@@ -96,25 +96,25 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     """
     check_pytorch3d_available()
     import pytorch3d
-    batch_size, sequence_length = agent_states.shape[:2]
-    if sequence_length == 0:
+    batch_size, num_agents = agent_states.shape[:2]
+    if num_agents == 0:
         return torch.zeros_like(agent_states[..., 0])
     if len(lenwid.shape) == 2:
-        lenwid = lenwid.unsqueeze(-2).expand((lenwid.shape[0], sequence_length, lenwid.shape[1]))
+        lenwid = lenwid.unsqueeze(-2).expand((lenwid.shape[0], num_agents, lenwid.shape[1]))
     predicted_rectangles = torch.cat([
         agent_states[..., :2],
-            lenwid,
+        lenwid,
         agent_states[..., 2:3],
-        ], dim=-1)
+    ], dim=-1)
     ego_verts = box2corners_th(predicted_rectangles)
     ego_verts = F.pad(ego_verts, (0,1))
     ego_verts = ego_verts.view(-1, *ego_verts.shape[2:])
     ego_pointclouds = pytorch3d.structures.Pointclouds(ego_verts)
     if isinstance(driving_surface_mesh, BaseMesh):
         driving_surface_mesh = driving_surface_mesh.pytorch3d(include_textures=False)
-    driving_surface_mesh_extended = driving_surface_mesh.extend(sequence_length)
+    driving_surface_mesh_extended = driving_surface_mesh.extend(num_agents)
     offroad_loss = point_mesh_face_distance(driving_surface_mesh_extended, ego_pointclouds, threshold=threshold)
-    offroad_loss = offroad_loss.view(batch_size, sequence_length)
+    offroad_loss = offroad_loss.view(batch_size, num_agents)
     return offroad_loss
 
 
