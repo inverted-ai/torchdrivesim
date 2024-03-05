@@ -1,0 +1,58 @@
+from dataclasses import dataclass
+
+import cv2
+import numpy as np
+import pytorch3d
+import torch
+
+from torchdrivesim.mesh import BirdviewMesh, tensor_color
+from torchdrivesim.rendering import BirdviewRenderer, RendererConfig
+from torchdrivesim.utils import Resolution
+
+
+@dataclass
+class CV2RendererConfig(RendererConfig):
+    backend: str = 'cv2'
+
+
+class CV2Renderer(BirdviewRenderer):
+    """
+    Renderer based on OpenCV. Slow, but easy to install. Renders on CPU.
+    """
+    def __init__(self, cfg: CV2RendererConfig, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
+        self.cfg: CV2RendererConfig = cfg
+
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
+            -> torch.Tensor:
+
+        image_batch = []
+        padded_verts = torch.cat([mesh.verts, torch.zeros_like(mesh.verts[..., :1])], dim=-1)
+        pixel_verts = cameras.transform_points_screen(
+            padded_verts, image_size=(res.height, res.width)
+        )[..., :2].cpu().to(torch.int32)
+
+        for k in mesh.categories:
+            if k not in mesh.colors:
+                mesh.colors[k] = tensor_color(self.color_map[k])
+            if k not in mesh.zs:
+                mesh.zs[k] = self.rendering_levels[k]
+        rendering_order = sorted(range(len(mesh.categories)), key=lambda i: mesh.zs[mesh.categories[i]], reverse=True)
+        category_colors = (
+                torch.stack([mesh.colors[cat] for cat in mesh.categories], dim=0) * (1.0 - 1e-3) * 256
+        ).floor().to(torch.uint8).cpu()
+
+        for batch_idx in range(mesh.batch_size):
+            image = np.zeros((res.height, res.width, 3), dtype=np.float32)
+            for cat_idx in rendering_order:
+                color = category_colors[cat_idx].numpy().tolist()
+                face_category = mesh.vert_category[batch_idx, mesh.faces[batch_idx, :, 0]]
+                faces = mesh.faces[batch_idx][face_category == cat_idx].cpu()
+                for face in faces:
+                    polygon = pixel_verts[batch_idx, face].numpy()
+                    image = cv2.fillConvexPoly(img=image, points=polygon, color=color, shift=0, lineType=cv2.LINE_AA)
+            image = torch.from_numpy(image)
+            image = image.transpose(-2, -3)  # point x upwards, flip to right-handed coordinate frame
+            image_batch.append(image)
+        images = torch.stack(image_batch, dim=0).to(mesh.device)
+        return images

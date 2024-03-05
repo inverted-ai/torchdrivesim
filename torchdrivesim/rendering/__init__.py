@@ -8,6 +8,7 @@ from omegaconf import DictConfig, OmegaConf, SCMode
 
 
 from torchdrivesim.rendering.base import RendererConfig, DummyRendererConfig, BirdviewRenderer, DummyRenderer
+from torchdrivesim.rendering.cv2 import CV2RendererConfig, CV2Renderer
 from torchdrivesim.rendering.pytorch3d import Pytorch3DRendererConfig, Pytorch3DRenderer
 from torchdrivesim.rendering.nvdiffrast import NvdiffrastRendererConfig, NvdiffrastRenderer
 
@@ -32,6 +33,8 @@ def renderer_from_config(cfg: RendererConfig, *args, **kwargs) -> BirdviewRender
 
     if isinstance(cfg, DummyRendererConfig):
         return DummyRenderer(cfg, *args, **kwargs)
+    elif isinstance(cfg, CV2RendererConfig):
+        return CV2Renderer(cfg, *args, **kwargs)
     elif isinstance(cfg, Pytorch3DRendererConfig):
         return Pytorch3DRenderer(cfg, *args, **kwargs)
     elif isinstance(cfg, NvdiffrastRendererConfig):
