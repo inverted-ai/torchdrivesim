@@ -16,15 +16,15 @@ import random
 import traceback
 import numpy as np
 from torch import Tensor
+from invertedai.common import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
     iai_initialize, cache_iai_location_info
 from torchdrivesim.kinematic import KinematicBicycle
-from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
+from torchdrivesim.mesh import BirdviewMesh, point_to_mesh, points_to_mesh
 from torchdrivesim.rendering import renderer_from_config
-from torchdrivesim.utils import Resolution, save_video
+from torchdrivesim.utils import Resolution, save_video, save_png
 from torchdrivesim.utils import set_seeds
-from torchdrivesim.utils import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
 from torchdrivesim.lanelet2 import find_lanelet_directions, load_lanelet_map
 from torchdrivesim.traffic_controls import TrafficLightControl, StopSignControl, YieldControl
 from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
@@ -46,6 +46,7 @@ class IAIGymEnvConfig:
     res: int = 1024
     fov: float = 200
     center: Tuple[float, float] = (0, 0)
+    camera_xy: Tuple[float, float] = (0, 0)
     left_handed: bool = True
     agent_count: int = 5
     # x, y, orientation, speed
@@ -197,9 +198,10 @@ class GymEnv(gym.Env):
         if isinstance(self.simulator, BirdviewRecordingWrapper):
             bvs = self.simulator.get_birdviews()
             save_video(bvs, self.config.video_filename)
+            save_png(bvs, frame=1)
 
 
-def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None, preset_traffic_light_states=None, stop_sign_ids=None):
+def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None, preset_traffic_light_states=None, stop_sign_ids=None, waypoints=None):
     with torch.no_grad():
         device = torch.device("cuda")
         driving_surface_mesh_path = os.path.join(
@@ -324,7 +326,7 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
 #                   agent_count=background_traffic["agent_density"], agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
 #                   center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
             agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
-                   agent_count=max(95 - len(remain_agent_states), background_traffic["agent_density"]), agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
+                   agent_count=20, agent_attributes=remain_agent_attributes, agent_states=remain_agent_states, recurrent_states=remain_recurrent_states,
                    center=tuple(cfg.ego_state[:2]), traffic_light_state_history=traffic_light_state_history)
 
 #            agent_attributes, agent_states, recurrent_states = iai_initialize(location=iai_location,
@@ -341,6 +343,7 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         kinematic_model.set_state(agent_states)
         renderer = renderer_from_config(
             simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+        renderer.set_waypoint_mesh(points_to_mesh(waypoints[1:], "waypoint"))
 
         traffic_controls = {}
         if traffic_light_control is not None:
@@ -372,16 +375,17 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
             )
         if cfg.render_mode == "video":
             simulator = BirdviewRecordingWrapper(
-                simulator, res=Resolution(cfg.res, cfg.res), fov=cfg.fov, to_cpu=True)
+                simulator, res=Resolution(cfg.res, cfg.res), fov=cfg.fov, camera_xy=torch.Tensor(cfg.camera_xy).unsqueeze(0).cuda(), to_cpu=True)
         return simulator
 
 
 class WaypointSuiteEnv(GymEnv):
-    def __init__(self, cfg: WaypointSuiteEnvConfig):
+    def __init__(self, cfg: WaypointSuiteEnvConfig, preset_index=None):
         self.iai_cfg = cfg.iai_gym
         set_seeds(self.iai_cfg.seed, logger)
         self.locations = cfg.locations
         self.iai_locations = [f'carla:{":".join(location.split("_"))}' for location in self.locations]
+        self.preset_index = preset_index
 
         self.waypointsuite = cfg.waypointsuite
         self.car_sequence_suite = cfg.car_sequence_suite
@@ -403,13 +407,18 @@ class WaypointSuiteEnv(GymEnv):
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-        self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-#        self.current_waypoint_suite_idx = 0
+        if self.preset_index is not None:
+            self.current_waypoint_suite_idx = self.preset_index
+        else:
+#            self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
+            self.current_waypoint_suite_idx = 98
         location = self.locations[self.current_waypoint_suite_idx]
-        while location not in ["Town01", "Town02",  "Town03", "Town07", "Town10HD"]:
+#        while location not in ["Town01", "Town02",  "Town03", "Town07", "Town10HD"]:
+        while location not in ["Town10HD"]:
 #        while location != "Town06":
             self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
             location = self.locations[self.current_waypoint_suite_idx]
+        print("index: ", self.current_waypoint_suite_idx)
         self.lanelet_map = self.lanelet_maps[location]
 
         self.set_start_pos()
@@ -434,10 +443,12 @@ class WaypointSuiteEnv(GymEnv):
                                              self.scenarios[self.current_waypoint_suite_idx],
                                              self.car_sequence_suite[self.current_waypoint_suite_idx],
                                              self.traffic_light_state_suite[self.current_waypoint_suite_idx],
-                                             self.stop_sign_suite[self.current_waypoint_suite_idx])
+                                             self.stop_sign_suite[self.current_waypoint_suite_idx],
+                                             self.waypointsuite[self.current_waypoint_suite_idx])
 
         self.innermost_simulator = self.simulator.get_innermost_simulator()
-        self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+#        self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+        self.innermost_simulator.renderer.set_waypoint_mesh(points_to_mesh(self.waypointsuite[self.current_waypoint_suite_idx][1:], "waypoint"))
 
         self.environment_steps = 0
         self.occur_exception = False
@@ -472,16 +483,16 @@ class WaypointSuiteEnv(GymEnv):
             self.last_speed = state[..., 3]
 
             obs, reward, terminated, truncated, info = super().step(action)
-            if self.check_reach_target():
-                self.current_target_idx += 1
-                if self.current_target_idx < len(self.waypoints):
-                    self.current_target = self.waypoints[self.current_target_idx]
-                    innermost_simulator = self.simulator.get_innermost_simulator()
-                    innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
-                else:
-                    self.current_target = None
-                    innermost_simulator = self.simulator.get_innermost_simulator()
-                    innermost_simulator.renderer.set_waypoint_mesh(None)
+#            if self.check_reach_target():
+#                self.current_target_idx += 1
+#                if self.current_target_idx < len(self.waypoints):
+#                    self.current_target = self.waypoints[self.current_target_idx]
+#                    innermost_simulator = self.simulator.get_innermost_simulator()
+#                    innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+#                else:
+#                    self.current_target = None
+#                    innermost_simulator = self.simulator.get_innermost_simulator()
+#                    innermost_simulator.renderer.set_waypoint_mesh(None)
             self.last_obs = obs
             self.last_reward = reward
             self.last_info = info

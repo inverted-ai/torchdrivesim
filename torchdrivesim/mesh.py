@@ -826,3 +826,29 @@ def point_to_mesh(point, category):
     return area_to_mesh(area, category)
 
 
+def areas_to_mesh(areas, category):
+    from torchdrivesim.lanelet2 import line_segments_to_mesh
+    edges = []
+    for area in areas:
+        area = torch.Tensor(area)
+        for i in range(area.shape[-2]):
+            edges.append(torch.stack([area[0][i], area[0, (i + 1) % 4]]))
+        points = torch.stack(edges).unsqueeze(0)
+
+    mesh = rendering_mesh(
+        line_segments_to_mesh(points, line_width=0.5), category=category
+    ).to("cuda")
+    return mesh
+
+
+def points_to_mesh(points, category):
+    d = 0.5
+    areas = []
+    for point in points:
+        point = torch.Tensor(point)
+        area = torch.stack([point + torch.tensor([d, d]),
+                            point + torch.tensor([d, -d]),
+                            point + torch.tensor([-d, -d]),
+                            point + torch.tensor([-d, d])]).unsqueeze(0)
+        areas.append(area)
+    return areas_to_mesh(areas, category)

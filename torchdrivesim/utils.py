@@ -10,6 +10,7 @@ from enum import Enum
 import os
 import math
 import random
+import imageio
 import numpy as np
 import torch
 from torch import Tensor
@@ -156,6 +157,15 @@ def save_video(imgs, filename, batch_index=0, fps=10, web_browser_friendly=False
         os.system(
             f"ffmpeg -y -i {temp_filename} -hide_banner -loglevel error -vcodec libx264 -f mp4 {filename}")
         os.remove(temp_filename)
+
+
+def save_png(bvs, filename: str = "rendered_image.png", frame: int = 0,  batch_index: int = 0) -> None:
+    """
+    Saves the given frame as a PNG to disk.
+    """
+#    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    imageio.imsave(
+        filename, bvs[frame][batch_index].cpu().numpy().astype(np.uint8).transpose(1, 2, 0))
 
 
 def set_seeds(seed, logger=None):
