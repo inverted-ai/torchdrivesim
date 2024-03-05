@@ -1,4 +1,4 @@
-name: CI
+name: CI_gpu
 
 # Controls when the workflow will run
 on:
