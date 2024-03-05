@@ -24,7 +24,7 @@ dependencies = [
     "torch>=1.10.1",
     "invertedai",
     "omegaconf",
-    "cv2",
+    "opencv-python",
 ]
 dynamic = ["version",]
 
