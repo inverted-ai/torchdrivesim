@@ -1,6 +1,6 @@
 """
 Renderers used to visualize the state of the environments.
-Currently two backends are supported (pytorch3d and nvdiffrast), along with a dummy renderer generating black images.
+Currently three backends are supported (opencv, pytorch3d and nvdiffrast), along with a dummy renderer generating black images.
 """
 import logging
 

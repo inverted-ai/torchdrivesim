@@ -35,4 +35,4 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest -s -m "not depends_on_cuda and not depends_on_pytorch3d" tests
+        pytest -s -m "not depends_on_cuda and not depends_on_pytorch3d and not depends_on_nvdiffrast" tests
