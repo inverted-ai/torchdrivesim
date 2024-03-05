@@ -50,8 +50,52 @@ class Cameras:
         self.sc = sc
         self.scale = scale
 
+        world_to_view_transform = self.get_world_to_view_transform()
+        view_to_proj_transform = self.get_view_to_proj_transform()
+        self.world_to_clip_transform = world_to_view_transform @ view_to_proj_transform
+
     def get_camera_center(self) -> Tensor:
         return self.xy
+
+    def get_world_to_view_transform(self) -> Tensor:
+        camera_xy = self.xy
+        camera_sin = self.sc[..., 0]
+        camera_cos = self.sc[..., 1]
+        batch_size = camera_xy.shape[0]
+
+        rotation_matrix = torch.stack([
+            torch.stack([camera_cos, - camera_sin], dim=-1),
+            torch.stack([camera_sin, camera_cos], dim=-1),
+        ], dim=-2)
+
+        translation = torch.eye(4, dtype=camera_xy.dtype, device=camera_xy.device)
+        translation = translation.unsqueeze(0).expand(batch_size, 4, 4).contiguous()
+        translation[..., 3, :2] = - camera_xy
+
+        rotation = torch.eye(4, dtype=camera_xy.dtype, device=camera_xy.device)
+        rotation = rotation.unsqueeze(0).expand(batch_size, 4, 4).contiguous()
+        rotation[..., :2, :2] = rotation_matrix
+
+        world_to_view_transform = translation @ rotation
+        return world_to_view_transform
+
+    def get_view_to_proj_transform(self) -> Tensor:
+        view_to_proj_transform = torch.zeros(1, 4, 4, device=self.xy.device)
+        view_to_proj_transform[:, 0, 0] = -self.scale
+        view_to_proj_transform[:, 1, 1] = -self.scale
+        view_to_proj_transform[:, 3, 3] = 1.0
+
+        # NOTE: This maps the z coordinate to the range [0, 1] and replaces the
+        # the OpenGL z normalization to [-1, 1]
+        z_sign = +1.0
+        zfar, znear = 100.0, 1.0 # This sets the max and min z planes that will be visible
+        view_to_proj_transform[:, 2, 2] = z_sign * (1.0 / (zfar - znear))
+        view_to_proj_transform[:, 2, 3] = -znear / (zfar - znear)
+        view_to_proj_transform = view_to_proj_transform.transpose(1, 2).contiguous()
+        return view_to_proj_transform
+
+    def project_world_to_clip_space(self, points: Tensor) -> Tensor:
+        return F.pad(points, (0, 1), value=1.0) @ self.world_to_clip_transform
 
     def transform_points_screen(self, points: Tensor, res: Resolution) -> Tensor:
         rot_mat = torch.stack([
