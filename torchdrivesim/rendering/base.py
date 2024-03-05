@@ -42,6 +42,20 @@ class DummyRendererConfig(RendererConfig):
     backend: str = 'dummy'
 
 
+class Cameras:
+    """
+    Lightweight version of pytorch3d.renderer.FoVOrthographicCameras.
+    Used to define an interface that works without pytorch3d.
+    """
+    def __init__(self, xy: Tensor, sc: Tensor, scale: float):
+        self.xy = xy
+        self.sc = sc
+        self.scale = scale
+
+    def pytorch3d(self) -> "pytorch3d.renderer.FoVOrthographicCameras":
+        return construct_pytorch3d_cameras(xy=self.xy, sc=self.sc, scale=self.scale)
+
+
 class BirdviewRenderer(abc.ABC):
     """
     A renderer producing simple 2D birdview images based on static background meshes and rectangular agents.
@@ -372,21 +386,20 @@ class BirdviewRenderer(abc.ABC):
         return image
 
     @abc.abstractmethod
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
             -> Tensor:
         """
         Renders a given mesh, producing BxHxWxC tensor image of float RGB values in [0,255] range.
         """
         pass
 
-    def construct_cameras(self, xy: Tensor, sc: Tensor, scale: Optional[float] = None)\
-            -> pytorch3d.renderer.FoVOrthographicCameras:
+    def construct_cameras(self, xy: Tensor, sc: Tensor, scale: Optional[float] = None) -> Cameras:
         """
         Create PyTorch3D cameras object for given positions and orientations.
         Input tensor dimensions should be Bx2.
         """
         scale = self.scale if scale is None else scale
-        return construct_pytorch3d_cameras(xy, sc, scale=scale)
+        return Cameras(xy=xy, sc=sc, scale=scale)
 
     def build_verts_faces_from_bounding_box(self, bbs: Tensor, z: float = 2) -> Tuple[Tensor, Tensor]:
         """
@@ -494,15 +507,16 @@ class DummyRenderer(BirdviewRenderer):
     """
     Produces a black image of the required size. Mostly used for debugging and benchmarking.
     """
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
             -> Tensor:
+        cameras = cameras.pytorch3d()
         camera_batch_size = cameras.get_camera_center().shape[0]
         shape = (camera_batch_size, res.height, res.width, 3)
         image = torch.zeros(shape, device=self.device, dtype=torch.float32)
         return image
 
 
-def construct_pytorch3d_cameras(xy: Tensor, sc: Tensor, scale: float) -> pytorch3d.renderer.FoVOrthographicCameras:
+def construct_pytorch3d_cameras(xy: Tensor, sc: Tensor, scale: float) -> "pytorch3d.renderer.FoVOrthographicCameras":
     """
     Create PyTorch3D cameras object for given positions and orientations.
     Input tensor dimensions should be Bx2.

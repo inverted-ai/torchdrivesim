@@ -2,11 +2,11 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
-import pytorch3d
 import torch
 
 from torchdrivesim.mesh import BirdviewMesh, tensor_color
 from torchdrivesim.rendering import BirdviewRenderer, RendererConfig
+from torchdrivesim.rendering.base import Cameras
 from torchdrivesim.utils import Resolution
 
 
@@ -23,9 +23,9 @@ class CV2Renderer(BirdviewRenderer):
         super().__init__(cfg, *args, **kwargs)
         self.cfg: CV2RendererConfig = cfg
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
-            -> torch.Tensor:
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
 
+        cameras = cameras.pytorch3d()
         image_batch = []
         padded_verts = torch.cat([mesh.verts, torch.zeros_like(mesh.verts[..., :1])], dim=-1)
         pixel_verts = cameras.transform_points_screen(

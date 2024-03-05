@@ -10,7 +10,7 @@ import torch
 from pytorch3d.renderer import BlendParams
 
 from torchdrivesim.mesh import BirdviewMesh, tensor_color
-from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer
+from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
 from torchdrivesim.utils import Resolution
 
 
@@ -73,8 +73,8 @@ class Pytorch3DRenderer(BirdviewRenderer):
             background_color=tuple([x / 255.0 for x in self.get_color('background')])
         )
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
-            -> torch.Tensor:
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+        cameras = cameras.pytorch3d()
         for k in mesh.categories:
             if k not in mesh.colors:
                 mesh.colors[k] = tensor_color(self.color_map[k])

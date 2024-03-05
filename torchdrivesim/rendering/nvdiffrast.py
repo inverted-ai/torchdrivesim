@@ -4,13 +4,10 @@ This module imports correctly if nvdiffrast is missing, but the renderer will ra
 """
 from dataclasses import dataclass
 from typing import Optional
-
-import torch
-
 import logging
 
+import torch
 from torch.nn import functional as F
-import pytorch3d
 
 try:
     import nvdiffrast.torch as dr
@@ -20,7 +17,7 @@ except ImportError:
     is_available = False
 
 from torchdrivesim.mesh import BirdviewMesh, tensor_color
-from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer
+from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
 from torchdrivesim.utils import Resolution
 
 logger = logging.getLogger(__name__)
@@ -82,8 +79,8 @@ class NvdiffrastRenderer(BirdviewRenderer):
         if self.glctx is None:
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
-            -> torch.Tensor:
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+        cameras = cameras.pytorch3d()
         for k in mesh.categories:
             if k not in mesh.colors:
                 mesh.colors[k] = tensor_color(self.color_map[k])
