@@ -5,14 +5,23 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple
 
-import pytorch3d
-import pytorch3d.renderer
+try:
+    import pytorch3d
+    import pytorch3d.renderer
+    is_available = True
+except ImportError:
+    pytorch3d = None
+    is_available = False
 import torch
 from torch.nn import functional as F
 
 from torchdrivesim.mesh import BirdviewMesh, tensor_color
 from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
 from torchdrivesim.utils import Resolution
+
+
+class Pytorch3DNotFound(ImportError):
+    pass
 
 
 class RenderingBlend(Enum):
@@ -46,6 +55,8 @@ class Shader2D(torch.nn.Module):
         self.blend = blend
 
     def forward(self, fragments, meshes, **kwargs) -> torch.Tensor:
+        if not is_available:
+            raise Pytorch3DNotFound()
         from pytorch3d.renderer import BlendParams
         pixel_colors = meshes.sample_textures(fragments)
         if self.blend == RenderingBlend.soft:
@@ -102,7 +113,8 @@ class Pytorch3DRenderer(BirdviewRenderer):
 
     @classmethod
     def make_renderer(cls, res, blend, background_color):
-
+        if not is_available:
+            raise Pytorch3DNotFound()
         settings = pytorch3d.renderer.mesh.rasterizer.RasterizationSettings(
             image_size=res.height,
             blur_radius=0.0,
@@ -119,6 +131,8 @@ class Pytorch3DRenderer(BirdviewRenderer):
 
 
 def construct_pytorch3d_cameras(cameras: Cameras) -> "pytorch3d.renderer.FoVOrthographicCameras":
+    if not is_available:
+        raise Pytorch3DNotFound()
     xy, sc, scale = cameras.xy, cameras.sc, cameras.scale
     assert xy.shape == sc.shape
     device = xy.device

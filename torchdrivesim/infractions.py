@@ -3,25 +3,22 @@ from typing import List, Optional, Tuple, Union
 import logging
 
 import numpy as np
-import pytorch3d
 import torch
-from pytorch3d.loss.point_mesh_distance import point_face_distance
-from pytorch3d.structures import Meshes, Pointclouds
 from shapely.geometry import Polygon
 from torch import Tensor, relu, cosine_similarity
 from torch.nn import functional as F
 
 from torchdrivesim._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
 from torchdrivesim.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
-from torchdrivesim.mesh import BaseMesh
+from torchdrivesim.mesh import BaseMesh, check_pytorch3d_available
 
 logger = logging.getLogger(__name__)
 
 LANELET_TAGS_TO_EXCLUDE = ['parking']
 
 
-def point_mesh_face_distance(meshes: Meshes, pcls: Pointclouds, reduction: str = 'sum',
-                             weighted: bool = False, threshold: float = 0) -> Tensor:
+def point_mesh_face_distance(meshes: "pytorch3d.structures.Meshes", pcls: "pytorch3d.structures.Pointclouds",
+                             reduction: str = 'sum', weighted: bool = False, threshold: float = 0) -> Tensor:
     """
     Computes the distance between a pointcloud and a mesh, defined as the L2 distance
     from each point to the closest face in the mesh, reduced across the points in the cloud.
@@ -36,6 +33,9 @@ def point_mesh_face_distance(meshes: Meshes, pcls: Pointclouds, reduction: str =
     Returns:
         BxP tensor if reduction is 'none', else Bx1 tensor
     """
+
+    check_pytorch3d_available()
+    from pytorch3d.loss.point_mesh_distance import point_face_distance
 
     if len(meshes) != len(pcls):
         raise ValueError(f"The batch has {len(meshes)} but {len(pcls)} pointclouds")
@@ -80,7 +80,8 @@ def point_mesh_face_distance(meshes: Meshes, pcls: Pointclouds, reduction: str =
 
 
 def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
-                            driving_surface_mesh: Union[Meshes, BaseMesh], threshold: float = 0) -> Tensor:
+                            driving_surface_mesh: Union["pytorch3d.structures.Meshes", BaseMesh],
+                            threshold: float = 0) -> Tensor:
     """
     Calculates off-road infraction loss, defined as the sum of thresholded distances
     from agent corners to the driving surface mesh.
@@ -93,6 +94,8 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     Returns:
         BxA tensor of offroad losses for each agent
     """
+    check_pytorch3d_available()
+    import pytorch3d
     batch_size, sequence_length = agent_states.shape[:2]
     if sequence_length == 0:
         return torch.zeros_like(agent_states[..., 0])
