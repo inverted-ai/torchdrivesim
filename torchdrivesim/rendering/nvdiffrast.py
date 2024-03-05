@@ -9,6 +9,8 @@ import logging
 import torch
 from torch.nn import functional as F
 
+from torchdrivesim.rendering.pytorch3d import construct_pytorch3d_cameras
+
 try:
     import nvdiffrast.torch as dr
     is_available = True
@@ -80,7 +82,7 @@ class NvdiffrastRenderer(BirdviewRenderer):
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 
     def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
-        cameras = cameras.pytorch3d()
+        cameras = construct_pytorch3d_cameras(cameras)
         for k in mesh.categories:
             if k not in mesh.colors:
                 mesh.colors[k] = tensor_color(self.color_map[k])

@@ -25,12 +25,8 @@ class CV2Renderer(BirdviewRenderer):
 
     def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
 
-        cameras = cameras.pytorch3d()
         image_batch = []
-        padded_verts = torch.cat([mesh.verts, torch.zeros_like(mesh.verts[..., :1])], dim=-1)
-        pixel_verts = cameras.transform_points_screen(
-            padded_verts, image_size=(res.height, res.width)
-        )[..., :2].cpu().to(torch.int32)
+        pixel_verts = cameras.transform_points_screen(mesh.verts, res=res).cpu().to(torch.int32)
 
         for k in mesh.categories:
             if k not in mesh.colors:

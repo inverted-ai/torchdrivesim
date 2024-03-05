@@ -6,8 +6,9 @@ from enum import Enum
 from typing import Tuple
 
 import pytorch3d
+import pytorch3d.renderer
 import torch
-from pytorch3d.renderer import BlendParams
+from torch.nn import functional as F
 
 from torchdrivesim.mesh import BirdviewMesh, tensor_color
 from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
@@ -45,6 +46,7 @@ class Shader2D(torch.nn.Module):
         self.blend = blend
 
     def forward(self, fragments, meshes, **kwargs) -> torch.Tensor:
+        from pytorch3d.renderer import BlendParams
         pixel_colors = meshes.sample_textures(fragments)
         if self.blend == RenderingBlend.soft:
             images = pytorch3d.renderer.softmax_rgb_blend(pixel_colors, fragments,
@@ -74,7 +76,6 @@ class Pytorch3DRenderer(BirdviewRenderer):
         )
 
     def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
-        cameras = cameras.pytorch3d()
         for k in mesh.categories:
             if k not in mesh.colors:
                 mesh.colors[k] = tensor_color(self.color_map[k])
@@ -88,7 +89,7 @@ class Pytorch3DRenderer(BirdviewRenderer):
                                           tuple([x / 255.0 for x in self.get_color('background')]))
         else:
             renderer = self.renderer
-        renderer.rasterizer.cameras = cameras
+        renderer.rasterizer.cameras = construct_pytorch3d_cameras(cameras)
         image = renderer(meshes)
 
         image = image[..., :3] * 255
@@ -115,3 +116,20 @@ class Pytorch3DRenderer(BirdviewRenderer):
                             blend=blend)  # type: ignore
         )
         return renderer
+
+
+def construct_pytorch3d_cameras(cameras: Cameras) -> "pytorch3d.renderer.FoVOrthographicCameras":
+    xy, sc, scale = cameras.xy, cameras.sc, cameras.scale
+    assert xy.shape == sc.shape
+    device = xy.device
+    cs_neg = torch.flip(sc, dims=(-1,)) * torch.tensor([[1, -1]], dtype=sc.dtype, device=sc.device)
+    rotation_matrix = torch.stack([cs_neg, sc], dim=-2)
+    # pytorch3d seems to rotate the provided translation vector
+    reverse_rotation = rotation_matrix.transpose(-1, -2)
+    rotated_translation = reverse_rotation.matmul(-xy.unsqueeze(-1)).squeeze(-1)
+    t = F.pad(rotated_translation, (0, 1), mode='constant', value=0)
+    r = F.pad(rotation_matrix, (0, 1, 0, 1), mode='constant', value=0)
+    r[..., -1, -1] = 1
+    scale = torch.tensor([[scale, scale, 1]], dtype=xy.dtype, device=device).expand_as(t)
+    cameras = pytorch3d.renderer.FoVOrthographicCameras(device=device, scale_xyz=scale, T=t, R=r)
+    return cameras

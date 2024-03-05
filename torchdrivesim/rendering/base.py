@@ -9,8 +9,6 @@ from typing import List, Optional, Dict, Tuple
 import logging
 
 import numpy as np
-import pytorch3d
-import pytorch3d.renderer
 import torch
 from torch import Tensor
 from torch.nn import functional as F
@@ -52,8 +50,23 @@ class Cameras:
         self.sc = sc
         self.scale = scale
 
-    def pytorch3d(self) -> "pytorch3d.renderer.FoVOrthographicCameras":
-        return construct_pytorch3d_cameras(xy=self.xy, sc=self.sc, scale=self.scale)
+    def get_camera_center(self) -> Tensor:
+        return self.xy
+
+    def transform_points_screen(self, points: Tensor, res: Resolution) -> Tensor:
+        rot_mat = torch.stack([
+            self.sc.flip(dims=[-1]),
+            self.sc * torch.tensor([-1, 1], device=points.device)
+        ], dim=-2)
+
+        # the operations below could be fused for efficiency
+        points = points - self.xy
+        points = torch.matmul(rot_mat, points.unsqueeze(-1)).squeeze(-1)
+        points = - points * self.scale
+        points = points * min(res.height, res.width) / 2
+        points = points + torch.tensor([res.width, res.height], device=points.device) / 2
+
+        return points
 
 
 class BirdviewRenderer(abc.ABC):
@@ -507,33 +520,11 @@ class DummyRenderer(BirdviewRenderer):
     """
     Produces a black image of the required size. Mostly used for debugging and benchmarking.
     """
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
-            -> Tensor:
-        cameras = cameras.pytorch3d()
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> Tensor:
         camera_batch_size = cameras.get_camera_center().shape[0]
         shape = (camera_batch_size, res.height, res.width, 3)
         image = torch.zeros(shape, device=self.device, dtype=torch.float32)
         return image
-
-
-def construct_pytorch3d_cameras(xy: Tensor, sc: Tensor, scale: float) -> "pytorch3d.renderer.FoVOrthographicCameras":
-    """
-    Create PyTorch3D cameras object for given positions and orientations.
-    Input tensor dimensions should be Bx2.
-    """
-    assert xy.shape == sc.shape
-    device = xy.device
-    cs_neg = torch.flip(sc, dims=(-1,)) * torch.tensor([[1, -1]], dtype=sc.dtype, device=sc.device)
-    rotation_matrix = torch.stack([cs_neg, sc], dim=-2)
-    # pytorch3d seems to rotate the provided translation vector
-    reverse_rotation = rotation_matrix.transpose(-1, -2)
-    rotated_translation = reverse_rotation.matmul(-xy.unsqueeze(-1)).squeeze(-1)
-    t = F.pad(rotated_translation, (0, 1), mode='constant', value=0)
-    r = F.pad(rotation_matrix, (0, 1, 0, 1), mode='constant', value=0)
-    r[..., -1, -1] = 1
-    scale = torch.tensor([[scale, scale, 1]], dtype=xy.dtype, device=device).expand_as(t)
-    cameras = pytorch3d.renderer.FoVOrthographicCameras(device=device, scale_xyz=scale, T=t, R=r)
-    return cameras
 
 
 def get_default_rendering_levels() -> Dict[str, float]:

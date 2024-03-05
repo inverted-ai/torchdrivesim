@@ -1,5 +1,5 @@
 from torchdrivesim.rendering import Pytorch3DRendererConfig, RendererConfig, CV2RendererConfig, \
-    renderer_from_config
+    renderer_from_config, DummyRendererConfig
 import torch
 import pytest
 
@@ -11,6 +11,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
     Pytorch3DRendererConfig(highlight_ego_vehicle=True),
     Pytorch3DRendererConfig(),
     CV2RendererConfig(),
+    DummyRendererConfig(),
 ])
 def test_render_agents(cfg: RendererConfig):
     batch_size = 2
