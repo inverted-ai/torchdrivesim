@@ -11,7 +11,8 @@ from torch.nn import functional as F
 import torchdrivesim
 from torchdrivesim._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
 from torchdrivesim.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
-from torchdrivesim.mesh import BaseMesh, check_pytorch3d_available
+from torchdrivesim.mesh import BaseMesh
+from torchdrivesim import assert_pytorch3d_available
 from torchdrivesim.rendering.pytorch3d import Pytorch3DNotFound
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def point_mesh_face_distance(meshes: "pytorch3d.structures.Meshes", pcls: "pytor
         BxP tensor if reduction is 'none', else Bx1 tensor
     """
 
-    check_pytorch3d_available()
+    assert_pytorch3d_available()
     from pytorch3d.loss.point_mesh_distance import point_face_distance
 
     if len(meshes) != len(pcls):
@@ -204,7 +205,7 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     ego_verts = box2corners_th(predicted_rectangles)
     ego_verts = F.pad(ego_verts, (0,1))
     if use_pytorch3d:
-        check_pytorch3d_available()
+        assert_pytorch3d_available()
         import pytorch3d
         ego_verts = ego_verts.view(-1, *ego_verts.shape[2:])  # B*A x 4 x 3
         ego_pointclouds = pytorch3d.structures.Pointclouds(ego_verts)

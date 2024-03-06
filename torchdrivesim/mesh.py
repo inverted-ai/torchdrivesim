@@ -18,6 +18,7 @@ import torch
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
+from torchdrivesim import assert_pytorch3d_available
 from torchdrivesim.utils import is_inside_polygon, merge_dicts, rotate
 
 logger = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ class BaseMesh:
         Empty meshes are augmented with a single degenerate face on conversion,
         since PyTorch3D does not handle empty meshes correctly.
         """
-        check_pytorch3d_available()
+        assert_pytorch3d_available()
         import pytorch3d
         assert self.dim in [2, 3]
         if self.faces_count == 0:
@@ -420,7 +421,7 @@ class AttributeMesh(BaseMesh):
         PyTorch3D uses per-face textures, which are obtained by averaging attributes of the face.
         The resulting texture for each face is constant.
         """
-        check_pytorch3d_available()
+        assert_pytorch3d_available()
         import pytorch3d
         assert self.dim in [2, 3]
         if not include_textures:
@@ -832,10 +833,3 @@ def generate_disc_mesh(radius: float = 2, num_triangles: int = 10, device: str =
     vertices = torch.cat(vertices, dim=0)
     faces = torch.cat(faces, dim=0)
     return vertices, faces
-
-
-def check_pytorch3d_available():
-    from torchdrivesim.rendering.pytorch3d import is_available as pytorch3d_available
-    if not pytorch3d_available:
-        from torchdrivesim.rendering.pytorch3d import Pytorch3DNotFound
-        raise Pytorch3DNotFound()
