@@ -107,7 +107,6 @@ class NvdiffrastRenderer(BirdviewRenderer):
         vertices_attributes = mesh.attrs.reshape(-1, 3)
         rast, _ = dr.rasterize(self.glctx, verts_clip, faces, resolution=[res.height, res.width],
                                ranges=ranges)
-        vertices_attributes = mesh.attrs.reshape(-1, 3)
         image, _ = dr.interpolate(vertices_attributes, rast, faces)
         # Change background color in case it's not black
         if sum(self.get_color('background')) != 0:
