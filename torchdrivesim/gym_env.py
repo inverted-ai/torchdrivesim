@@ -13,7 +13,6 @@ import gymnasium as gym
 import torch
 import pickle
 import random
-import traceback
 import numpy as np
 from torch import Tensor
 
@@ -219,10 +218,7 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
             stop_sign_poses = []
             yield_sign_ids = []
             yield_sign_poses = []
-    #        print(cfg.location)
             for id in static_actors:
-    #            print(id)
-    #            print(static_actors[id]['agent_type'])
                 if static_actors[id]['agent_type'] == "traffic-light":
                     traffic_light_ids.append(id)
                     traffic_light_poses.append(static_actors[id]['pos'])
@@ -455,8 +451,8 @@ class WaypointSuiteEnv(GymEnv):
                                                                    x=self.start_point[0], y=self.start_point[1])[0]) \
                                      + np.random.normal(0, 0.1)
         except Exception as e:
-            print("set_start_pos")
-            print(e)
+            logger.warning("Cannot randomly sample a valid start position. Use the first waypoint directly.")
+            logger.warning(e)
             self.start_point = p0
             self.start_speed = np.random.rand() * 10
             self.start_orientation = float(find_lanelet_directions(lanelet_map=self.lanelet_map,
@@ -464,33 +460,26 @@ class WaypointSuiteEnv(GymEnv):
                                      + np.random.normal(0, 0.1)
 
     def step(self, action: Tensor):
-        try:
-            state = self.simulator.get_state()
-            self.last_x = state[..., 0]
-            self.last_y = state[..., 1]
-            self.last_psi = state[..., 2]
-            self.last_speed = state[..., 3]
+        state = self.simulator.get_state()
+        self.last_x = state[..., 0]
+        self.last_y = state[..., 1]
+        self.last_psi = state[..., 2]
+        self.last_speed = state[..., 3]
 
-            obs, reward, terminated, truncated, info = super().step(action)
-            if self.check_reach_target():
-                self.current_target_idx += 1
-                if self.current_target_idx < len(self.waypoints):
-                    self.current_target = self.waypoints[self.current_target_idx]
-                    innermost_simulator = self.simulator.get_innermost_simulator()
-                    innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
-                else:
-                    self.current_target = None
-                    innermost_simulator = self.simulator.get_innermost_simulator()
-                    innermost_simulator.renderer.set_waypoint_mesh(None)
-            self.last_obs = obs
-            self.last_reward = reward
-            self.last_info = info
-        except Exception as e:
-            print("step")
-            print(e)
-            print(traceback.format_exc())
-            self.occur_exception = True
-            obs, reward, terminated, truncated, info = self.mock_step()
+        obs, reward, terminated, truncated, info = super().step(action)
+        if self.check_reach_target():
+            self.current_target_idx += 1
+            if self.current_target_idx < len(self.waypoints):
+                self.current_target = self.waypoints[self.current_target_idx]
+                innermost_simulator = self.simulator.get_innermost_simulator()
+                innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+            else:
+                self.current_target = None
+                innermost_simulator = self.simulator.get_innermost_simulator()
+                innermost_simulator.renderer.set_waypoint_mesh(None)
+        self.last_obs = obs
+        self.last_reward = reward
+        self.last_info = info
         return obs, reward, terminated, truncated, info
 
 

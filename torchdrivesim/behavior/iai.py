@@ -1,10 +1,10 @@
 from typing import List, Optional, Dict
-from enum import Enum
 
 import os
 import math
 import pickle
 import random
+import logging
 import torch
 from torch import Tensor
 from typing_extensions import Self
@@ -15,57 +15,51 @@ from torchdrivesim.utils import TrafficLightState
 
 IAI_LOCATION_INFO_DIR = "location_info"
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 def iai_initialize(location, agent_count, agent_attributes=None, agent_states=None, recurrent_states=None, center=(0, 0), traffic_light_state_history=None):
     import invertedai
-    try:
-        INITIALIZE_FOV = 120
-        conditional_agent_attributes = []
-        conditional_agent_states = []
-        conditional_recurrent_states = []
-        outside_agent_states = []
-        outside_agent_attributes = []
-        outside_recurrent_states = []
+    INITIALIZE_FOV = 120
+    conditional_agent_attributes = []
+    conditional_agent_states = []
+    conditional_recurrent_states = []
+    outside_agent_states = []
+    outside_agent_attributes = []
+    outside_recurrent_states = []
 
-        for i in range(len(agent_states)):
-            agent_state = agent_states[i]
-            dist = math.dist(center, (agent_state.center.x, agent_state.center.y))
-            if dist < INITIALIZE_FOV:
-                conditional_agent_states.append(agent_state)
-                conditional_agent_attributes.append(agent_attributes[i])
-                conditional_recurrent_states.append(recurrent_states[i])
-            else:
-                outside_agent_states.append(agent_state)
-                outside_agent_attributes.append(agent_attributes[i])
-                outside_recurrent_states.append(recurrent_states[i])
-
-        agent_count -= len(conditional_agent_states)
-        if agent_count > 0:
-            try:
-                seed = random.randint(1, 10000)
-                response = invertedai.api.initialize(
-                    location=location,
-                    agent_attributes=conditional_agent_attributes,
-                    states_history=[conditional_agent_states],
-                    agent_count=agent_count,
-                    location_of_interest=center,
-                    traffic_light_state_history=traffic_light_state_history,
-                    random_seed = seed
-                )
-                agent_attribute_list = response.agent_attributes + outside_agent_attributes
-                agent_state_list = response.agent_states + outside_agent_states
-                recurrent_state_list = response.recurrent_states + outside_recurrent_states
-            except Exception:
-                agent_attribute_list = agent_attributes
-                agent_state_list = agent_states
-                recurrent_state_list = recurrent_states
+    for i in range(len(agent_states)):
+        agent_state = agent_states[i]
+        dist = math.dist(center, (agent_state.center.x, agent_state.center.y))
+        if dist < INITIALIZE_FOV:
+            conditional_agent_states.append(agent_state)
+            conditional_agent_attributes.append(agent_attributes[i])
+            conditional_recurrent_states.append(recurrent_states[i])
         else:
-            agent_attribute_list = agent_attributes
-            agent_state_list = agent_states
-            recurrent_state_list = recurrent_states
+            outside_agent_states.append(agent_state)
+            outside_agent_attributes.append(agent_attributes[i])
+            outside_recurrent_states.append(recurrent_states[i])
 
-    except invertedai.error.InvalidRequestError:
-        raise InitializationFailedError()
+    agent_count -= len(conditional_agent_states)
+    if agent_count > 0:
+        seed = random.randint(1, 10000)
+        response = invertedai.api.initialize(
+            location=location,
+            agent_attributes=conditional_agent_attributes,
+            states_history=[conditional_agent_states],
+            agent_count=agent_count,
+            location_of_interest=center,
+            traffic_light_state_history=traffic_light_state_history,
+            random_seed = seed
+        )
+        agent_attribute_list = response.agent_attributes + outside_agent_attributes
+        agent_state_list = response.agent_states + outside_agent_states
+        recurrent_state_list = response.recurrent_states + outside_recurrent_states
+    else:
+        agent_attribute_list = agent_attributes
+        agent_state_list = agent_states
+        recurrent_state_list = recurrent_states
+
 
     agent_attributes = torch.stack(
         [torch.tensor(at.tolist()[:3]) for at in agent_attribute_list], dim=-2
@@ -79,14 +73,11 @@ def iai_initialize(location, agent_count, agent_attributes=None, agent_states=No
 def iai_area_initialize(location, agent_density, center=(0, 0), traffic_light_state_history=None):
     import invertedai
     from invertedai.utils import area_initialization
-    try:
-        response = area_initialization(
-            location=location, agent_density=agent_density,
-            traffic_lights_states=traffic_light_state_history,
-            width=500, height=500
-        )
-    except invertedai.error.InvalidRequestError:
-        raise InitializationFailedError()
+    response = area_initialization(
+        location=location, agent_density=agent_density,
+        traffic_lights_states=traffic_light_state_history,
+        width=500, height=500
+    )
     agent_attributes = torch.stack(
         [torch.tensor(at.tolist()[:-1]) for at in response.agent_attributes], dim=-2
     )
@@ -99,37 +90,22 @@ def iai_area_initialize(location, agent_density, center=(0, 0), traffic_light_st
 def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List, traffic_lights_states: Dict = None):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
-    try:
-        agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
-        agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
-        seed = random.randint(1, 10000)
-        response = invertedai.api.drive(
-            location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-            recurrent_states=recurrent_states,
-            traffic_lights_states=traffic_lights_states,
-            random_seed=seed
-        )
-        agent_states = torch.stack(
-            [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
-        )
-    except Exception as e:
-        print(e)
-        print(location)
-        print(agent_attributes)
-        print(agent_states)
-        raise e
+    agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
+    agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
+    seed = random.randint(1, 10000)
+    response = invertedai.api.drive(
+        location=location, agent_states=agent_states, agent_attributes=agent_attributes,
+        recurrent_states=recurrent_states,
+        traffic_lights_states=traffic_lights_states,
+        random_seed=seed
+    )
+    agent_states = torch.stack(
+        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
+    )
     return agent_states, response.recurrent_states
 
 
 def iai_location_info(location: str):
-#    import invertedai
-#    try:
-#        response = invertedai.api.location_info(
-#            location=location
-#        )
-#    except invertedai.error.InvalidRequestError:
-#        raise LocationInfoFailedError()
-#    return response
     with open(f"{IAI_LOCATION_INFO_DIR}/{location}.pkl", "rb") as f:
         response = pickle.load(f)
     return response
