@@ -2,6 +2,7 @@ import dataclasses
 import os
 import shutil
 
+import pytest
 import torch
 
 from torchdrivesim.mesh import BaseMesh, AttributeMesh, BirdviewMesh
@@ -55,6 +56,7 @@ class TestBaseMesh:
         _ = self.mesh.pickle(save_path)
         _ = self.mesh.unpickle(save_path)
 
+    @pytest.mark.depends_on_pytorch3d
     def test_pytorch3d(self):
         self.mesh.pytorch3d()
 
@@ -67,6 +69,7 @@ class TestBaseMesh:
         saved_mesh = self.mesh.load(os.path.join(self.save_dir, 'test_mesh.json'))
         assert torch.equal(self.mesh.verts, saved_mesh.verts)
         assert torch.equal(self.mesh.faces, saved_mesh.faces)
+
 
 class TestAttributeMesh(TestBaseMesh):
     mesh = None
@@ -105,6 +108,7 @@ class TestAttributeMesh(TestBaseMesh):
         assert torch.equal(self.mesh.verts, saved_mesh.verts)
         assert torch.equal(self.mesh.faces, saved_mesh.faces)
         assert torch.equal(self.mesh.attrs, saved_mesh.attrs)
+
 
 class TestBirdviewMesh(TestBaseMesh):
     mesh = None

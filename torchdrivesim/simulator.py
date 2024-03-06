@@ -1,7 +1,7 @@
 import abc
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from itertools import accumulate
 from typing import Optional, Union, Dict, List, Iterable, Callable, Any
@@ -14,6 +14,7 @@ import torch
 from torch import Tensor
 from torch.nn.functional import pad
 
+import torchdrivesim.rendering.pytorch3d
 from torchdrivesim.goals import WaypointGoal
 from torchdrivesim.kinematic import KinematicModel
 from torchdrivesim.lanelet2 import LaneletMap
@@ -42,9 +43,9 @@ class TorchDriveConfig:
     """
     Top-level configuration for a TorchDriveSim simulator.
     """
-    renderer: RendererConfig = RendererConfig()  #: how to visualize the world, for the user and for the agents
+    renderer: RendererConfig = field(default_factory=lambda:RendererConfig())  #: how to visualize the world, for the user and for the agents
     single_agent_rendering: bool = False  #: if set, agents don't see each other
-    collision_metric: CollisionMetric = CollisionMetric.discs  #: method to use for computing collisions
+    collision_metric: CollisionMetric = field(default_factory=lambda:CollisionMetric.discs)  #: method to use for computing collisions
     offroad_threshold: float = 0.5  #: how much the agents can go off-road without counting that as infraction
     left_handed_coordinates: bool = False  #: whether the coordinate system is left-handed (z always points upwards)
 
@@ -977,6 +978,10 @@ class Simulator(SimulatorInterface):
                 compute_agent_collisions_metric(all_presented_boxes, all_presented_collision_masks, present_mask),
                 device=device)
         elif self.cfg.collision_metric == CollisionMetric.nograd_pytorch3d:
+            if not torchdrivesim.rendering.pytorch3d.is_available:
+                raise torchdrivesim.rendering.pytorch3d.Pytorch3DNotFound(
+                    "You can use a different collision metric, e.g. CollisionMetric.nograd"
+                )
             all_boxes = torch.cat([states[..., :2], sizes, states[..., 2:3]], dim=-1)
             collision = compute_agent_collisions_metric_pytorch3d(all_boxes, collision_mask)
         else:

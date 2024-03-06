@@ -1,5 +1,4 @@
 import os
-import lanelet2
 import pytest
 import torch
 from torchdrivesim.simulator import TorchDriveConfig, Simulator
@@ -62,6 +61,7 @@ class TestBaseSimulator:
 
     @classmethod
     def get_simulator(cls):
+        import lanelet2
         road_mesh = BirdviewMesh.empty(batch_size=cls.data_batch_size)
         kinematic_model = KinematicBicycle()
         kinematic_model.set_params(lr=cls.mock_agent_attributes[..., 2])

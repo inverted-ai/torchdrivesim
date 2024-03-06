@@ -9,8 +9,6 @@ from typing import List, Optional, Dict, Tuple
 import logging
 
 import numpy as np
-import pytorch3d
-import pytorch3d.renderer
 import torch
 from torch import Tensor
 from torch.nn import functional as F
@@ -40,6 +38,79 @@ class DummyRendererConfig(RendererConfig):
     For DummyRenderer.
     """
     backend: str = 'dummy'
+
+
+class Cameras:
+    """
+    Lightweight version of pytorch3d.renderer.FoVOrthographicCameras.
+    Used to define an interface that works without pytorch3d.
+    """
+    def __init__(self, xy: Tensor, sc: Tensor, scale: float):
+        self.xy = xy
+        self.sc = sc
+        self.scale = scale
+
+        world_to_view_transform = self.get_world_to_view_transform()
+        view_to_proj_transform = self.get_view_to_proj_transform()
+        self.world_to_clip_transform = world_to_view_transform @ view_to_proj_transform
+
+    def get_camera_center(self) -> Tensor:
+        return self.xy
+
+    def get_world_to_view_transform(self) -> Tensor:
+        camera_xy = self.xy
+        camera_sin = self.sc[..., 0]
+        camera_cos = self.sc[..., 1]
+        batch_size = camera_xy.shape[0]
+
+        rotation_matrix = torch.stack([
+            torch.stack([camera_cos, - camera_sin], dim=-1),
+            torch.stack([camera_sin, camera_cos], dim=-1),
+        ], dim=-2)
+
+        translation = torch.eye(4, dtype=camera_xy.dtype, device=camera_xy.device)
+        translation = translation.unsqueeze(0).expand(batch_size, 4, 4).contiguous()
+        translation[..., 3, :2] = - camera_xy
+
+        rotation = torch.eye(4, dtype=camera_xy.dtype, device=camera_xy.device)
+        rotation = rotation.unsqueeze(0).expand(batch_size, 4, 4).contiguous()
+        rotation[..., :2, :2] = rotation_matrix
+
+        world_to_view_transform = translation @ rotation
+        return world_to_view_transform
+
+    def get_view_to_proj_transform(self) -> Tensor:
+        view_to_proj_transform = torch.zeros(1, 4, 4, device=self.xy.device)
+        view_to_proj_transform[:, 0, 0] = -self.scale
+        view_to_proj_transform[:, 1, 1] = -self.scale
+        view_to_proj_transform[:, 3, 3] = 1.0
+
+        # NOTE: This maps the z coordinate to the range [0, 1] and replaces the
+        # the OpenGL z normalization to [-1, 1]
+        z_sign = +1.0
+        zfar, znear = 100.0, 1.0 # This sets the max and min z planes that will be visible
+        view_to_proj_transform[:, 2, 2] = z_sign * (1.0 / (zfar - znear))
+        view_to_proj_transform[:, 2, 3] = -znear / (zfar - znear)
+        view_to_proj_transform = view_to_proj_transform.transpose(1, 2).contiguous()
+        return view_to_proj_transform
+
+    def project_world_to_clip_space(self, points: Tensor) -> Tensor:
+        return F.pad(points, (0, 1), value=1.0) @ self.world_to_clip_transform
+
+    def transform_points_screen(self, points: Tensor, res: Resolution) -> Tensor:
+        rot_mat = torch.stack([
+            self.sc.flip(dims=[-1]),
+            self.sc * torch.tensor([-1, 1], device=points.device)
+        ], dim=-2)
+
+        # the operations below could be fused for efficiency
+        points = points - self.xy
+        points = torch.matmul(rot_mat, points.unsqueeze(-1)).squeeze(-1)
+        points = - points * self.scale
+        points = points * min(res.height, res.width) / 2
+        points = points + torch.tensor([res.width, res.height], device=points.device) / 2
+
+        return points
 
 
 class BirdviewRenderer(abc.ABC):
@@ -372,21 +443,20 @@ class BirdviewRenderer(abc.ABC):
         return image
 
     @abc.abstractmethod
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
             -> Tensor:
         """
         Renders a given mesh, producing BxHxWxC tensor image of float RGB values in [0,255] range.
         """
         pass
 
-    def construct_cameras(self, xy: Tensor, sc: Tensor, scale: Optional[float] = None)\
-            -> pytorch3d.renderer.FoVOrthographicCameras:
+    def construct_cameras(self, xy: Tensor, sc: Tensor, scale: Optional[float] = None) -> Cameras:
         """
         Create PyTorch3D cameras object for given positions and orientations.
         Input tensor dimensions should be Bx2.
         """
         scale = self.scale if scale is None else scale
-        return construct_pytorch3d_cameras(xy, sc, scale=scale)
+        return Cameras(xy=xy, sc=sc, scale=scale)
 
     def build_verts_faces_from_bounding_box(self, bbs: Tensor, z: float = 2) -> Tuple[Tensor, Tensor]:
         """
@@ -494,32 +564,11 @@ class DummyRenderer(BirdviewRenderer):
     """
     Produces a black image of the required size. Mostly used for debugging and benchmarking.
     """
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
-            -> Tensor:
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> Tensor:
         camera_batch_size = cameras.get_camera_center().shape[0]
         shape = (camera_batch_size, res.height, res.width, 3)
         image = torch.zeros(shape, device=self.device, dtype=torch.float32)
         return image
-
-
-def construct_pytorch3d_cameras(xy: Tensor, sc: Tensor, scale: float) -> pytorch3d.renderer.FoVOrthographicCameras:
-    """
-    Create PyTorch3D cameras object for given positions and orientations.
-    Input tensor dimensions should be Bx2.
-    """
-    assert xy.shape == sc.shape
-    device = xy.device
-    cs_neg = torch.flip(sc, dims=(-1,)) * torch.tensor([[1, -1]], dtype=sc.dtype, device=sc.device)
-    rotation_matrix = torch.stack([cs_neg, sc], dim=-2)
-    # pytorch3d seems to rotate the provided translation vector
-    reverse_rotation = rotation_matrix.transpose(-1, -2)
-    rotated_translation = reverse_rotation.matmul(-xy.unsqueeze(-1)).squeeze(-1)
-    t = F.pad(rotated_translation, (0, 1), mode='constant', value=0)
-    r = F.pad(rotation_matrix, (0, 1, 0, 1), mode='constant', value=0)
-    r[..., -1, -1] = 1
-    scale = torch.tensor([[scale, scale, 1]], dtype=xy.dtype, device=device).expand_as(t)
-    cameras = pytorch3d.renderer.FoVOrthographicCameras(device=device, scale_xyz=scale, T=t, R=r)
-    return cameras
 
 
 def get_default_rendering_levels() -> Dict[str, float]:

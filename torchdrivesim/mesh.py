@@ -14,13 +14,11 @@ from typing import Union, Tuple, List, Dict, Optional, Any
 from typing_extensions import Self
 
 import numpy as np
-import pytorch3d
-from pytorch3d import structures
-
 import torch
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
+from torchdrivesim import assert_pytorch3d_available
 from torchdrivesim.utils import is_inside_polygon, merge_dicts, rotate
 
 logger = logging.getLogger(__name__)
@@ -198,13 +196,15 @@ class BaseMesh:
             )
         return dataclasses.replace(self, verts=self.verts + offset)
 
-    def pytorch3d(self, include_textures=True) -> pytorch3d.structures.Meshes:
+    def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         """
         Converts the mesh to a PyTorch3D one.
         For the base class there are no textures, but subclasses may include them.
         Empty meshes are augmented with a single degenerate face on conversion,
         since PyTorch3D does not handle empty meshes correctly.
         """
+        assert_pytorch3d_available()
+        import pytorch3d
         assert self.dim in [2, 3]
         if self.faces_count == 0:
             verts = torch.zeros((self.batch_size, 1, self.dim), device=self.device, dtype=self.verts.dtype)
@@ -236,6 +236,7 @@ class BaseMesh:
             return road_mesh
         else:
             raise BadMeshFormat
+
     def serialize(self):
         return {
             'verts': self.verts.tolist(),
@@ -415,11 +416,13 @@ class AttributeMesh(BaseMesh):
         )
         return cls(verts=base_collated.verts, faces=base_collated.faces, attrs=attrs)
 
-    def pytorch3d(self, include_textures=True) -> pytorch3d.structures.Meshes:
+    def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         """
         PyTorch3D uses per-face textures, which are obtained by averaging attributes of the face.
         The resulting texture for each face is constant.
         """
+        assert_pytorch3d_available()
+        import pytorch3d
         assert self.dim in [2, 3]
         if not include_textures:
             return super().pytorch3d(include_textures=False)
@@ -653,7 +656,7 @@ class BirdviewMesh(BaseMesh):
         attrs = colors
         return RGBMesh(verts=verts, faces=self.faces, attrs=attrs)
 
-    def pytorch3d(self, include_textures=True) -> pytorch3d.structures.Meshes:
+    def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         if include_textures:
             return self.fill_attr().pytorch3d(include_textures=True)
         else:
