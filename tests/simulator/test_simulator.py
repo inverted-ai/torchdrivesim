@@ -157,7 +157,6 @@ class TestBaseSimulator:
         collision_metrics = self.get_tensor(self.simulator.compute_collision())
         assert len(collision_metrics.shape) == 2 and torch.all(collision_metrics)
 
-    @pytest.mark.depends_on_pytorch3d
     def test_compute_offroad(self):
         assert self.get_tensor(self.simulator.compute_offroad()).shape == self.offroad_shape
 

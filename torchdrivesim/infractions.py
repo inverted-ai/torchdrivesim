@@ -11,6 +11,7 @@ from torch.nn import functional as F
 from torchdrivesim._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
 from torchdrivesim.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
 from torchdrivesim.mesh import BaseMesh, check_pytorch3d_available
+from torchdrivesim.rendering.pytorch3d import Pytorch3DNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,96 @@ def point_mesh_face_distance(meshes: "pytorch3d.structures.Meshes", pcls: "pytor
     return point_dist
 
 
+def point_to_mesh_distance_pt(points: torch.Tensor, tris: torch.Tensor, threshold: float = 0):
+    """
+    Computes the distance between points and mesh triangles, defined as the L2 distance
+    from each point to the closest face in the mesh. This function only uses native Pytorch operations
+    and is an alternative version of the function `point_mesh_face_distance` that relies on Pytorch3D.
+
+    Args:
+        points: Bx3 tensor of points
+        tris: BxFx3x3 tensor of mesh triangles
+        threshold: reduce result by this amount and clip at zero from below
+    Returns:
+        Bx1 tensor
+    """
+    
+    p = points.unsqueeze(1)
+    v0, v1, v2 = tris.unbind(dim=-2)
+    cross = torch.cross(v2 - v0, v1 - v0, dim=-1)
+    norm_normal = cross.norm(dim=-1, keepdim=True)
+    normal = cross / (norm_normal + 1e-8)
+
+    t = ((v0 - p)[..., None, :] @ normal[..., :, None]).squeeze(-1)
+    p0 = p + t * normal
+
+    def area_of_triangle(v0, v1, v2):
+        p0 = v1 - v0
+        p1 = v2 - v0
+
+        # compute the hypotenus of the scross product (p0 x p1)
+        dd = torch.hypot(
+          p0[..., 1] * p1[..., 2] - p0[..., 2] * p1[..., 1],
+          torch.hypot(p0[..., 2] * p1[..., 0] - p0[..., 0] * p1[..., 2],
+                      p0[..., 0] * p1[..., 1] - p0[..., 1] * p1[..., 0]))
+        return dd / 2.0
+
+    def bary_centric_coords_3d(p, v0, v1, v2, eps=1e-8):
+        p0 = v1 - v0
+        p1 = v2 - v0
+        p2 = p - v0
+
+        d00 = (p0[..., None, :] @ p0[..., :, None]).squeeze(-1)
+        d01 = (p0[..., None, :] @ p1[..., :, None]).squeeze(-1)
+        d11 = (p1[..., None, :] @ p1[..., :, None]).squeeze(-1)
+        d20 = (p2[..., None, :] @ p0[..., :, None]).squeeze(-1)
+        d21 = (p2[..., None, :] @ p1[..., :, None]).squeeze(-1)
+
+        denom = d00 * d11 - d01 * d01 + eps
+        w1 = (d11 * d20 - d01 * d21) / denom
+        w2 = (d00 * d21 - d01 * d20) / denom
+        w0 = 1.0 - w1 - w2
+        return w0, w1, w2
+
+    def is_inside_triangle(p, v0, v1, v2, min_triangle_area=5e-3):
+        w0, w1, w2 = bary_centric_coords_3d(p, v0, v1, v2)
+        x_in = (0.0 <= w0) & (w0 <= 1.0)
+        y_in = (0.0 <= w1) & (w1 <= 1.0)
+        z_in = (0.0 <= w2) & (w2 <= 1.0)
+        inside = x_in & y_in & z_in
+
+        invalid_triangles = (area_of_triangle(v0, v1, v2) < min_triangle_area).unsqueeze(-1)
+        return inside & invalid_triangles.logical_not()
+
+    def point_line_distance(p, v0, v1):
+        v1v0 = v1 - v0
+        l2 = (v1v0[..., None, :] @ v1v0[..., :, None]).squeeze(-1)
+
+        t = (v1v0[..., None, :] @ (p - v0)[..., :, None]).squeeze(-1) / l2
+        tt = torch.clamp(t, min=0, max=1)
+        p_proj = v0 + tt * v1v0
+        dist = ((p - p_proj)[..., None, :] @ (p - p_proj)[..., :, None]).squeeze(-1)
+
+        small_dist = (l2 <= 1e-8).to(l2.dtype)
+        if small_dist.any():
+            dist = dist * (1 - small_dist) + ((p - v1[..., None, :]) @ (p - v1)[..., :, None]).squeeze(-1) * small_dist
+        return dist
+
+    e01 = point_line_distance(p, v0, v1)
+    e02 = point_line_distance(p, v0, v2)
+    e12 = point_line_distance(p, v1, v2)
+
+    dist = torch.minimum(torch.minimum(e01, e02), e12)
+
+    inside_triangle = is_inside_triangle(p0, v0, v1, v2)
+    condition = (inside_triangle & (norm_normal > 1e-8)).to(dist.dtype)
+
+    dist, _ = ((t*t)*condition + dist*(1-condition)).min(dim=-2)
+    dist = torch.nan_to_num(dist, nan=0.0)
+    dist = F.threshold(dist, threshold, 0)
+    return dist
+
+
 def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
                             driving_surface_mesh: Union["pytorch3d.structures.Meshes", BaseMesh],
                             threshold: float = 0) -> Tensor:
@@ -94,8 +185,7 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     Returns:
         BxA tensor of offroad losses for each agent
     """
-    check_pytorch3d_available()
-    import pytorch3d
+
     batch_size, num_agents = agent_states.shape[:2]
     if num_agents == 0:
         return torch.zeros_like(agent_states[..., 0])
@@ -108,13 +198,27 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     ], dim=-1)
     ego_verts = box2corners_th(predicted_rectangles)
     ego_verts = F.pad(ego_verts, (0,1))
-    ego_verts = ego_verts.view(-1, *ego_verts.shape[2:])
-    ego_pointclouds = pytorch3d.structures.Pointclouds(ego_verts)
-    if isinstance(driving_surface_mesh, BaseMesh):
-        driving_surface_mesh = driving_surface_mesh.pytorch3d(include_textures=False)
-    driving_surface_mesh_extended = driving_surface_mesh.extend(num_agents)
-    offroad_loss = point_mesh_face_distance(driving_surface_mesh_extended, ego_pointclouds, threshold=threshold)
-    offroad_loss = offroad_loss.view(batch_size, num_agents)
+    try:
+        check_pytorch3d_available()
+        import pytorch3d
+        ego_verts = ego_verts.view(-1, *ego_verts.shape[2:])  # B*A x 4 x 3
+        ego_pointclouds = pytorch3d.structures.Pointclouds(ego_verts)
+        if isinstance(driving_surface_mesh, BaseMesh):
+            driving_surface_mesh = driving_surface_mesh.pytorch3d(include_textures=False)
+        driving_surface_mesh_extended = driving_surface_mesh.extend(num_agents)
+        offroad_loss = point_mesh_face_distance(driving_surface_mesh_extended, ego_pointclouds, threshold=threshold)
+        offroad_loss = offroad_loss.view(batch_size, num_agents)
+    except Pytorch3DNotFound:
+        ego_verts = ego_verts.view(-1, *ego_verts.shape[3:])  # B*A*4 x 3
+        driving_surface_mesh_extended = driving_surface_mesh.expand(num_agents*4)
+        mesh_verts = F.pad(driving_surface_mesh_extended.verts[..., :2], (0,1)).reshape(-1, 3)
+        mesh_faces = driving_surface_mesh_extended.faces.clone()
+        mesh_faces += driving_surface_mesh_extended.verts_count * torch.arange(driving_surface_mesh_extended.batch_size,
+                                                            dtype=mesh_faces.dtype, device=mesh_faces.device)[:, None, None]
+        mesh_faces = mesh_faces.reshape(-1, 3)
+        mesh_tris = mesh_verts[mesh_faces].reshape(-1, driving_surface_mesh_extended.faces_count, 3, 3)
+        offroad_loss = point_to_mesh_distance_pt(ego_verts, mesh_tris, threshold=threshold)
+        offroad_loss = offroad_loss.reshape(batch_size, num_agents, 4).sum(dim=-1)
     return offroad_loss
 
 
