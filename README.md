@@ -1,7 +1,9 @@
 [pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg
 [pypi-link]: https://pypi.org/project/torchdrivesim/  
+[python-badge]: https://img.shields.io/pypi/pyversions/torchdrivesim.svg?color=%2334D058
 [![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)
 [![PyPI][pypi-badge]][pypi-link]
+[![python-badge]][pypi-link]
 [![Documentation Status](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)
 
 # TorchDriveSim
@@ -18,6 +20,12 @@ environment for developing autonomous driving algorithms. Its main features are:
 8. Ability to ingest any map in [Lanelet2](https://github.com/fzi-forschungszentrum-informatik/Lanelet2) format out of the box.
 9. Integration with [IAI API](https://docs.inverted.ai/en/latest/) for initializing agent states and providing realistic behaviors.
 <!-- end Features-->
+### ** Warning **
+The PyPI version of torchdrivesim (which is what you get when you run `pip install torchdrivesim`) comes equipped
+only with the slower OpenCV renderer. Faster renderers are available, but require either 
+[`pytorch3d`](https://github.com/facebookresearch/pytorch3d/) or 
+[`nvdiffrast`](https://nvlabs.github.io/nvdiffrast/)
+to be installed. Their CUDA dependencies can be tricky to satisfy, so we provide a suitable Dockerfile.
 
 <!-- start readme-->
 ## Simulator Architecture
@@ -86,17 +94,20 @@ straightforward to implement a custom one.
 
 ## Differentiable rendering
 
-TorchDriveSim supports two rendering backends, namely pytorch3d and nvdiffrast, both producing results that look the
-same to the human eye. Pytorch3d is the default one and a required dependency, since it's easier to install. Nvdiffrast
-is supported and can sometimes be substantially faster, but it needs to be installed separately, and it's subject
-to more restrictive license conditions. We also provide a dummy rendering backend that returns an empty image,
-mostly for debugging and benchmarking purposes.
+TorchDriveSim supports three rendering backends, using cv2, pytorch3d, and nvdiffrast, respectively. The images produced
+by all three look very similar and differ only in the details of how different triangles are pixelated.
+The cv2 backend is the easiest to install and it is included as a required dependency. Pytorch3d and nvdiffrast
+need to be installed separately, as per the instructions below. We also provide a dummy rendering backend that
+returns an empty image, mostly for debugging and benchmarking purposes.
 
 ## Installation
 
-Before running the usual `pip install torchdrivesim` command, correct `torch` and `pytorch3d` versions need to be 
-installed by the user. `torchdrivesim` will assume the user have installed
-the correct version already as `Pytorch` related packages are marked as optional.
+Running `pip install torchdrivesim` only provides access to the basic OpenCV renderer. To be able to use the faster
+pytorch3d renderer, make sure to first install the correct versions of `torch` and `pytorch3d` using the instructions
+below. You can also install [`nvdiffrast`](https://nvlabs.github.io/nvdiffrast/#installation), which can be even faster,
+but it is also subject to more restrictive license conditions.
+Generally, the more images you render in parallel (either by having more ego agents or larger batches), the more
+of a gain you will get from the faster renderers.
 
 To install the correct `torch` using `pip`, go visit the
 [prebuilt whls page](https://download.pytorch.org/whl/torch_stable.html) to select the right `.whl` file based on the

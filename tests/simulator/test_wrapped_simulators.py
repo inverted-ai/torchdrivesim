@@ -49,11 +49,16 @@ class TestHomogenousSimulator(TestBaseWrappedSimulator):
         return HomogeneousWrapper(super().get_simulator())
 
     @pytest.mark.parametrize('collision_metric_type', [cm for cm in (CollisionMetric.nograd,
-                                                                     CollisionMetric.nograd_pytorch3d,
                                                                      CollisionMetric.iou, CollisionMetric.discs)])
     def test_compute_collision(self, collision_metric_type):
 
         self.simulator.cfg.collision_metric = collision_metric_type
+        collision_metrics = self.simulator.compute_collision()
+        assert len(collision_metrics.shape) == 2 and not torch.all(collision_metrics)
+
+    @pytest.mark.depends_on_pytorch3d
+    def test_compute_collision_pytorch3d(self):
+        self.simulator.cfg.collision_metric = CollisionMetric.nograd_pytorch3d
         collision_metrics = self.simulator.compute_collision()
         assert len(collision_metrics.shape) == 2 and not torch.all(collision_metrics)
 

@@ -1,7 +1,7 @@
 import abc
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from itertools import accumulate
 from typing import Optional, Union, Dict, List, Iterable, Callable, Any
@@ -14,6 +14,8 @@ import torch
 from torch import Tensor
 from torch.nn.functional import pad
 
+import torchdrivesim.rendering.pytorch3d
+from torchdrivesim.goals import WaypointGoal
 from torchdrivesim.kinematic import KinematicModel
 from torchdrivesim.lanelet2 import LaneletMap
 from torchdrivesim.mesh import generate_trajectory_mesh, BirdviewMesh
@@ -41,9 +43,9 @@ class TorchDriveConfig:
     """
     Top-level configuration for a TorchDriveSim simulator.
     """
-    renderer: RendererConfig = RendererConfig()  #: how to visualize the world, for the user and for the agents
+    renderer: RendererConfig = field(default_factory=lambda:RendererConfig())  #: how to visualize the world, for the user and for the agents
     single_agent_rendering: bool = False  #: if set, agents don't see each other
-    collision_metric: CollisionMetric = CollisionMetric.discs  #: method to use for computing collisions
+    collision_metric: CollisionMetric = field(default_factory=lambda:CollisionMetric.discs)  #: method to use for computing collisions
     offroad_threshold: float = 0.5  #: how much the agents can go off-road without counting that as infraction
     left_handed_coordinates: bool = False  #: whether the coordinate system is left-handed (z always points upwards)
 
@@ -263,6 +265,20 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_waypoints(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxMx2 tensors representing current agent waypoints.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_waypoints_mask(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxM boolean tensors representing current agent waypoints present mask.
+        """
+        pass
+
+    @abc.abstractmethod
     def step(self, agent_action: TensorPerAgentType) -> None:
         """
         Runs the simulation for one step with given agent actions.
@@ -308,7 +324,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def render(self, camera_xy: Tensor, camera_psi: Tensor, res: Optional[Resolution] = None,
-               rendering_mask: Optional[TensorPerAgentType] = None, fov: Optional[float] = None) -> Tensor:
+               rendering_mask: Optional[TensorPerAgentType] = None, fov: Optional[float] = None,
+               waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None) -> Tensor:
         """
         Renders the world from bird's eye view using cameras in given positions.
 
@@ -318,6 +335,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             res: desired image resolution (only square resolutions are supported; by default use value from config)
             rendering_mask: functor of BxNxA tensors, indicating which agents should be rendered each camera
             fov: the field of view of the resulting image in meters (by default use value from config)
+            waypoints: BxNxMx2 tensor of `M` waypoints per camera (x,y)
+            waypoints_rendering_mask: BxNxM tensor of `M` waypoint masks per camera,
+                indicating which waypoints should be rendered
         Returns:
              BxNxCxHxW tensor of resulting RGB images for each camera
         """
@@ -343,6 +363,15 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         agent_count_dict = dict(agent=agent_count) if singleton else agent_count
         camera_xy = torch.cat([s[0] for s in agent_pos_dict.values()], dim=-2)
         camera_psi = torch.cat([s[1] for s in agent_pos_dict.values()], dim=-2)
+        waypoints = self.get_waypoints()
+        if waypoints is not None:
+            waypoints_mask = self.get_waypoints_mask()
+            waypoints_dict = dict(agent=waypoints) if singleton else waypoints
+            waypoints_mask_dict = dict(agent=waypoints_mask) if singleton else waypoints_mask
+            waypoints = torch.cat(list(waypoints_dict.values()), dim=-3)
+            waypoints_mask = torch.cat(list(waypoints_mask_dict.values()), dim=-2)
+        else:
+            waypoints, waypoints_mask = None, None
         if not ego_rotate:
             camera_psi = torch.ones_like(camera_psi) * (np.pi / 2)
         # render birdview and split resulting tensor across agent types
@@ -363,7 +392,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
                 torch.zeros(a_pos[0].shape[0], camera_xy.shape[1], 0).to(camera_xy.device),
                 agent_pos, agent_count, agent_rel_starting_idx)  # BxNcxA where Nc=A
 
-        bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov)
+        bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
+                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
         chunks = [0] + list(np.cumsum(list(agent_count_dict.values())))
         total_agents = chunks[-1]
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
@@ -544,7 +574,8 @@ class Simulator(SimulatorInterface):
                  agent_size: Dict[str, Tensor], initial_present_mask: Dict[str, Tensor],
                  cfg: TorchDriveConfig, renderer: Optional[BirdviewRenderer] = None,
                  lanelet_map: Optional[List[Optional[LaneletMap]]] = None, recenter_offset: Optional[Tensor] = None,
-                 internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None):
+                 internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
+                 waypoint_goals: Optional[WaypointGoal] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -571,6 +602,7 @@ class Simulator(SimulatorInterface):
             self.renderer = renderer
 
         self.traffic_controls = traffic_controls
+        self.waypoint_goals = waypoint_goals
 
         if cfg.left_handed_coordinates:
             def set_left_handed(kin):
@@ -608,6 +640,7 @@ class Simulator(SimulatorInterface):
 
         self.kinematic_model = self.agent_functor.to_device(self.kinematic_model, device)  # type: ignore
         self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()} if self.traffic_controls is not None else None
+        self.waypoint_goals = self.waypoint_goals.to(device) if self.waypoint_goals is not None else None
         self.renderer = self.renderer.to(device)
 
         return self
@@ -618,7 +651,8 @@ class Simulator(SimulatorInterface):
             agent_size=self.agent_size, initial_present_mask=self.present_mask,
             cfg=self.cfg, renderer=self.renderer.copy(), lanelet_map=self.lanelet_map,
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
-            traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None
+            traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
+            waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None
         )
         return other
 
@@ -646,6 +680,9 @@ class Simulator(SimulatorInterface):
         self.renderer = self.renderer.expand(n)
         if self.traffic_controls is not None:
             self.traffic_controls={k: v.extend(n) for k, v in self.traffic_controls.items()}
+
+        if self.waypoint_goals is not None:
+            self.waypoint_goals = self.waypoint_goals.extend(n)
 
         return self
 
@@ -680,6 +717,8 @@ class Simulator(SimulatorInterface):
         self.renderer = self.renderer.select_batch_elements(idx)
         if self.traffic_controls is not None:
             self.traffic_controls={k: v.select_batch_elements(idx) for k, v in self.traffic_controls.items()}
+        if self.waypoint_goals is not None:
+            self.waypoint_goals = self.waypoint_goals.select_batch_elements(idx)
         return self
 
     def validate_agent_types(self):
@@ -719,6 +758,12 @@ class Simulator(SimulatorInterface):
 
     def get_state(self):
         return self.across_agent_types(lambda kin: kin.get_state(), self.kinematic_model)
+
+    def get_waypoints(self):
+        return self.waypoint_goals.get_waypoints() if self.waypoint_goals is not None else None
+
+    def get_waypoints_mask(self):
+        return self.waypoint_goals.get_masks() if self.waypoint_goals is not None else None
 
     def compute_wrong_way(self):
         if self.lanelet_map is not None:
@@ -809,6 +854,8 @@ class Simulator(SimulatorInterface):
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
+        if self.waypoint_goals is not None:
+            self.waypoint_goals.step(self.get_state(), self.internal_time)
 
     def set_state(self, agent_state, mask=None):
         if mask is None:
@@ -859,7 +906,8 @@ class Simulator(SimulatorInterface):
 
         return action
 
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None):
+    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None,
+               waypoints=None, waypoints_rendering_mask=None):
         camera_sc = torch.cat([torch.sin(camera_psi), torch.cos(camera_psi)], dim=-1)
         if len(camera_xy.shape) == 2:
             # Reshape from Bx2 to Bx1x2
@@ -874,6 +922,7 @@ class Simulator(SimulatorInterface):
         }
         return self.renderer.render_frame(
             self.get_state(), self.get_agent_size(), camera_xy, camera_sc, rendering_mask, res=res, fov=fov,
+            waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()}
                 if self.traffic_controls is not None else None
         )
@@ -958,6 +1007,10 @@ class Simulator(SimulatorInterface):
                 compute_agent_collisions_metric(all_presented_boxes, all_presented_collision_masks, present_mask),
                 device=device)
         elif self.cfg.collision_metric == CollisionMetric.nograd_pytorch3d:
+            if not torchdrivesim.rendering.pytorch3d.is_available:
+                raise torchdrivesim.rendering.pytorch3d.Pytorch3DNotFound(
+                    "You can use a different collision metric, e.g. CollisionMetric.nograd"
+                )
             all_boxes = torch.cat([states[..., :2], sizes, states[..., 2:3]], dim=-1)
             collision = compute_agent_collisions_metric_pytorch3d(all_boxes, collision_mask)
         else:
@@ -1032,6 +1085,12 @@ class SimulatorWrapper(SimulatorInterface):
     def get_present_mask(self):
         return self.inner_simulator.get_present_mask()
 
+    def get_waypoints(self):
+        return self.inner_simulator.get_waypoints()
+
+    def get_waypoints_mask(self):
+        return self.inner_simulator.get_waypoints_mask()
+
     def get_all_agents_absolute(self):
         return self.inner_simulator.get_all_agents_absolute()
 
@@ -1065,8 +1124,10 @@ class SimulatorWrapper(SimulatorInterface):
     def compute_wrong_way(self):
         return self.inner_simulator.compute_wrong_way()
 
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None):
-        return self.inner_simulator.render(camera_xy, camera_psi, res=res, rendering_mask=rendering_mask, fov=fov)
+    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
+               waypoints_rendering_mask=None):
+        return self.inner_simulator.render(camera_xy, camera_psi, res=res, rendering_mask=rendering_mask, fov=fov,
+                                           waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask)
 
 
 class NPCWrapper(SimulatorWrapper):
@@ -1137,6 +1198,22 @@ class NPCWrapper(SimulatorWrapper):
             lambda x, k: x[..., k.logical_not(), :], self.inner_simulator.get_state(), self.npc_mask
         )
         return states
+
+    def get_waypoints(self):
+        waypoints = self.inner_simulator.get_waypoints()
+        if waypoints is not None:
+            waypoints = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :], waypoints, self.npc_mask
+            )
+        return waypoints
+
+    def get_waypoints_mask(self):
+        masks = self.inner_simulator.get_waypoints_mask()
+        if masks is not None:
+            masks = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :], masks, self.npc_mask
+            )
+        return masks
 
     def get_agent_size(self):
         sizes = self.across_agent_types(
@@ -1259,7 +1336,8 @@ class NPCWrapper(SimulatorWrapper):
         )
         self.inner_simulator.update_present_mask(new_present_mask)
 
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None):
+    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
+               waypoints_rendering_mask=None):
         if rendering_mask is not None:
             def pad_rendering_mask(rd_mask, rpl_mask):
                 new_mask = torch.zeros(rd_mask.shape[0], rd_mask.shape[1], rpl_mask.shape[0], device=rd_mask.device)
@@ -1268,7 +1346,8 @@ class NPCWrapper(SimulatorWrapper):
             rendering_mask = self.across_agent_types(
                 pad_rendering_mask, rendering_mask, self.npc_mask
             )
-        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov)
+        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
+                                           waypoints_rendering_mask=waypoints_rendering_mask)
 
     def fit_action(self, future_state, current_state=None):
         full_state = self.inner_simulator.get_state()
@@ -1409,6 +1488,18 @@ class HomogeneousWrapper(SimulatorWrapper):
     def get_present_mask(self):
         return self.agent_concat(self.inner_simulator.get_present_mask(), agent_dim=-1)
 
+    def get_waypoints(self):
+        waypoints = self.inner_simulator.get_waypoints()
+        if waypoints is not None:
+            waypoints = self.agent_concat(waypoints, agent_dim=-3)
+        return waypoints
+
+    def get_waypoints_mask(self):
+        masks = self.inner_simulator.get_waypoints_mask()
+        if masks is not None:
+            masks = self.agent_concat(masks, agent_dim=-2)
+        return masks
+
     def get_all_agents_absolute(self):
         agent_info = self.inner_simulator.get_all_agents_absolute()
         return self.agent_concat(agent_info, agent_dim=-2, check_agent_count=False)
@@ -1454,9 +1545,11 @@ class HomogeneousWrapper(SimulatorWrapper):
             mask = self.agent_split(mask, agent_dim=-1)
         return self.agent_concat(self.inner_simulator._compute_collision_of_multi_agents(mask), agent_dim=-1)
 
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None):
+    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
+               waypoints_rendering_mask=None):
         rendering_mask = self.agent_split(rendering_mask, -1) if rendering_mask is not None else None
-        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov)
+        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
+                                           waypoints_rendering_mask=waypoints_rendering_mask)
 
 
 class RecordingWrapper(SimulatorWrapper):
@@ -1790,6 +1883,18 @@ class SelectiveWrapper(SimulatorWrapper):
     def get_agent_type(self):
         return self._restrict_tensor(self.inner_simulator.get_agent_type(), agent_dim=-1)
 
+    def get_waypoints(self):
+        waypoints = self.inner_simulator.get_waypoints()
+        if waypoints is not None:
+            waypoints = self._restrict_tensor(waypoints, agent_dim=-3)
+        return waypoints
+
+    def get_waypoints_mask(self):
+        masks = self.inner_simulator.get_waypoints_mask()
+        if masks is not None:
+            masks = self._restrict_tensor(masks, agent_dim=-2)
+        return masks
+
     def get_all_agents_absolute(self):
         return self._restrict_tensor(self.inner_simulator.get_all_agents_absolute(), agent_dim=-2)
 
@@ -1815,14 +1920,16 @@ class SelectiveWrapper(SimulatorWrapper):
         action = self._restrict_tensor(extended_action, agent_dim=-2)
         return action
 
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None):
+    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
+               waypoints_rendering_mask=None):
         if rendering_mask is not None:
             def padding_rendering_mask(rd_mask, expose_mask):
                 rd_mask = rd_mask.permute(0, 2, 1)
                 pad_tensor = torch.zeros(rd_mask.shape[0], expose_mask.shape[1], rd_mask.shape[1], device=rd_mask.device)
                 return self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
             rendering_mask = self.across_agent_types(padding_rendering_mask, rendering_mask, self.is_exposed())
-        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov)
+        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
+                                           waypoints_rendering_mask=waypoints_rendering_mask)
 
     def step(self, action):
         extended_action = self._extend_tensor(action, padding=self.default_action)
