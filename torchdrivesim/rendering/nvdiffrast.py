@@ -61,7 +61,7 @@ class NvdiffrastRendererConfig(RendererConfig):
     """
     backend: str = 'nvdiffrast'
     antialias: bool = False
-    opengl: bool = True  #: if False, use CUDA for rendering
+    opengl: bool = False  #: if False, use CUDA for rendering
     max_minibatch_size: Optional[int] = None  #: used to pre-allocate memory, which may speed up rendering
 
 
