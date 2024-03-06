@@ -8,6 +8,7 @@ from shapely.geometry import Polygon
 from torch import Tensor, relu, cosine_similarity
 from torch.nn import functional as F
 
+import torchdrivesim
 from torchdrivesim._iou_utils import box2corners_th, iou_differentiable_fast, iou_non_differentiable
 from torchdrivesim.lanelet2 import LaneletMap, find_lanelet_directions, LaneletError
 from torchdrivesim.mesh import BaseMesh, check_pytorch3d_available
@@ -172,7 +173,7 @@ def point_to_mesh_distance_pt(points: torch.Tensor, tris: torch.Tensor, threshol
 
 def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
                             driving_surface_mesh: Union["pytorch3d.structures.Meshes", BaseMesh],
-                            threshold: float = 0) -> Tensor:
+                            threshold: float = 0, use_pytorch3d: Optional[bool] = None) -> Tensor:
     """
     Calculates off-road infraction loss, defined as the sum of thresholded distances
     from agent corners to the driving surface mesh.
@@ -182,10 +183,14 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
         lenwid: BxAx2 tensor providing length and width of each agent
         driving_surface_mesh: a batch of B meshes defining driving surface
         threshold: if given, the distance of each corner is thresholded using this value
+        use_pytorch3d: whether to use the optimized and differentiable pytorch3d code, or the
+            simpler pure pytorch implementation - defaults to true iff pytorch3d is installed
     Returns:
         BxA tensor of offroad losses for each agent
     """
 
+    if use_pytorch3d is None:
+        use_pytorch3d = torchdrivesim.rendering.pytorch3d.is_available
     batch_size, num_agents = agent_states.shape[:2]
     if num_agents == 0 or driving_surface_mesh.faces_count == 0:
         return torch.zeros_like(agent_states[..., 0])
@@ -198,7 +203,7 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     ], dim=-1)
     ego_verts = box2corners_th(predicted_rectangles)
     ego_verts = F.pad(ego_verts, (0,1))
-    try:
+    if use_pytorch3d:
         check_pytorch3d_available()
         import pytorch3d
         ego_verts = ego_verts.view(-1, *ego_verts.shape[2:])  # B*A x 4 x 3
@@ -208,7 +213,7 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
         driving_surface_mesh_extended = driving_surface_mesh.extend(num_agents)
         offroad_loss = point_mesh_face_distance(driving_surface_mesh_extended, ego_pointclouds, threshold=threshold)
         offroad_loss = offroad_loss.view(batch_size, num_agents)
-    except Pytorch3DNotFound:
+    else:
         ego_verts = ego_verts.view(-1, *ego_verts.shape[3:])  # B*A*4 x 3
         driving_surface_mesh_extended = driving_surface_mesh.expand(num_agents*4)
         mesh_verts = F.pad(driving_surface_mesh_extended.verts[..., :2], (0,1)).reshape(-1, 3)
