@@ -4,7 +4,7 @@
 [![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI_cpu.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI_cpu.yml)
 [![PyPI][pypi-badge]][pypi-link]
 [![python-badge]][pypi-link]
-[![Documentation Status](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)
+[![Documentation Status](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)](https://docs.torchdrivesim.org/en/latest/)
 
 # TorchDriveSim
 <!-- start Features-->
