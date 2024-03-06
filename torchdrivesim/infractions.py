@@ -93,7 +93,7 @@ def point_to_mesh_distance_pt(points: torch.Tensor, tris: torch.Tensor, threshol
     Returns:
         Bx1 tensor
     """
-    
+
     p = points.unsqueeze(1)
     v0, v1, v2 = tris.unbind(dim=-2)
     cross = torch.cross(v2 - v0, v1 - v0, dim=-1)
@@ -187,7 +187,7 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
     """
 
     batch_size, num_agents = agent_states.shape[:2]
-    if num_agents == 0:
+    if num_agents == 0 or driving_surface_mesh.faces_count == 0:
         return torch.zeros_like(agent_states[..., 0])
     if len(lenwid.shape) == 2:
         lenwid = lenwid.unsqueeze(-2).expand((lenwid.shape[0], num_agents, lenwid.shape[1]))
