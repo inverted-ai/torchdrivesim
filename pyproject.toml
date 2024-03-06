@@ -22,9 +22,9 @@ dependencies = [
     "scipy",
     "imageio",
     "torch>=1.10.1",
-    "pytorch3d",
     "invertedai",
-    "omegaconf"
+    "omegaconf",
+    "opencv-python",
 ]
 dynamic = ["version",]
 
