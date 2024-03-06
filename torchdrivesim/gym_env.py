@@ -15,6 +15,7 @@ import pickle
 import random
 import numpy as np
 from torch import Tensor
+from invertedai.common import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
 
 from torchdrivesim.behavior.iai import iai_location_info, get_static_actors, IAIWrapper, \
     iai_initialize, cache_iai_location_info
@@ -23,7 +24,6 @@ from torchdrivesim.mesh import BirdviewMesh, point_to_mesh
 from torchdrivesim.rendering import renderer_from_config
 from torchdrivesim.utils import Resolution, save_video
 from torchdrivesim.utils import set_seeds
-from torchdrivesim.utils import TrafficLightState, AgentState, Point, AgentAttributes, RecurrentState
 from torchdrivesim.lanelet2 import find_lanelet_directions, load_lanelet_map
 from torchdrivesim.traffic_controls import TrafficLightControl, StopSignControl, YieldControl
 from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \

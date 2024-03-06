@@ -43,23 +43,41 @@ def iai_initialize(location, agent_count, agent_attributes=None, agent_states=No
     agent_count -= len(conditional_agent_states)
     if agent_count > 0:
         seed = random.randint(1, 10000)
-        response = invertedai.api.initialize(
-            location=location,
-            agent_attributes=conditional_agent_attributes,
-            states_history=[conditional_agent_states],
-            agent_count=agent_count,
-            location_of_interest=center,
-            traffic_light_state_history=traffic_light_state_history,
-            random_seed = seed
-        )
-        agent_attribute_list = response.agent_attributes + outside_agent_attributes
-        agent_state_list = response.agent_states + outside_agent_states
-        recurrent_state_list = response.recurrent_states + outside_recurrent_states
+        try:
+            response = invertedai.api.initialize(
+                location=location,
+                agent_attributes=conditional_agent_attributes,
+                states_history=[conditional_agent_states],
+                agent_count=agent_count,
+                location_of_interest=center,
+                traffic_light_state_history=traffic_light_state_history,
+                random_seed = seed
+            )
+            agent_attribute_list = response.agent_attributes + outside_agent_attributes
+            agent_state_list = response.agent_states + outside_agent_states
+            recurrent_state_list = response.recurrent_states + outside_recurrent_states
+        except invertedai.error.InvalidRequestError:
+            try:
+                response = invertedai.api.initialize(
+                    location=location,
+                    agent_attributes=conditional_agent_attributes,
+                    states_history=[conditional_agent_states],
+                    agent_count=5,
+                    location_of_interest=center,
+                    traffic_light_state_history=traffic_light_state_history,
+                    random_seed = seed
+                )
+                agent_attribute_list = response.agent_attributes + outside_agent_attributes
+                agent_state_list = response.agent_states + outside_agent_states
+                recurrent_state_list = response.recurrent_states + outside_recurrent_states
+            except invertedai.error.InvalidRequestError:
+                agent_attribute_list = agent_attributes
+                agent_state_list = agent_states
+                recurrent_state_list = recurrent_states
     else:
         agent_attribute_list = agent_attributes
         agent_state_list = agent_states
         recurrent_state_list = recurrent_states
-
 
     agent_attributes = torch.stack(
         [torch.tensor(at.tolist()[:3]) for at in agent_attribute_list], dim=-2
