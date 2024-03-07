@@ -1,10 +1,10 @@
 [pypi-badge]: https://badge.fury.io/py/torchdrivesim.svg
 [pypi-link]: https://pypi.org/project/torchdrivesim/  
 [python-badge]: https://img.shields.io/pypi/pyversions/torchdrivesim.svg?color=%2334D058
-[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI.yml)
+[![CI](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI_cpu.yml/badge.svg?branch=master)](https://github.com/inverted-ai/torchdrivesim/actions/workflows/CI_cpu.yml)
 [![PyPI][pypi-badge]][pypi-link]
 [![python-badge]][pypi-link]
-[![Documentation Status](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)
+[![Documentation Status](https://readthedocs.org/projects/torchdrivesim/badge/?version=latest)](https://docs.torchdrivesim.org/en/latest/)
 
 # TorchDriveSim
 <!-- start Features-->
