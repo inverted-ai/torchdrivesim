@@ -16,6 +16,23 @@ from torchdrivesim.utils import TrafficLightState
 IAI_LOCATION_INFO_DIR = "location_info"
 
 
+def iai_initialize(location, agent_count, center=(0, 0)):
+    import invertedai
+    try:
+        response = invertedai.api.initialize(
+            location=location, agent_count=agent_count, location_of_interest=center
+        )
+    except invertedai.error.InvalidRequestError:
+        raise InitializationFailedError()
+    agent_attributes = torch.stack(
+        [torch.tensor(unpack_attributes(at)) for at in response.agent_attributes], dim=-2
+    )
+    agent_states = torch.stack(
+        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
+    )
+    return agent_attributes, agent_states, response.recurrent_states
+
+
 def iai_conditional_initialize(location, agent_count, agent_attributes=None, agent_states=None, recurrent_states=None, center=(0, 0), traffic_light_state_history=None):
     import invertedai
     try:
