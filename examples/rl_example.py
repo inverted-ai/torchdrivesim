@@ -320,7 +320,7 @@ class PPOTrainer:
             self.rollouts.after_update()
 
 
-def rl_trainer(cfg: IAIGymEnvConfig):
+def rl_trainer(cfg: TorchDriveGymEnvConfig):
     env_gen = lambda: gym.make('torchdrivesim/IAI-v0', args=cfg)
     policy_trainer = PPOTrainer(env_gen)
     print('Training Reinforcement Learning Agent:')
@@ -332,7 +332,7 @@ def rl_trainer(cfg: IAIGymEnvConfig):
 
 
 if __name__ == "__main__":
-    cli_cfg: IAIGymEnvConfig = OmegaConf.structured(
-        IAIGymEnvConfig(**OmegaConf.from_dotlist(sys.argv[1:]))
+    cli_cfg: TorchDriveGymEnvConfig = OmegaConf.structured(
+        TorchDriveGymEnvConfig(**OmegaConf.from_dotlist(sys.argv[1:]))
     )
     rl_trainer(cli_cfg)

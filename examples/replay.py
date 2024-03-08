@@ -2,9 +2,6 @@
 Simple demonstration for how to replay some agent behaviors from the INTERACTION dataset in TorchDriveSim.
 The dataset needs to be downloaded separately in order to run this script.
 """
-import sys
-sys.path.insert(0, "/opt/rl-env/torchdrivesim")
-
 import os
 import sys
 from dataclasses import dataclass

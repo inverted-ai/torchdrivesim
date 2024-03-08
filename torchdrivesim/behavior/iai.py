@@ -16,7 +16,7 @@ from torchdrivesim.utils import TrafficLightState
 IAI_LOCATION_INFO_DIR = "location_info"
 
 
-def iai_initialize(location, agent_count, agent_attributes=None, agent_states=None, recurrent_states=None, center=(0, 0), traffic_light_state_history=None):
+def iai_conditional_initialize(location, agent_count, agent_attributes=None, agent_states=None, recurrent_states=None, center=(0, 0), traffic_light_state_history=None):
     import invertedai
     try:
         INITIALIZE_FOV = 120
@@ -76,26 +76,6 @@ def iai_initialize(location, agent_count, agent_attributes=None, agent_states=No
     return agent_attributes, agent_states, recurrent_state_list
 
 
-def iai_area_initialize(location, agent_density, center=(0, 0), traffic_light_state_history=None):
-    import invertedai
-    from invertedai.utils import area_initialization
-    try:
-        response = area_initialization(
-            location=location, agent_density=agent_density,
-            traffic_lights_states=traffic_light_state_history,
-            width=500, height=500
-        )
-    except invertedai.error.InvalidRequestError:
-        raise InitializationFailedError()
-    agent_attributes = torch.stack(
-        [torch.tensor(at.tolist()[:-1]) for at in response.agent_attributes], dim=-2
-    )
-    agent_states = torch.stack(
-        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
-    )
-    return agent_attributes, agent_states, response.recurrent_states
-
-
 def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List, traffic_lights_states: Dict = None):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
@@ -122,14 +102,17 @@ def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, rec
 
 
 def iai_location_info(location: str):
-#    import invertedai
-#    try:
-#        response = invertedai.api.location_info(
-#            location=location
-#        )
-#    except invertedai.error.InvalidRequestError:
-#        raise LocationInfoFailedError()
-#    return response
+    import invertedai
+    try:
+        response = invertedai.api.location_info(
+            location=location
+        )
+    except invertedai.error.InvalidRequestError:
+        raise LocationInfoFailedError()
+    return response
+
+
+def iai_location_info_from_local(location: str):
     with open(f"{IAI_LOCATION_INFO_DIR}/{location}.pkl", "rb") as f:
         response = pickle.load(f)
     return response

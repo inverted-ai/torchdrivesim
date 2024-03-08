@@ -253,23 +253,6 @@ class TrafficLightControl(BaseTrafficControl):
         return red_light_violations
 
     def compute_state(self, time: int) -> Tensor:
-#        if self.use_mock_lights:
-#            # 0: red, 1:yellow, 2:green
-#            # red -> green -> yellow
-#            time_len = {"red": 300, "yellow": 30}
-#            time_len["green"] = time_len["red"] - time_len["yellow"]
-#            cycled_states = torch.Tensor([self.allowed_states.index("red")] * time_len["red"] + \
-#                                         [self.allowed_states.index("green")] * time_len["green"] + \
-#                                         [self.allowed_states.index("yellow")] * time_len["yellow"])
-#            states = cycled_states[(time + 260 + (torch.cos(self.pos[..., -1] * 2 + 1e-5) > 0) * time_len["red"]) % sum(time_len.values())]
-#            if self.preset_states is not None:
-#                for i in range(len(self.ids)):
-#                    id = self.ids[i]
-#                    if id in self.preset_states:
-#                        states[..., i] = self.allowed_states.index(self.preset_states[id][time % len(self.preset_states[id])])
-#            return states
-#        else:
-#            return self.state
         self.controller.tick()
         current_actor_states = self.controller.get_current_actor_states()
         states = [self.allowed_states.index(current_actor_states[str(id)]) for id in self.ids]

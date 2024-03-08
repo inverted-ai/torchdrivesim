@@ -127,7 +127,6 @@ def assert_equal(x, y):
 
 def save_video(imgs, filename, batch_index=0, fps=10, web_browser_friendly=False):
     import cv2
-#    os.makedirs(os.path.dirname(filename), exist_ok=True)
     img_stack = [cv2.cvtColor(
         img[batch_index].cpu().numpy().astype(
             np.uint8).transpose(1, 2, 0), cv2.COLOR_RGB2BGR

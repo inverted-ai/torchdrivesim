@@ -800,9 +800,6 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_action))
 
         self.across_agent_types(lambda kin, act: kin.step(act), self.kinematic_model, agent_action)
-#        if self.traffic_controls is not None:
-#            for traffic_control_type, traffic_control in self.traffic_controls.items():
-#                traffic_control.step(self.internal_time)
         self.traffic_controls_step()
 
     def traffic_controls_step(self):
