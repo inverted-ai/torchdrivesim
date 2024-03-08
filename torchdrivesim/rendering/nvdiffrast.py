@@ -4,13 +4,10 @@ This module imports correctly if nvdiffrast is missing, but the renderer will ra
 """
 from dataclasses import dataclass
 from typing import Optional
-
-import torch
-
 import logging
 
+import torch
 from torch.nn import functional as F
-import pytorch3d
 
 try:
     import nvdiffrast.torch as dr
@@ -20,7 +17,7 @@ except ImportError:
     is_available = False
 
 from torchdrivesim.mesh import BirdviewMesh, tensor_color
-from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer
+from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
 from torchdrivesim.utils import Resolution
 
 logger = logging.getLogger(__name__)
@@ -64,7 +61,7 @@ class NvdiffrastRendererConfig(RendererConfig):
     """
     backend: str = 'nvdiffrast'
     antialias: bool = False
-    opengl: bool = True  #: if False, use CUDA for rendering
+    opengl: bool = False  #: if False, use CUDA for rendering
     max_minibatch_size: Optional[int] = None  #: used to pre-allocate memory, which may speed up rendering
 
 
@@ -82,8 +79,7 @@ class NvdiffrastRenderer(BirdviewRenderer):
         if self.glctx is None:
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: pytorch3d.renderer.FoVOrthographicCameras)\
-            -> torch.Tensor:
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
         for k in mesh.categories:
             if k not in mesh.colors:
                 mesh.colors[k] = tensor_color(self.color_map[k])
@@ -91,7 +87,6 @@ class NvdiffrastRenderer(BirdviewRenderer):
                 mesh.zs[k] = self.rendering_levels[k]
         if self.cfg.highlight_ego_vehicle:
             mesh.colors["ego"] = tensor_color((self.color_map["ego"]))
-        meshes = mesh.pytorch3d()
         mesh = mesh.fill_attr()
         if not hasattr(self.glctx, 'initial_dummy_frame_rendered') and \
                 self.cfg.max_minibatch_size is not None:
@@ -102,25 +97,24 @@ class NvdiffrastRenderer(BirdviewRenderer):
             _, _ = dr.rasterize(self.glctx, dummy_verts, dummy_faces, resolution=[self.res.height, self.res.width],
                                 ranges=dummy_ranges)
             self.glctx.initial_dummy_frame_rendered = True
-        meshes_proj = meshes.update_padded(new_verts_padded=cameras.transform_points_ndc(meshes.verts_padded()))
-        verts_ndc = meshes_proj.verts_packed()
-        # We need to flip x and y because the coordinate system of OpenGL is different from Pytorch3D
-        verts_ndc = F.pad(torch.cat([-verts_ndc[..., :2], verts_ndc[..., 2:3]], dim=-1), (0, 1), value=1.0)
-        faces_packed = meshes_proj.faces_packed().to(torch.int32)
-        tris_first_idx = meshes_proj.mesh_to_faces_packed_first_idx()
-        tris_count = meshes_proj.num_faces_per_mesh()
-        ranges = torch.stack([tris_first_idx, tris_count], dim=-1).cpu().to(torch.int32)
-        rast, _ = dr.rasterize(self.glctx, verts_ndc, faces_packed, resolution=[res.height, res.width],
-                               ranges=ranges)
+        verts_clip = cameras.project_world_to_clip_space(mesh.verts)
+        verts_clip = verts_clip.reshape(-1, 4)
+        tris_first_idx = torch.arange(mesh.batch_size, device='cpu', dtype=torch.int32) * mesh.faces_count
+        tris_count = torch.ones_like(tris_first_idx, device='cpu') * mesh.faces_count
+        ranges = torch.stack([tris_first_idx, tris_count], dim=-1)
+        faces_offset = torch.arange(mesh.batch_size, device=mesh.faces.device, dtype=torch.int32) * mesh.verts_count
+        faces = (mesh.faces + faces_offset[:, None, None]).reshape(-1, 3).to(torch.int32)
         vertices_attributes = mesh.attrs.reshape(-1, 3)
-        image, _ = dr.interpolate(vertices_attributes, rast, faces_packed)
+        rast, _ = dr.rasterize(self.glctx, verts_clip, faces, resolution=[res.height, res.width],
+                               ranges=ranges)
+        image, _ = dr.interpolate(vertices_attributes, rast, faces)
         # Change background color in case it's not black
         if sum(self.get_color('background')) != 0:
             image = torch.where(rast[..., 3:4] > 0, image,
                                 torch.tensor([x / 255.0 for x in self.get_color('background')],
                                              device=image.device))
         if self.cfg.antialias:
-            image = dr.antialias(image, rast, verts_ndc, faces_packed)
+            image = dr.antialias(image, rast, verts_clip, faces)
 
         image = image[..., :3] * 255
 

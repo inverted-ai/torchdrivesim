@@ -14,14 +14,12 @@ from typing import Union, Tuple, List, Dict, Optional, Any
 from typing_extensions import Self
 
 import numpy as np
-import pytorch3d
-from pytorch3d import structures
-
 import torch
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
-from torchdrivesim.utils import is_inside_polygon, merge_dicts
+from torchdrivesim import assert_pytorch3d_available
+from torchdrivesim.utils import is_inside_polygon, merge_dicts, rotate
 
 logger = logging.getLogger(__name__)
 
@@ -198,13 +196,15 @@ class BaseMesh:
             )
         return dataclasses.replace(self, verts=self.verts + offset)
 
-    def pytorch3d(self, include_textures=True) -> pytorch3d.structures.Meshes:
+    def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         """
         Converts the mesh to a PyTorch3D one.
         For the base class there are no textures, but subclasses may include them.
         Empty meshes are augmented with a single degenerate face on conversion,
         since PyTorch3D does not handle empty meshes correctly.
         """
+        assert_pytorch3d_available()
+        import pytorch3d
         assert self.dim in [2, 3]
         if self.faces_count == 0:
             verts = torch.zeros((self.batch_size, 1, self.dim), device=self.device, dtype=self.verts.dtype)
@@ -236,6 +236,7 @@ class BaseMesh:
             return road_mesh
         else:
             raise BadMeshFormat
+
     def serialize(self):
         return {
             'verts': self.verts.tolist(),
@@ -415,11 +416,13 @@ class AttributeMesh(BaseMesh):
         )
         return cls(verts=base_collated.verts, faces=base_collated.faces, attrs=attrs)
 
-    def pytorch3d(self, include_textures=True) -> pytorch3d.structures.Meshes:
+    def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         """
         PyTorch3D uses per-face textures, which are obtained by averaging attributes of the face.
         The resulting texture for each face is constant.
         """
+        assert_pytorch3d_available()
+        import pytorch3d
         assert self.dim in [2, 3]
         if not include_textures:
             return super().pytorch3d(include_textures=False)
@@ -653,7 +656,7 @@ class BirdviewMesh(BaseMesh):
         attrs = colors
         return RGBMesh(verts=verts, faces=self.faces, attrs=attrs)
 
-    def pytorch3d(self, include_textures=True) -> pytorch3d.structures.Meshes:
+    def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         if include_textures:
             return self.fill_attr().pytorch3d(include_textures=True)
         else:
@@ -826,3 +829,32 @@ def point_to_mesh(point, category):
     return area_to_mesh(area, category)
 
 
+def generate_disc_mesh(radius: float = 2, num_triangles: int = 10, device: str = 'cpu') -> Tuple[Tensor, Tensor]:
+    """
+    For a given radius, it will create a disc mesh using `num_triangles` triangles.
+
+    Args:
+        radius: float defining the radius of the disc
+        num_triangles: int defining the number of triangles to be used for creating the disc
+        device: the device to be used for the generated PyTorch tensors
+    """
+    angleStep = torch.deg2rad(torch.tensor([[360 / num_triangles]], dtype=torch.float32, device=device))
+
+    vertices = [
+        torch.zeros(1, 2, dtype=torch.float32, device=device),
+        torch.tensor([[radius, 0]], dtype=torch.float32, device=device),
+        rotate(torch.tensor([[radius, 0]], dtype=torch.float32, device=device), angleStep)
+    ]
+    faces = [
+        torch.tensor([[0, 1, 2]], dtype=torch.long, device=device)
+    ]
+
+    for i in range(num_triangles - 1):
+        if i == num_triangles - 2:
+            faces.append(torch.tensor([[0, len(vertices)-1, 1]], dtype=torch.long, device=device))
+        else:
+            faces.append(torch.tensor([[0, len(vertices)-1, len(vertices)]], dtype=torch.long, device=device))
+            vertices.append(rotate(vertices[-1], angleStep))
+    vertices = torch.cat(vertices, dim=0)
+    faces = torch.cat(faces, dim=0)
+    return vertices, faces

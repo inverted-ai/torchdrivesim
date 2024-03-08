@@ -16,6 +16,10 @@ from torchdrivesim.utils import TrafficLightState
 IAI_LOCATION_INFO_DIR = "location_info"
 
 
+def unpack_attributes(attributes) -> torch.Tensor:
+    return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
+
+
 def iai_initialize(location, agent_count, center=(0, 0)):
     import invertedai
     try:
