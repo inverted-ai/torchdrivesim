@@ -37,7 +37,7 @@ RUN pip install wandb tensorboard moviepy
 RUN pip install jupyter notebook
 RUN pip install omegaconf scipy shapely
 RUN pip install invertedai
-
+RUN pip install --upgrade pygments
 
 # WORKDIR /opt
 #
