@@ -385,6 +385,14 @@ class WaypointSuiteEnv(GymEnv):
         self.lanelet_maps = {}
         self.traffic_light_state_suite = cfg.traffic_light_state_suite
         self.stop_sign_suite = cfg.stop_sign_suite
+
+        #
+        self.heading_scale = -0.05
+        self.distance_scale = 1.
+        self.distance_threshold = 0.5
+        self.waypoint_scale = 10.
+
+        #
         for location in self.locations:
             if location not in self.lanelet_maps:
                 lanelet_map_path = os.path.join(
@@ -481,7 +489,6 @@ class WaypointSuiteEnv(GymEnv):
         self.last_info = info
         return obs, reward, terminated, truncated, info
 
-
     def check_reach_target(self):
         x = self.simulator.get_state()[..., 0]
         y = self.simulator.get_state()[..., 1]
@@ -498,8 +505,8 @@ class WaypointSuiteEnv(GymEnv):
         psi = self.simulator.get_state()[..., 2]
 
         d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
-        distance_reward = 1 if d > 0.5 else 0
-        psi_reward = (1 - math.cos(psi - self.last_psi)) * (-0.05) if (self.last_psi is not None) else 0
+        distance_reward = self.distance_scale if d > self.distance_threshold else 0
+        psi_reward = (1 - math.cos(psi - self.last_psi)) * self.heading_scale if (self.last_psi is not None) else 0
 #        self.last_x = x
 #        self.last_y = y
 #        self.last_psi = psi
@@ -512,7 +519,7 @@ class WaypointSuiteEnv(GymEnv):
 #        else:
 #            orientation_reward = 0
         if self.check_reach_target():
-            reach_target_reward = 10
+            reach_target_reward = self.waypoint_scale
             self.reached_waypoint_num += 1
         else:
             reach_target_reward = 0
