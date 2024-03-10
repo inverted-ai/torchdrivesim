@@ -53,7 +53,7 @@ class IAIGymEnvConfig:
     ego_state: Optional[Tuple[float, float, float, float]] = None
     use_mock_lights: bool = True
     use_area_initialize: bool = False
-    max_environment_steps: int = 200
+    max_environment_steps: int = 1000
     use_background_traffic: bool = True
     # True for training, and False for evaluation
     terminated_at_infraction: bool = False
@@ -155,7 +155,8 @@ class GymEnv(gym.Env):
          return self.is_truncated() or self.is_terminated()
 
     def is_truncated(self):
-        return self.environment_steps >= self.max_environment_steps
+        return (self.environment_steps >= self.max_environment_steps) \
+            or (self.environment_steps > 50) and (self.reached_waypoint_num <= 1)
 
     def is_terminated(self):
         return False
@@ -196,8 +197,13 @@ class GymEnv(gym.Env):
 
     def close(self):
         if isinstance(self.simulator, BirdviewRecordingWrapper):
+            print("enter close")
             bvs = self.simulator.get_birdviews()
+            if len(bvs) <=5:
+                return
             save_video(bvs, self.config.video_filename)
+            print("birdview length")
+            print(len(bvs))
             save_png(bvs, frame=1)
 
 
@@ -343,7 +349,7 @@ def build_iai_simulator(cfg: IAIGymEnvConfig, scenario=None, car_sequences=None,
         kinematic_model.set_state(agent_states)
         renderer = renderer_from_config(
             simulator_cfg.renderer, static_mesh=driving_surface_mesh)
-        renderer.set_waypoint_mesh(points_to_mesh(waypoints[1:], "waypoint"))
+#        renderer.set_waypoint_mesh(points_to_mesh(waypoints[1:], "waypoint"))
 
         traffic_controls = {}
         if traffic_light_control is not None:
@@ -407,14 +413,19 @@ class WaypointSuiteEnv(GymEnv):
         logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        if isinstance(self.simulator, BirdviewRecordingWrapper):
+            print("enter reset")
+            bvs = self.simulator.get_birdviews()
+            if self.reached_waypoint_num >= 0:
+                save_video(bvs, f"case_2_{random.randint(0, 100000)}.mp4")
         if self.preset_index is not None:
             self.current_waypoint_suite_idx = self.preset_index
         else:
 #            self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
-            self.current_waypoint_suite_idx = 98
+            self.current_waypoint_suite_idx = 2
         location = self.locations[self.current_waypoint_suite_idx]
-#        while location not in ["Town01", "Town02",  "Town03", "Town07", "Town10HD"]:
-        while location not in ["Town10HD"]:
+        while location not in ["Town01", "Town02",  "Town03", "Town07", "Town10HD"]:
+#        while location not in ["Town10HD"]:
 #        while location != "Town06":
             self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
             location = self.locations[self.current_waypoint_suite_idx]
@@ -447,8 +458,8 @@ class WaypointSuiteEnv(GymEnv):
                                              self.waypointsuite[self.current_waypoint_suite_idx])
 
         self.innermost_simulator = self.simulator.get_innermost_simulator()
-#        self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
-        self.innermost_simulator.renderer.set_waypoint_mesh(points_to_mesh(self.waypointsuite[self.current_waypoint_suite_idx][1:], "waypoint"))
+        self.innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+#        self.innermost_simulator.renderer.set_waypoint_mesh(points_to_mesh(self.waypointsuite[self.current_waypoint_suite_idx][1:], "waypoint"))
 
         self.environment_steps = 0
         self.occur_exception = False
@@ -483,16 +494,16 @@ class WaypointSuiteEnv(GymEnv):
             self.last_speed = state[..., 3]
 
             obs, reward, terminated, truncated, info = super().step(action)
-#            if self.check_reach_target():
-#                self.current_target_idx += 1
-#                if self.current_target_idx < len(self.waypoints):
-#                    self.current_target = self.waypoints[self.current_target_idx]
-#                    innermost_simulator = self.simulator.get_innermost_simulator()
-#                    innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
-#                else:
-#                    self.current_target = None
-#                    innermost_simulator = self.simulator.get_innermost_simulator()
-#                    innermost_simulator.renderer.set_waypoint_mesh(None)
+            if self.check_reach_target():
+                self.current_target_idx += 1
+                if self.current_target_idx < len(self.waypoints):
+                    self.current_target = self.waypoints[self.current_target_idx]
+                    innermost_simulator = self.simulator.get_innermost_simulator()
+                    innermost_simulator.renderer.set_waypoint_mesh(point_to_mesh(self.current_target, "waypoint"))
+                else:
+                    self.current_target = None
+                    innermost_simulator = self.simulator.get_innermost_simulator()
+                    innermost_simulator.renderer.set_waypoint_mesh(None)
             self.last_obs = obs
             self.last_reward = reward
             self.last_info = info
