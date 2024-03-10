@@ -387,7 +387,7 @@ class WaypointSuiteEnv(GymEnv):
         self.stop_sign_suite = cfg.stop_sign_suite
 
         #
-        self.heading_scale = -0.05
+        self.heading_scale = 0.05
         self.distance_scale = 1.
         self.distance_threshold = 0.5
         self.waypoint_scale = 10.
@@ -506,7 +506,7 @@ class WaypointSuiteEnv(GymEnv):
 
         d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
         distance_reward = self.distance_scale if d > self.distance_threshold else 0
-        psi_reward = (1 - math.cos(psi - self.last_psi)) * self.heading_scale if (self.last_psi is not None) else 0
+        psi_reward = (1 - math.cos(psi - self.last_psi)) * (-self.heading_scale) if (self.last_psi is not None) else 0
 #        self.last_x = x
 #        self.last_y = y
 #        self.last_psi = psi
