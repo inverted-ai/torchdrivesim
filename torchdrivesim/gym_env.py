@@ -75,7 +75,7 @@ class WaypointSuiteEnvConfig:
     traffic_light_state_suite: List[Optional[Dict[int, List[str]]]] = None
     stop_sign_suite: List[Optional[List[int]]] = None
     scenarios: List[Optional[Scenario]] = None
-    l_psi_smoothness: float = -0.05
+    l_psi_smoothness: float = -50.0
 
 
 class GymEnv(gym.Env):
@@ -502,7 +502,6 @@ class WaypointSuiteEnv(GymEnv):
 
         d = math.dist((x, y), (self.last_x, self.last_y)) if (self.last_x is not None) and (self.last_y is not None) else 0
         distance_reward = 1 if d > 0.5 else 0
-        print(self.cfg.l_psi_smoothness)
         psi_reward = (1 - math.cos(psi - self.last_psi)) * (self.cfg.l_psi_smoothness) if (self.last_psi is not None) else 0
 #        self.last_x = x
 #        self.last_y = y
