@@ -404,7 +404,7 @@ class WaypointSuiteEnv(GymEnv):
         super().__init__(cfg=cfg.iai_gym, simulator=None)
 #        self.reset()
 
-        logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
+        # logger.info(inspect.getsource(WaypointSuiteEnv.get_reward))
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         self.current_waypoint_suite_idx = np.random.randint(len(self.waypointsuite))
