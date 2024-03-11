@@ -1630,7 +1630,17 @@ class BirdviewRecordingWrapper(RecordingWrapper):
 
         def record_birdview(simulator):
             s = simulator
-            bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov)
+            waypoints = s.get_waypoints()
+            singleton = isinstance(s.agent_functor, SingletonAgentTypeFunctor)
+            if waypoints is not None:
+                waypoints_mask = s.get_waypoints_mask()
+                waypoints_dict = dict(agent=waypoints) if singleton else waypoints
+                waypoints_mask_dict = dict(agent=waypoints_mask) if singleton else waypoints_mask
+                waypoints = torch.cat(list(waypoints_dict.values()), dim=-3)
+                waypoints_mask = torch.cat(list(waypoints_mask_dict.values()), dim=-2)
+            else:
+                waypoints, waypoints_mask = None, None
+            bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov, waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
             if self.to_cpu:
                 bv = bv.cpu()
             return bv

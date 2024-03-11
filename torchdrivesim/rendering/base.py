@@ -132,7 +132,7 @@ class BirdviewRenderer(abc.ABC):
                  static_mesh: Optional[BirdviewMesh] = None, world_center: Optional[Tensor] = None,
                  color_map: Optional[Dict[str, Tuple[int, int, int]]] = None,
                  rendering_levels: Optional[Dict[str, float]] = None,
-                 res: Resolution = Resolution(64, 64), fov: float = 35, waypoint_mesh: Optional[BirdviewMesh] = None):
+                 res: Resolution = Resolution(64, 64), fov: float = 35):
 
         self.cfg: RendererConfig = cfg
         self.res = res
@@ -165,7 +165,6 @@ class BirdviewRenderer(abc.ABC):
                 world_center = self.static_mesh.center
 
         self.world_center = world_center.to(device)
-        self.waypoint_mesh = waypoint_mesh
 
     def get_color(self, element_type: str) -> Tuple[int, int, int]:
         return self.color_map[element_type]
@@ -186,12 +185,6 @@ class BirdviewRenderer(abc.ABC):
         self.static_mesh = self.static_mesh.concat(
             [self.static_mesh] + meshes
         )
-
-    def set_waypoint_mesh(self, mesh: BirdviewMesh) -> None:
-        """
-        Set the meshes for waypoints.
-        """
-        self.waypoint_mesh = mesh
 
     def copy(self):
         return self.expand(1)
@@ -404,10 +397,6 @@ class BirdviewRenderer(abc.ABC):
             traffic_controls = {k: v.extend(n_cameras_per_batch) for k, v in traffic_controls.items()}
             controls_mesh = self.make_traffic_controls_mesh(traffic_controls).to(self.device)
             meshes.append(controls_mesh)
-
-        if self.waypoint_mesh is not None:
-            waypoint_mesh = self.waypoint_mesh.expand(n_cameras_per_batch).to(self.device)
-            meshes.append(waypoint_mesh)
 
         if waypoints is not None:
             if waypoints.shape[1] != n_cameras_per_batch:
