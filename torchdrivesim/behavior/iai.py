@@ -1,5 +1,4 @@
 from typing import List, Optional, Dict
-from enum import Enum
 
 import os
 import math
@@ -8,10 +7,10 @@ import random
 import torch
 from torch import Tensor
 from typing_extensions import Self
+from invertedai.common import TrafficLightState
 
 from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
-from torchdrivesim.utils import TrafficLightState
 
 IAI_LOCATION_INFO_DIR = "location_info"
 
@@ -114,10 +113,6 @@ def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, rec
             [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
         )
     except Exception as e:
-        print(e)
-        print(location)
-        print(agent_attributes)
-        print(agent_states)
         raise e
     return agent_states, response.recurrent_states
 

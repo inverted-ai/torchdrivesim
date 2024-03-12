@@ -1,22 +1,17 @@
 """
 Miscellaneous utilities, including for geometric operations on tensors.
 """
+import os
+import random
+import numpy as np
 import collections
 from functools import reduce
 from typing import Tuple, List, Dict
-from pydantic import BaseModel
-from enum import Enum
 
-import os
-import math
-import random
-import numpy as np
 import torch
 from torch import Tensor
 
 Resolution = collections.namedtuple('Resolution', ['width', 'height'])
-RECURRENT_SIZE = 132
-
 
 def isin(x: Tensor, y: Tensor) -> Tensor:
     """
@@ -169,171 +164,3 @@ def set_seeds(seed, logger=None):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     return seed
-
-
-class InvertedAIError(Exception):
-    """
-    Base exception class for Inverted AI Python-API error handling.
-    """
-
-    def __init__(
-        self,
-        message=None,
-        http_body=None,
-        http_status=None,
-        json_body=None,
-        headers=None,
-        code=None,
-    ):
-        super(InvertedAIError, self).__init__(message)
-
-        if http_body and hasattr(http_body, "decode"):
-            try:
-                http_body = http_body.decode("utf-8")
-            except BaseException:
-                http_body = (
-                    "<Could not decode body as utf-8. "
-                    "Please report to info@inverted.ai>"
-                )
-
-        self._message = message
-        self.http_body = http_body
-        self.http_status = http_status
-        self.json_body = json_body
-        self.headers = headers or {}
-        self.code = code
-
-    def __str__(self):
-        msg = self._message or "<empty message>"
-        return msg
-
-    @property
-    def user_message(self):
-        return self._message
-
-    def __repr__(self):
-        return "%s(message=%r, http_status=%r, request_id=%r)" % (
-            self.__class__.__name__,
-            self._message,
-            self.http_status,
-        )
-
-
-
-class InvalidInput(InvertedAIError):
-    """
-    Invalid Python API input.
-    """
-    pass
-
-
-class Point(BaseModel):
-    """
-    2D coordinates of a point in a given location.
-    Each location comes with a canonical coordinate system, where
-    the distance units are meters.
-    """
-
-    x: float
-    y: float
-
-    @classmethod
-    def fromlist(cls, l):
-        x, y = l
-        return cls(x=x, y=y)
-
-    def __sub__(self, other):
-        return math.sqrt((abs(self.x - other.x)**2) + (abs(self.y - other.y)**2))
-
-
-class TrafficLightState(str, Enum):
-    """
-    Dynamic state of a traffic light.
-
-    See Also
-    --------
-    StaticMapActor
-    """
-
-    none = "none"  #: The light is off and will be ignored.
-    green = "green"
-    yellow = "yellow"
-    red = "red"
-
-
-class AgentAttributes(BaseModel):
-    """
-    Static attributes of the agent, which don't change over the course of a simulation.
-    We assume every agent is a rectangle obeying a kinematic bicycle model.
-
-    See Also
-    --------
-    AgentState
-    """
-
-    length: float  #: Longitudinal extent of the agent, in meters.
-    width: float  #: Lateral extent of the agent, in meters.
-    #: Distance from the agent's center to its rear axis in meters. Determines motion constraints.
-    rear_axis_offset: float
-
-    @classmethod
-    def fromlist(cls, l):
-        length, width, rear_axis_offset = l
-        return cls(length=length, width=width, rear_axis_offset=rear_axis_offset)
-
-    def tolist(self):
-        """
-        Convert AgentAttributes to a flattened list of agent attributes
-        in this order: [length, width, rear_axis_offset]
-        """
-        return [self.length, self.width, self.rear_axis_offset]
-
-
-class AgentState(BaseModel):
-    """
-    The current or predicted state of a given agent at a given point.
-
-    See Also
-    --------
-    AgentAttributes
-    """
-
-    center: Point  #: The center point of the agent's bounding box.
-    #: The direction the agent is facing, in radians with 0 pointing along x and pi/2 pointing along y.
-    orientation: float
-    speed: float  #: In meters per second, negative if the agent is reversing.
-
-    def tolist(self):
-        """
-        Convert AgentState to flattened list of state attributes in this order: [x, y, orientation, speed]
-        """
-        return [self.center.x, self.center.y, self.orientation, self.speed]
-
-    @classmethod
-    def fromlist(cls, l):
-        """
-        Build AgentState from a list with this order: [x, y, orientation, speed]
-        """
-        x, y, psi, v = l
-        return cls(center=Point(x=x, y=y), orientation=psi, speed=v)
-
-
-class RecurrentState(BaseModel):
-    """
-    Recurrent state used in :func:`iai.drive`.
-    It should not be modified, but rather passed along as received.
-    """
-
-    packed: List[float] = [0.0] * RECURRENT_SIZE
-    #: Internal representation of the recurrent state.
-
-    @classmethod
-    def check_recurrentstate(cls, values):
-        if len(values.get("packed")) == RECURRENT_SIZE:
-            return values
-        else:
-            raise InvalidInput("Incorrect Recurrentstate Size.")
-
-    @classmethod
-    def fromval(cls, val):
-        return cls(packed=val)

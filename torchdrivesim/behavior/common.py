@@ -1,8 +1,11 @@
-class InitializationFailedError(RuntimeError):
+from invertedai.error import InvertedAIError
+
+
+class InitializationFailedError(InvertedAIError):
     pass
 
-class LocationInfoFailedError(RuntimeError):
+class LocationInfoFailedError(InvertedAIError):
     pass
 
-class LightFailedError(RuntimeError):
+class LightFailedError(InvertedAIError):
     pass
