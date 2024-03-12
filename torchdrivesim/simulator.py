@@ -1313,8 +1313,6 @@ class NPCWrapper(SimulatorWrapper):
         )
         self.update_present_mask(non_replay_present_mask)
 
-        innermost_simulator = self.get_innermost_simulator()
-        innermost_simulator.traffic_controls_step()
 
     def update_present_mask(self, present_mask):
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), present_mask)
@@ -1636,8 +1634,8 @@ class BirdviewRecordingWrapper(RecordingWrapper):
                 waypoints_mask = s.get_waypoints_mask()
                 waypoints_dict = dict(agent=waypoints) if singleton else waypoints
                 waypoints_mask_dict = dict(agent=waypoints_mask) if singleton else waypoints_mask
-                waypoints = torch.cat(list(waypoints_dict.values()), dim=-3)
-                waypoints_mask = torch.cat(list(waypoints_mask_dict.values()), dim=-2)
+                waypoints = torch.cat(list(waypoints_dict.values()), dim=-3).flatten(1,2).unsqueeze(dim=1)
+                waypoints_mask = torch.cat(list(waypoints_mask_dict.values()), dim=-2).flatten(1,2).unsqueeze(dim=1)
             else:
                 waypoints, waypoints_mask = None, None
             bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov, waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
