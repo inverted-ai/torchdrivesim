@@ -1,0 +1,119 @@
+[
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "red",
+      "4375": "red",
+      "5364": "red",
+      "5373": "red",
+      "5375": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4364": "green",
+      "4373": "red",
+      "4375": "red",
+      "5364": "green",
+      "5373": "red",
+      "5375": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4364": "yellow",
+      "4373": "red",
+      "4375": "red",
+      "5364": "yellow",
+      "5373": "red",
+      "5375": "red"
+    },
+    "duration": "5",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "red",
+      "4375": "red",
+      "5364": "red",
+      "5373": "red",
+      "5375": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "red",
+      "4375": "green",
+      "5364": "red",
+      "5373": "red",
+      "5375": "green"
+    },
+    "duration": "20",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "red",
+      "4375": "yellow",
+      "5364": "red",
+      "5373": "red",
+      "5375": "yellow"
+    },
+    "duration": "5",
+    "state": 5,
+    "next_state": 6
+  },
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "red",
+      "4375": "red",
+      "5364": "red",
+      "5373": "red",
+      "5375": "red"
+    },
+    "duration": "2",
+    "state": 6,
+    "next_state": 7
+  },
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "green",
+      "4375": "red",
+      "5364": "red",
+      "5373": "green",
+      "5375": "red"
+    },
+    "duration": "20",
+    "state": 7,
+    "next_state": 8
+  },
+  {
+    "actor_states": {
+      "4364": "red",
+      "4373": "yellow",
+      "4375": "red",
+      "5364": "red",
+      "5373": "yellow",
+      "5375": "red"
+    },
+    "duration": "5",
+    "state": 8,
+    "next_state": 0
+  }
+]
