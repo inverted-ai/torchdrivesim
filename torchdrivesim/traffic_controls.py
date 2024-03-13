@@ -227,7 +227,7 @@ class TrafficLightControl(BaseTrafficControl):
         self.location = location
         STATE_DATA_DIR = os.path.join(
             os.path.dirname(os.path.realpath(
-                __file__)), f"../../traffic_light_states/{location}"
+                __file__)), f"../resources/traffic_light_states/{location}"
         )
         self.controller = WholeMapTrafficLightController(STATE_DATA_DIR)
         super(TrafficLightControl, self).__init__(*args, **kwargs)

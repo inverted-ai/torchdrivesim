@@ -12,8 +12,6 @@ from invertedai.common import TrafficLightState
 from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 
-IAI_LOCATION_INFO_DIR = "location_info"
-
 
 def unpack_attributes(attributes) -> torch.Tensor:
     return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
@@ -129,7 +127,11 @@ def iai_location_info(location: str):
 
 
 def iai_location_info_from_local(location: str):
-    with open(f"{IAI_LOCATION_INFO_DIR}/{location}.pkl", "rb") as f:
+    path = os.path.join(
+            os.path.dirname(os.path.realpath(
+                __file__)), f"../../resources/location_info"
+        )
+    with open(f"{path}/{location}.pkl", "rb") as f:
         response = pickle.load(f)
     return response
 
