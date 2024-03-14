@@ -154,7 +154,7 @@ def point_to_mesh_distance_pt(points: torch.Tensor, tris: torch.Tensor, threshol
 
         small_dist = (l2 <= 1e-8).to(l2.dtype)
         if small_dist.any():
-            dist = dist * (1 - small_dist) + ((p - v1[..., None, :]) @ (p - v1)[..., :, None]).squeeze(-1) * small_dist
+            dist = dist * (1 - small_dist) + ((p - v1)[..., None, :] @ (p - v1)[..., :, None]).squeeze(-1) * small_dist
         return dist
 
     e01 = point_line_distance(p, v0, v1)
