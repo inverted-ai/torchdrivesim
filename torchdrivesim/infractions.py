@@ -147,7 +147,7 @@ def point_to_mesh_distance_pt(points: torch.Tensor, tris: torch.Tensor, threshol
         v1v0 = v1 - v0
         l2 = (v1v0[..., None, :] @ v1v0[..., :, None]).squeeze(-1)
 
-        t = (v1v0[..., None, :] @ (p - v0)[..., :, None]).squeeze(-1) / l2
+        t = (v1v0[..., None, :] @ (p - v0)[..., :, None]).squeeze(-1) / (l2 + 1e-8)
         tt = torch.clamp(t, min=0, max=1)
         p_proj = v0 + tt * v1v0
         dist = ((p - p_proj)[..., None, :] @ (p - p_proj)[..., :, None]).squeeze(-1)
