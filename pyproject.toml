@@ -53,7 +53,3 @@ version = {attr = "torchdrivesim.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["torchdrivesim*"]
-
-[tool.setuptools.package-data]
-"resources.maps.carla.maps" = ["*.osm"]
-"resources.maps.carla.meshes" = ["*.pkl"]
