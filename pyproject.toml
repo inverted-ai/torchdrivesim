@@ -22,7 +22,7 @@ dependencies = [
     "scipy",
     "imageio",
     "torch>=1.10.1",
-    "invertedai",
+    "invertedai==0.0.14",
     "omegaconf",
     "opencv-python",
 ]
@@ -54,3 +54,5 @@ version = {attr = "torchdrivesim.__version__"}
 [tool.setuptools.packages.find]
 include = ["torchdrivesim*"]
 
+[tool.setuptools.package-data]
+resources = ["*"]
