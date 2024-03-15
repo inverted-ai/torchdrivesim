@@ -129,7 +129,7 @@ def iai_location_info(location: str):
 def iai_location_info_from_local(location: str):
     path = os.path.join(
             os.path.dirname(os.path.realpath(
-                __file__)), f"../../resources/location_info"
+                __file__)), f"../resources/location_info"
         )
     with open(f"{path}/{location}.pkl", "rb") as f:
         response = pickle.load(f)
