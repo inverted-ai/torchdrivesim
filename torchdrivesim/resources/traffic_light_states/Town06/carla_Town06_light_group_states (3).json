@@ -1,0 +1,41 @@
+[
+  {
+    "actor_states": {
+      "4040": "red",
+      "4095": "red",
+      "5040": "red",
+      "5095": "red",
+      "6040": "red",
+      "6095": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4040": "green",
+      "4095": "green",
+      "5040": "green",
+      "5095": "green",
+      "6040": "green",
+      "6095": "green"
+    },
+    "duration": "60",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4040": "yellow",
+      "4095": "yellow",
+      "5040": "yellow",
+      "5095": "yellow",
+      "6040": "yellow",
+      "6095": "yellow"
+    },
+    "duration": "10",
+    "state": 2,
+    "next_state": 0
+  }
+]

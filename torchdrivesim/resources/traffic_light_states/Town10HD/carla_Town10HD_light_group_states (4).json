@@ -1,0 +1,119 @@
+[
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "red",
+      "4374": "red",
+      "5366": "red",
+      "5367": "red",
+      "5374": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "green",
+      "4374": "red",
+      "5366": "red",
+      "5367": "green",
+      "5374": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "yellow",
+      "4374": "red",
+      "5366": "red",
+      "5367": "yellow",
+      "5374": "red"
+    },
+    "duration": "5",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "red",
+      "4374": "red",
+      "5366": "red",
+      "5367": "red",
+      "5374": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "red",
+      "4374": "green",
+      "5366": "red",
+      "5367": "red",
+      "5374": "green"
+    },
+    "duration": "20",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "red",
+      "4374": "yellow",
+      "5366": "red",
+      "5367": "red",
+      "5374": "yellow"
+    },
+    "duration": "5",
+    "state": 5,
+    "next_state": 6
+  },
+  {
+    "actor_states": {
+      "4366": "red",
+      "4367": "red",
+      "4374": "red",
+      "5366": "red",
+      "5367": "red",
+      "5374": "red"
+    },
+    "duration": "2",
+    "state": 6,
+    "next_state": 7
+  },
+  {
+    "actor_states": {
+      "4366": "green",
+      "4367": "red",
+      "4374": "red",
+      "5366": "green",
+      "5367": "red",
+      "5374": "red"
+    },
+    "duration": "20",
+    "state": 7,
+    "next_state": 8
+  },
+  {
+    "actor_states": {
+      "4366": "yellow",
+      "4367": "red",
+      "4374": "red",
+      "5366": "yellow",
+      "5367": "red",
+      "5374": "red"
+    },
+    "duration": "5",
+    "state": 8,
+    "next_state": 0
+  }
+]

@@ -440,10 +440,33 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         Returns:
             a functor of BxA tensors
         """
-        if self.get_traffic_controls() is not None and 'traffic-light' in self.get_traffic_controls():
+        if self.get_traffic_controls() is not None and 'traffic_light' in self.get_traffic_controls():
             violation = self.across_agent_types(
-                lambda state, lenwid, mask: self.get_traffic_controls()['traffic-light'].compute_violation(
+                lambda state, lenwid, mask: self.get_traffic_controls()['traffic_light'].compute_violation(
                     torch.cat([state[..., :2], lenwid, state[..., 2:3]], dim=-1)
+                ) * mask.to(state.dtype),
+                self.get_state(), self.get_agent_size(), self.get_present_mask(),
+            )
+        else:
+            violation = self.across_agent_types(
+                lambda state, lenwid, mask: torch.zeros(state.shape[0], state.shape[1],
+                                                        dtype=torch.bool, device=state.device),
+                self.get_state(), self.get_agent_size(), self.get_present_mask(),
+            )
+        return violation
+
+    def compute_stop_sign_violations(self, time) -> TensorPerAgentType:
+        """
+        Boolean value indicating whether each agent is committing a stop sign violation.
+        See `torchdrivesim.infractions.traffic_controls.StopSignControl.compute_violations` for details.
+
+        Returns:
+            a functor of BxA tensors
+        """
+        if self.get_traffic_controls() is not None and 'stop_sign' in self.get_traffic_controls():
+            violation = self.across_agent_types(
+                lambda state, lenwid, mask: self.get_traffic_controls()['stop_sign'].compute_violation(
+                    torch.cat([state[..., :2], lenwid, state[..., 2:3]], dim=-1), time=time
                 ) * mask.to(state.dtype),
                 self.get_state(), self.get_agent_size(), self.get_present_mask(),
             )
@@ -832,6 +855,9 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_action))
 
         self.across_agent_types(lambda kin, act: kin.step(act), self.kinematic_model, agent_action)
+        self.traffic_controls_step()
+
+    def traffic_controls_step(self):
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
@@ -1308,6 +1334,7 @@ class NPCWrapper(SimulatorWrapper):
         )
         self.update_present_mask(non_replay_present_mask)
 
+
     def update_present_mask(self, present_mask):
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), present_mask)
         self.across_agent_types(lambda m: assert_equal(m.shape[0], self.batch_size), present_mask)
@@ -1693,7 +1720,7 @@ class BirdviewRecordingWrapper(RecordingWrapper):
         if os.path.dirname(filename) != '':
             os.makedirs(os.path.dirname(filename), exist_ok=True)
         imageio.mimsave(
-            filename, [bv[batch_index].cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for bv in bvs],
+            filename, [bv[batch_index].floor().cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for bv in bvs],
             format="GIF-PIL", fps=fps
         )
         try:

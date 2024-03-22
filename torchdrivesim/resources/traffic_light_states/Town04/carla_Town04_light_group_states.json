@@ -1,0 +1,110 @@
+[
+  {
+    "actor_states": {
+      "3682": "red",
+      "3683": "red",
+      "3684": "red",
+      "4682": "red",
+      "4683": "red",
+      "4684": "red",
+      "5682": "red",
+      "5683": "red",
+      "5684": "red",
+      "6683": "red",
+      "6684": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "3682": "green",
+      "3683": "red",
+      "3684": "red",
+      "4682": "green",
+      "4683": "red",
+      "4684": "red",
+      "5682": "green",
+      "5683": "red",
+      "5684": "red",
+      "6683": "red",
+      "6684": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "3682": "yellow",
+      "3683": "red",
+      "3684": "red",
+      "4682": "yellow",
+      "4683": "red",
+      "4684": "red",
+      "5682": "yellow",
+      "5683": "red",
+      "5684": "red",
+      "6683": "red",
+      "6684": "red"
+    },
+    "duration": "7",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "3682": "red",
+      "3683": "red",
+      "3684": "red",
+      "4682": "red",
+      "4683": "red",
+      "4684": "red",
+      "5682": "red",
+      "5683": "red",
+      "5684": "red",
+      "6683": "red",
+      "6684": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "3682": "red",
+      "3683": "green",
+      "3684": "green",
+      "4682": "red",
+      "4683": "green",
+      "4684": "green",
+      "5682": "red",
+      "5683": "green",
+      "5684": "green",
+      "6683": "green",
+      "6684": "green"
+    },
+    "duration": "25",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "3682": "red",
+      "3683": "yellow",
+      "3684": "yellow",
+      "4682": "red",
+      "4683": "yellow",
+      "4684": "yellow",
+      "5682": "red",
+      "5683": "yellow",
+      "5684": "yellow",
+      "6683": "yellow",
+      "6684": "yellow"
+    },
+    "duration": "7",
+    "state": 5,
+    "next_state": 0
+  }
+]
