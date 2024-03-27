@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 
-class ControlStateType(Enum):
+class TrafficLightState(Enum):
     none = auto()
     green = auto()
     yellow = auto()
