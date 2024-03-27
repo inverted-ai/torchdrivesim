@@ -17,8 +17,7 @@ class TrafficLightState(Enum):
 
 
 class TrafficLightStateMachine:
-    def __init__(self, json_file_path: str, tick_to_second_ratio: float = 0.1):
-        self._tick_to_second_ratio = tick_to_second_ratio
+    def __init__(self, json_file_path: str):
         self._states = self.load_from_json(json_file_path)
         for state in self._states:
             state['duration'] = float(state['duration'])
@@ -45,7 +44,7 @@ class TrafficLightStateMachine:
         self._time_remaining = time_remaining if time_remaining <= self._duration else self._duration
 
     def tick(self, dt: float):
-        self._time_remaining -= (dt * self._tick_to_second_ratio)
+        self._time_remaining -= dt
         while self._time_remaining <= 0:
             next_state = int(self._current_state['next_state'])
             next_duration = self._states[next_state]['duration']
