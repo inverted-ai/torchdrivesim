@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 import json
 import random
-from typing import List
+from typing import List, Dict
+from typing_extensions import Self
 from functools import reduce, lru_cache
 from enum import auto, Enum
 import logging
@@ -15,23 +17,55 @@ class TrafficLightState(Enum):
     yellow = auto()
     red = auto()
 
+ActorStates = Dict[str, TrafficLightState]
+
+@dataclass(eq=True)
+class TrafficLightGroupState:
+    actor_states: ActorStates
+    sequence_number: int
+    duration: float
+    next_state: int
+        
 
 class TrafficLightStateMachine:
-    def __init__(self, json_file_path: str):
-        self._states = self.load_from_json(json_file_path)
-        for state in self._states:
-            state['duration'] = float(state['duration'])
+    def __init__(self, group_states: List[TrafficLightGroupState]):
+        self._states = group_states
         self._time_remaining, self._current_state, self._duration = None, None, None
         self.reset()
 
-    def load_from_json(self, json_file_path: str):
+    @classmethod
+    def from_json(cls, json_file_path: str) -> Self:
+        """
+        Current json format:
+        [
+            {
+                "actor_states": {
+                    "4411": "red",
+                    "3411": "red",
+                    .........
+                },
+                "state": "0",
+                "duration": 10,
+                "next_state": "1"
+            },
+            ...
+        ]
+        """
         with open(json_file_path, 'rb') as f:
-            light_state_machine = json.load(f)
-        return light_state_machine
+            items = json.load(f)
+        try:
+            return cls([TrafficLightGroupState(
+                actor_states={k: TrafficLightState[v] for k, v in item['actor_states'].items()},
+                sequence_number=int(item['state']),
+                duration=float(item['duration']),
+                next_state=int(item['next_state'])
+            ) for item in items])
+        except KeyError as e:
+            raise ValueError(f"KeyError: {e} in {json_file_path}")
 
     def reset(self):
         state = random.randint(0, len(self._states) - 1)
-        self.set_to(state, self._states[state]['duration'])
+        self.set_to(state, self._states[state].duration)
 
     def set_to(self, state_index: int, time_remaining: float):
         state = state_index
@@ -40,34 +74,34 @@ class TrafficLightStateMachine:
         elif state_index >= len(self._states):
             state = len(self._states) - 1
         self._current_state = self._states[state]
-        self._duration = self._current_state['duration']
+        self._duration = self._current_state.duration
         self._time_remaining = time_remaining if time_remaining <= self._duration else self._duration
 
     def tick(self, dt: float):
         self._time_remaining -= dt
         while self._time_remaining <= 0:
-            next_state = int(self._current_state['next_state'])
-            next_duration = self._states[next_state]['duration']
+            next_state = self._current_state.next_state
+            next_duration = self._states[next_state].duration
             self.set_to(next_state, next_duration)
 
     @property
-    def states(self):
+    def states(self) -> List[TrafficLightGroupState]:
         return self._states
 
     @property
-    def duration(self):
+    def duration(self) -> float:
         return self._duration
 
     @property
-    def current_state(self):
+    def current_state(self) -> TrafficLightGroupState:
         return self._current_state
 
     @property
-    def time_remaining(self):
+    def time_remaining(self) -> float:
         return self._time_remaining
 
-    def get_current_actor_states(self):
-        return self.current_state['actor_states']
+    def get_current_actor_states(self) -> ActorStates:
+        return self.current_state.actor_states
 
 
 class TrafficLightController:
@@ -94,7 +128,7 @@ class TrafficLightController:
 
     def update_current_state_and_time(self):
         self._current_state = self.collect_all_current_light_states()
-        self._state_per_machine = [fsm.current_state["state"] for fsm in self.traffic_fsms]
+        self._state_per_machine = [fsm.current_state.sequence_number for fsm in self.traffic_fsms]
         self._time_remaining = [
             fsm.time_remaining for fsm in self.traffic_fsms]
 
