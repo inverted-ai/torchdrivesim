@@ -15,6 +15,7 @@ from omegaconf import OmegaConf
 from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
 from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
+from torchdrivesim.map import find_map_config
 from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
@@ -23,18 +24,13 @@ from torchdrivesim.utils import Resolution
 
 @dataclass
 class SimulationConfig:
-    driving_surface_mesh_path: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
-    )
     map_name: str = "Town03"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
-    map_origin: Tuple[float, float] = (0, 0)
     orientation: float = np.pi / 2
     save_path: str = './simulation.gif'
     method: str = 'iai'
-    left_handed: bool = True
     agent_count: int = 5
     steps: int = 20
 
@@ -42,11 +38,14 @@ class SimulationConfig:
 def simulate(cfg: SimulationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
-    driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
-    simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
-                                     renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
+    map_cfg = find_map_config(cfg.map_name)
+    if cfg.center is None:
+        cfg.center = map_cfg.center
+    driving_surface_mesh = map_cfg.road_mesh.to(device)
+    simulator_cfg = TorchDriveConfig(left_handed_coordinates=map_cfg.left_handed_coordinates,
+                                     renderer=RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates))
 
-    location = f'carla:{":".join(cfg.map_name.split("_"))}'
+    location = map_cfg.iai_location_name
     agent_attributes, agent_states, recurrent_states =\
         iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
     agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
