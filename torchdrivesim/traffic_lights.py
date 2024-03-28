@@ -10,7 +10,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 class TrafficLightState(Enum):
     none = auto()
     green = auto()
@@ -25,7 +24,7 @@ class TrafficLightGroupState:
     sequence_number: int
     duration: float
     next_state: int
-        
+
 
 class TrafficLightStateMachine:
     def __init__(self, group_states: List[TrafficLightGroupState]):
@@ -110,6 +109,52 @@ class TrafficLightController:
         self._time_remaining, self._current_state, self._state_per_machine = None, None, None
         self.reset()
 
+    @classmethod
+    def from_json(cls, json_file_path: str) -> Self:
+        """
+        Current json format:
+        [
+            [
+                {
+                    "actor_states": {
+                        "4411": "red",
+                        "3411": "red",
+                        .........
+                    },
+                    "state": "0",
+                    "duration": 10,
+                    "next_state": "1"
+                },
+                ...
+            ],
+            ...
+        ]
+        """
+        with open(json_file_path, "rb") as f:
+            items = json.load(f)
+        try:
+            return cls(
+                [
+                    TrafficLightStateMachine(
+                        group_states=[
+                            TrafficLightGroupState(
+                                actor_states={
+                                    k: TrafficLightState[v]
+                                    for k, v in gs["actor_states"].items()
+                                },
+                                sequence_number=int(gs["state"]),
+                                duration=float(gs["duration"]),
+                                next_state=int(gs["next_state"]),
+                            )
+                            for gs in sm
+                        ]
+                    )
+                    for sm in items
+                ]
+            )
+        except KeyError as e:
+            raise ValueError(f"KeyError: {e} in {json_file_path}")
+
     def tick(self, dt):
         for fsm in self.traffic_fsms:
             fsm.tick(dt)
@@ -132,11 +177,10 @@ class TrafficLightController:
         self._time_remaining = [
             fsm.time_remaining for fsm in self.traffic_fsms]
 
-
     @property
     def current_state(self):
         return self._current_state
-    
+
     @property
     def state_per_machine(self):
         return self._state_per_machine
@@ -144,7 +188,7 @@ class TrafficLightController:
     @property
     def time_remaining(self):
         return self._time_remaining
-    
+
     @lru_cache
     def get_number_of_light_groups(self):
         return len(self.traffic_fsms)

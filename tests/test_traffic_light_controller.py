@@ -73,3 +73,6 @@ def test_tick(traffic_light_controller: TrafficLightController):
         "3403": TrafficLightState.red,
         "4403": TrafficLightState.red
     }
+
+def test_load_controller_from_json():
+    TrafficLightController.from_json(os.path.join(os.path.dirname(__file__), "resources", "traffic_lights_controller", "intersection_controller.json"))
