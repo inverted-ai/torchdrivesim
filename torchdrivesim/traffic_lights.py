@@ -22,14 +22,24 @@ ActorStates = Dict[str, TrafficLightState]
 
 @dataclass(eq=True)
 class TrafficLightGroupState:
+    """
+    Representing a single state of a group of traffic lights.
+    """
     actor_states: ActorStates
     sequence_number: int
-    duration: float
+    duration: float # in seconds
     next_state: int
 
 
 class TrafficLightStateMachine:
     def __init__(self, group_states: List[TrafficLightGroupState]):
+        """
+        TrafficLightStateMachine that traverse a list of TrafficLightGroupStates.
+        
+        Args:
+            group_states (List[TrafficLightGroupState]): A list of TrafficLightGroupState objects.
+
+        """
         self._states = group_states
         self._time_remaining, self._current_state, self._duration = None, None, None
         self.reset()
@@ -90,6 +100,9 @@ class TrafficLightStateMachine:
         self.set_to(state, self._states[state].duration)
 
     def set_to(self, state_index: int, time_remaining: float):
+        """
+        Set the TrafficLightStateMachine to a specific state.
+        """
         state = state_index
         if state_index < 0:
             state = 0
@@ -102,6 +115,9 @@ class TrafficLightStateMachine:
         )
 
     def tick(self, dt: float):
+        """
+        Update the time remaining for the current state.
+        """
         self._time_remaining -= dt
         while self._time_remaining <= 0:
             next_state = self._current_state.next_state
@@ -130,6 +146,9 @@ class TrafficLightStateMachine:
 
 class TrafficLightController:
     def __init__(self, traffic_fsms: List[TrafficLightStateMachine]):
+        """
+        TrafficLightController that steps a group of TrafficLightStateMachines.
+        """
         self.traffic_fsms = traffic_fsms
         self._time_remaining, self._current_state, self._state_per_machine = (
             None,
