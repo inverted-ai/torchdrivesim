@@ -1,0 +1,149 @@
+[[
+    {
+        "actor_states": {
+            "4411": "red",
+            "3411": "red",
+            "4399": "red",
+            "3399": "red"
+        },
+        "state": "0",
+        "duration": "10",
+        "next_state": "1"
+    },
+    {
+        "actor_states": {
+            "4411": "green",
+            "3411": "red",
+            "4399": "green",
+            "3399": "green"
+        },
+        "state": "1",
+        "duration": "10",
+        "next_state": "2"
+    },
+    {
+        "actor_states": {
+            "4411": "green",
+            "3411": "red",
+            "4399": "yellow",
+            "3399": "yellow"
+        },
+        "state": "2",
+        "duration": "5",
+        "next_state": "3"
+    },
+    {
+        "actor_states": {
+            "4411": "green",
+            "3411": "green",
+            "4399": "red",
+            "3399": "red"
+        },
+        "state": "3",
+        "duration": "10",
+        "next_state": "4"
+    },
+    {
+        "actor_states": {
+            "4411": "yellow",
+            "3411": "yellow",
+            "4399": "red",
+            "3399": "red"
+        },
+        "state": "4",
+        "duration": "5",
+        "next_state": "0"
+    }
+],
+[{
+    "actor_states": {
+        "3404": "red",
+        "4404": "red",
+        "3406": "red",
+        "3405": "red",
+        "3403": "red",
+        "4403": "red"
+    },
+    "state": "0",
+    "duration": "2",
+    "next_state": "1"
+},
+{
+    "actor_states": {
+        "3404": "red",
+        "4404": "red",
+        "3406": "green",
+        "3405": "green",
+        "3403": "red",
+        "4403": "red"
+    },
+    "state": "1",
+    "duration": "10",
+    "next_state": "2"
+},
+{
+    "actor_states": {
+        "3404": "red",
+        "4404": "red",
+        "3406": "yellow",
+        "3405": "yellow",
+        "3403": "red",
+        "4403": "red"
+    },
+    "state": "2",
+    "duration": "5",
+    "next_state": "3"
+},
+{
+    "actor_states": {
+        "3404": "green",
+        "4404": "green",
+        "3406": "red",
+        "3405": "red",
+        "3403": "red",
+        "4403": "red"
+    },
+    "state": "3",
+    "duration": "10",
+    "next_state": "4"
+},
+{
+    "actor_states": {
+        "3404": "yellow",
+        "4404": "yellow",
+        "3406": "red",
+        "3405": "red",
+        "3403": "red",
+        "4403": "red"
+    },
+    "state": "4",
+    "duration": "5",
+    "next_state": "5"
+},
+{
+    "actor_states": {
+        "3404": "red",
+        "4404": "red",
+        "3406": "red",
+        "3405": "red",
+        "3403": "green",
+        "4403": "green"
+    },
+    "state": "5",
+    "duration": "10",
+    "next_state": "6"
+},
+{
+    "actor_states": {
+        "3404": "red",
+        "4404": "red",
+        "3406": "red",
+        "3405": "red",
+        "3403": "yellow",
+        "4403": "yellow"
+    },
+    "state": "6",
+    "duration": "5",
+    "next_state": "0"
+}]
+]
