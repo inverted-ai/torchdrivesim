@@ -2,11 +2,22 @@ import dataclasses
 import json
 import os
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
 
 import torchdrivesim
 from torchdrivesim.lanelet2 import LaneletMap, load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh
+
+
+@dataclass
+class Stopline:
+    actor_id: int
+    agent_type: str
+    x: float
+    y: float
+    length: float
+    width: float
+    orientation: float
 
 
 @dataclass
@@ -49,7 +60,15 @@ class MapConfig:
         else:
             return BirdviewMesh.load(self.mesh_path)
 
-    # TODO: stoplines and traffic lights
+    @property
+    def stoplines(self) -> List[Stopline]:
+        if self.stoplines_path is None:
+            return []
+        with open(self.stoplines_path, 'r') as f:
+            stoplines = [Stopline(**d) for d in json.load(f)]
+        return stoplines
+
+    # TODO: traffic light controllers
 
 
 def _filename_defaults(name: str) -> Dict[str, str]:
@@ -141,6 +160,16 @@ def download_iai_map(location_name: str, save_path: str) -> None:
     info.osm_map.save_osm_file(lanelet_path)
     origin = info.osm_map.origin.x, info.osm_map.origin.y
 
+    stoplines_path = os.path.join(save_path, pathname_defaults['stoplines_path'])
+    stoplines = [
+        dataclasses.asdict(Stopline(
+            actor_id=sa.actor_id, agent_type=sa.agent_type, x=sa.center.x, y=sa.center.y,
+            length=sa.length, width=sa.width, orientation=sa.orientation,
+        )) for sa in info.static_actors
+    ]
+    with open(stoplines_path, 'w') as f:
+        json.dump(stoplines, f, indent=4)
+
     cfg = MapConfig(
         name=map_name, center=center, lanelet_map_origin=origin,
         iai_location_name=location_name,
@@ -152,4 +181,3 @@ def download_iai_map(location_name: str, save_path: str) -> None:
     cfg.mesh_path = os.path.abspath(mesh_path)
 
     store_map_config(cfg, os.path.join(save_path, 'metadata.json'))
-    # TODO: stoplines and traffic lights

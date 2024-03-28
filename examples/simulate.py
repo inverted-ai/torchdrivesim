@@ -19,6 +19,7 @@ from torchdrivesim.map import find_map_config
 from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.traffic_controls import TrafficLightControl, StopSignControl, YieldControl
 from torchdrivesim.utils import Resolution
 
 
@@ -55,11 +56,37 @@ def simulate(cfg: SimulationConfig):
     kinematic_model.set_state(agent_states)
     renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
 
+    traffic_control_poses = {
+        'traffic-light': [],
+        'stop-sign': [],
+        'yield-sign': [],
+    }
+    for stopline in map_cfg.stoplines:
+        if stopline.agent_type not in traffic_control_poses.keys():
+            continue
+        pos = torch.tensor(
+            [stopline.x, stopline.y, stopline.length, stopline.width, stopline.orientation],  device=device
+        )
+        traffic_control_poses[stopline.agent_type].append(pos)
+    traffic_controls = dict()
+    if traffic_control_poses['traffic-light']:
+        traffic_controls['traffic_light'] = TrafficLightControl(
+            torch.stack(traffic_control_poses['traffic-light']).unsqueeze(0)
+        )
+    if traffic_control_poses['stop-sign']:
+        traffic_controls['stop_sign'] = StopSignControl(
+            torch.stack(traffic_control_poses['stop-sign']).unsqueeze(0)
+        )
+    if traffic_control_poses['yield-sign']:
+        traffic_controls['yield_sign'] = TrafficLightControl(
+            torch.stack(traffic_control_poses['yield_sign']).unsqueeze(0)
+        )
+
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
         kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
         initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
-        renderer=renderer,
+        renderer=renderer, traffic_controls=traffic_controls,
     )
     simulator = HomogeneousWrapper(simulator)
     npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
