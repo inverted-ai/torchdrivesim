@@ -337,7 +337,7 @@ class BirdviewRenderer(abc.ABC):
             camera_sc: BxNcx2 tensor of camera orientations (sine and cosine), by default matching agent orientations
             rendering_mask:  BxNcxA tensor per agent type, indicating which cameras see which agents
             res: resolution HxW of the resulting image, currently only square resolutions are supported
-            traffic_controls: traffic controls by type (traffic-light, yield, etc.)
+            traffic_controls: traffic controls by type (traffic_light, yield, etc.)
             fov: Field of view in meters
             waypoints: BxNcxMx2 tensor of `M` waypoints per camera (x,y)
             waypoints_rendering_mask: BxNcxM tensor of `M` waypoint masks per camera,
@@ -395,7 +395,7 @@ class BirdviewRenderer(abc.ABC):
 
         if traffic_controls is not None:
             traffic_controls = {k: v.extend(n_cameras_per_batch) for k, v in traffic_controls.items()}
-            controls_mesh = self.make_traffic_controls_mesh(traffic_controls)
+            controls_mesh = self.make_traffic_controls_mesh(traffic_controls).to(self.device)
             meshes.append(controls_mesh)
 
         if waypoints is not None:
@@ -489,7 +489,7 @@ class BirdviewRenderer(abc.ABC):
             if element.corners.shape[-2] == 0:
                 continue
             verts, faces = self.build_verts_faces_from_bounding_box(element.corners)
-            if control_type == 'traffic-light':
+            if control_type == 'traffic_light':
                 categories = [f'{control_type}_{state}' for state in element.allowed_states]
                 vert_category = element.state.unsqueeze(-1).expand(element.state.shape + (4,)).flatten(-2, -1)
                 meshes.append(BirdviewMesh(
