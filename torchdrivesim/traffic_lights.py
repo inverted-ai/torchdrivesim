@@ -62,6 +62,14 @@ class TrafficLightStateMachine:
         except KeyError as e:
             raise ValueError(f"KeyError: {e} in {json_file_path}")
 
+    def to_json(self) -> str:
+        return json.dumps([{
+            "actor_states": {k: v.name for k, v in state.actor_states.items()},
+            "state": str(state.sequence_number),
+            "duration": state.duration,
+            "next_state": str(state.next_state)
+        } for state in self._states])
+    
     def reset(self):
         state = random.randint(0, len(self._states) - 1)
         self.set_to(state, self._states[state].duration)
@@ -154,6 +162,14 @@ class TrafficLightController:
             )
         except KeyError as e:
             raise ValueError(f"KeyError: {e} in {json_file_path}")
+
+    def to_json(self) -> str:
+        return json.dumps([[{
+            "actor_states": {k: v.name for k, v in state.actor_states.items()},
+            "state": str(state.sequence_number),
+            "duration": state.duration,
+            "next_state": str(state.next_state)
+        } for state in fsm.states] for fsm in self.traffic_fsms])
 
     def tick(self, dt):
         for fsm in self.traffic_fsms:

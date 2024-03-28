@@ -77,3 +77,6 @@ def test_get_current_actor_states(traffic_light_state_machine: TrafficLightState
                 "4399": TrafficLightState.red,
                 "3399": TrafficLightState.red
             }
+    
+def test_to_json(traffic_light_state_machine: TrafficLightStateMachine):
+    traffic_light_state_machine.to_json()

@@ -1,4 +1,5 @@
 import pytest
+import json
 import os
 from torchdrivesim.traffic_lights import TrafficLightController, TrafficLightStateMachine, TrafficLightState
 
@@ -76,3 +77,6 @@ def test_tick(traffic_light_controller: TrafficLightController):
 
 def test_load_controller_from_json():
     TrafficLightController.from_json(os.path.join(os.path.dirname(__file__), "resources", "traffic_lights_controller", "intersection_controller.json"))
+
+def test_to_json(traffic_light_controller: TrafficLightController):
+    traffic_light_controller.to_json()
