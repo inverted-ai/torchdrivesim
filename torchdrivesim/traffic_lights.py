@@ -16,7 +16,9 @@ class TrafficLightState(Enum):
     yellow = auto()
     red = auto()
 
+
 ActorStates = Dict[str, TrafficLightState]
+
 
 @dataclass(eq=True)
 class TrafficLightGroupState:
@@ -50,26 +52,39 @@ class TrafficLightStateMachine:
             ...
         ]
         """
-        with open(json_file_path, 'rb') as f:
+        with open(json_file_path, "rb") as f:
             items = json.load(f)
         try:
-            return cls([TrafficLightGroupState(
-                actor_states={k: TrafficLightState[v] for k, v in item['actor_states'].items()},
-                sequence_number=int(item['state']),
-                duration=float(item['duration']),
-                next_state=int(item['next_state'])
-            ) for item in items])
+            return cls(
+                [
+                    TrafficLightGroupState(
+                        actor_states={
+                            k: TrafficLightState[v]
+                            for k, v in item["actor_states"].items()
+                        },
+                        sequence_number=int(item["state"]),
+                        duration=float(item["duration"]),
+                        next_state=int(item["next_state"]),
+                    )
+                    for item in items
+                ]
+            )
         except KeyError as e:
             raise ValueError(f"KeyError: {e} in {json_file_path}")
 
     def to_json(self) -> str:
-        return json.dumps([{
-            "actor_states": {k: v.name for k, v in state.actor_states.items()},
-            "state": str(state.sequence_number),
-            "duration": state.duration,
-            "next_state": str(state.next_state)
-        } for state in self._states])
-    
+        return json.dumps(
+            [
+                {
+                    "actor_states": {k: v.name for k, v in state.actor_states.items()},
+                    "state": str(state.sequence_number),
+                    "duration": state.duration,
+                    "next_state": str(state.next_state),
+                }
+                for state in self._states
+            ]
+        )
+
     def reset(self):
         state = random.randint(0, len(self._states) - 1)
         self.set_to(state, self._states[state].duration)
@@ -82,7 +97,9 @@ class TrafficLightStateMachine:
             state = len(self._states) - 1
         self._current_state = self._states[state]
         self._duration = self._current_state.duration
-        self._time_remaining = time_remaining if time_remaining <= self._duration else self._duration
+        self._time_remaining = (
+            time_remaining if time_remaining <= self._duration else self._duration
+        )
 
     def tick(self, dt: float):
         self._time_remaining -= dt
@@ -114,7 +131,11 @@ class TrafficLightStateMachine:
 class TrafficLightController:
     def __init__(self, traffic_fsms: List[TrafficLightStateMachine]):
         self.traffic_fsms = traffic_fsms
-        self._time_remaining, self._current_state, self._state_per_machine = None, None, None
+        self._time_remaining, self._current_state, self._state_per_machine = (
+            None,
+            None,
+            None,
+        )
         self.reset()
 
     @classmethod
@@ -164,12 +185,22 @@ class TrafficLightController:
             raise ValueError(f"KeyError: {e} in {json_file_path}")
 
     def to_json(self) -> str:
-        return json.dumps([[{
-            "actor_states": {k: v.name for k, v in state.actor_states.items()},
-            "state": str(state.sequence_number),
-            "duration": state.duration,
-            "next_state": str(state.next_state)
-        } for state in fsm.states] for fsm in self.traffic_fsms])
+        return json.dumps(
+            [
+                [
+                    {
+                        "actor_states": {
+                            k: v.name for k, v in state.actor_states.items()
+                        },
+                        "state": str(state.sequence_number),
+                        "duration": state.duration,
+                        "next_state": str(state.next_state),
+                    }
+                    for state in fsm.states
+                ]
+                for fsm in self.traffic_fsms
+            ]
+        )
 
     def tick(self, dt):
         for fsm in self.traffic_fsms:
@@ -189,9 +220,10 @@ class TrafficLightController:
 
     def update_current_state_and_time(self):
         self._current_state = self.collect_all_current_light_states()
-        self._state_per_machine = [fsm.current_state.sequence_number for fsm in self.traffic_fsms]
-        self._time_remaining = [
-            fsm.time_remaining for fsm in self.traffic_fsms]
+        self._state_per_machine = [
+            fsm.current_state.sequence_number for fsm in self.traffic_fsms
+        ]
+        self._time_remaining = [fsm.time_remaining for fsm in self.traffic_fsms]
 
     @property
     def current_state(self):
@@ -210,4 +242,8 @@ class TrafficLightController:
         return len(self.traffic_fsms)
 
     def collect_all_current_light_states(self):
-        return reduce(lambda x, y: {**x, **y}, [fsm.get_current_actor_states() for fsm in self.traffic_fsms], {})
+        return reduce(
+            lambda x, y: {**x, **y},
+            [fsm.get_current_actor_states() for fsm in self.traffic_fsms],
+            {},
+        )
