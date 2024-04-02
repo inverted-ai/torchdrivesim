@@ -1,12 +1,13 @@
 """
 Definitions of traffic controls. Currently, we support traffic lights, stop signs, and yield signs.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import torch
 from torch import Tensor
 
 from torchdrivesim._iou_utils import oriented_box_intersection_2d, box2corners_th, box2corners_with_rear_factor
+from torchdrivesim.map import MapConfig
 
 
 class BaseTrafficControl:
@@ -192,3 +193,32 @@ class StopSignControl(BaseTrafficControl):
     Violations are not computed.
     """
     pass
+
+
+def traffic_controls_from_map_config(cfg: MapConfig) -> Dict[str, BaseTrafficControl]:
+    traffic_control_poses = {
+        'traffic-light': [],
+        'stop-sign': [],
+        'yield-sign': [],
+    }
+    for stopline in cfg.stoplines:
+        if stopline.agent_type not in traffic_control_poses.keys():
+            continue
+        pos = torch.tensor(
+            [stopline.x, stopline.y, stopline.length, stopline.width, stopline.orientation],
+        )
+        traffic_control_poses[stopline.agent_type].append(pos)
+    traffic_controls = dict()
+    if traffic_control_poses['traffic-light']:
+        traffic_controls['traffic_light'] = TrafficLightControl(
+            torch.stack(traffic_control_poses['traffic-light']).unsqueeze(0)
+        )
+    if traffic_control_poses['stop-sign']:
+        traffic_controls['stop_sign'] = StopSignControl(
+            torch.stack(traffic_control_poses['stop-sign']).unsqueeze(0)
+        )
+    if traffic_control_poses['yield-sign']:
+        traffic_controls['yield_sign'] = TrafficLightControl(
+            torch.stack(traffic_control_poses['yield-sign']).unsqueeze(0)
+        )
+    return traffic_controls
