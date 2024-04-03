@@ -54,7 +54,7 @@ class MapConfig:
                 lanelet_map = self.lanelet_map
                 road_mesh = road_mesh_from_lanelet_map(lanelet_map)
                 road_mesh = BirdviewMesh.set_properties(road_mesh, category='road').to(road_mesh.device)
-                lane_mesh = lanelet_map_to_lane_mesh(lanelet_map, left_handed=self.left_handed_coordinates)
+                lane_mesh = lanelet_map_to_lane_mesh(lanelet_map, left_handed=False)
                 combined_mesh = lane_mesh.merge(road_mesh)
                 return combined_mesh
         else:
