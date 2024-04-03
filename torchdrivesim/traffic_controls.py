@@ -218,7 +218,7 @@ def traffic_controls_from_map_config(cfg: MapConfig) -> Dict[str, BaseTrafficCon
             torch.stack(traffic_control_poses['stop-sign']).unsqueeze(0)
         )
     if traffic_control_poses['yield-sign']:
-        traffic_controls['yield_sign'] = TrafficLightControl(
+        traffic_controls['yield_sign'] = YieldControl(
             torch.stack(traffic_control_poses['yield-sign']).unsqueeze(0)
         )
     return traffic_controls

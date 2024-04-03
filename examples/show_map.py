@@ -39,7 +39,7 @@ def visualize_map(cfg: MapVisualizationConfig):
         download_iai_map(cfg.iai_location_to_download, save_path=f'torchdrivesim/resources/maps/{cfg.map_name}')
     map_cfg = find_map_config(cfg.map_name)
     driving_surface_mesh = map_cfg.road_mesh.to(device)
-    renderer_cfg = RendererConfig(left_handed_coordinates=False)  #map_cfg.left_handed_coordinates)
+    renderer_cfg = RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates)
     renderer = renderer_from_config(
         renderer_cfg, device=device, static_mesh=driving_surface_mesh
     )

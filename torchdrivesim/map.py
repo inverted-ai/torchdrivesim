@@ -126,8 +126,6 @@ def find_map_config(map_name: str, resolve_paths: bool = True) -> Optional[MapCo
         if os.path.exists(map_path):
             break
     else:
-        map_path = None
-    if map_path is None:
         return None
     metadata_path = os.path.join(map_path, 'metadata.json')
     if os.path.exists(metadata_path):
