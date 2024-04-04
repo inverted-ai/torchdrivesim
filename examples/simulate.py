@@ -14,9 +14,7 @@ from omegaconf import OmegaConf
 
 from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
 from torchdrivesim.kinematic import KinematicBicycle
-from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.map import find_map_config
-from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
 from torchdrivesim.traffic_controls import traffic_controls_from_map_config

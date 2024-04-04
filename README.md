@@ -67,7 +67,8 @@ contacting us. For academics, we may be able to offer free API keys.
 
 ## Maps and Map Formats
 
-Several CARLA maps (Town01, Town02, Town03, Town04, Town10HD) are included in `torchdrivesim` itself and can be loaded
+Several CARLA maps (`carla_Town01`, `carla_Town02`, `carla_Town03`, `carla_Town04`, `carla_Town10HD`)
+are included in `torchdrivesim` itself and can be loaded
 by name. To include other maps, place the files in the format described below somewhere in a folder referenced by the
 `TDS_RESOURCE_PATH` environment variable. Generally, a map is defined by a folder with the following structure:
 ```

@@ -1,5 +1,6 @@
 """
 Simple demonstration for how to grab a map and visualize it.
+Downloading maps from the IAI API requires IAI_API_KEY to be set.
 """
 import os
 import sys
@@ -8,14 +9,10 @@ from typing import Optional, Tuple
 
 import numpy as np
 import imageio
-import lanelet2
 from omegaconf import OmegaConf
 
-from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.map import find_map_config, download_iai_map
-from torchdrivesim.mesh import BirdviewMesh
-from torchdrivesim.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
-from torchdrivesim.simulator import TorchDriveConfig
+from torchdrivesim.rendering import  renderer_from_config, RendererConfig
 from torchdrivesim.traffic_controls import traffic_controls_from_map_config
 from torchdrivesim.utils import Resolution
 
@@ -23,7 +20,7 @@ from torchdrivesim.utils import Resolution
 @dataclass
 class MapVisualizationConfig:
     map_name: str = "carla_Town03"
-    iai_location_to_download: Optional[str] = "carla:Town03"
+    iai_location_to_download: Optional[str] = None
     res: int = 1024
     fov: float = 400
     center: Optional[Tuple[float, float]] = None
@@ -36,7 +33,7 @@ def visualize_map(cfg: MapVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
     if cfg.iai_location_to_download is not None:
-        download_iai_map(cfg.iai_location_to_download, save_path=f'torchdrivesim/resources/maps/{cfg.map_name}')
+        download_iai_map(cfg.iai_location_to_download, save_path=f'{cfg.map_name}')
     map_cfg = find_map_config(cfg.map_name)
     driving_surface_mesh = map_cfg.road_mesh.to(device)
     renderer_cfg = RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates)
