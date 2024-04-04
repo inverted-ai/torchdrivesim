@@ -13,9 +13,7 @@ import lanelet2
 import torch
 from omegaconf import OmegaConf
 
-from torchdrivesim.behavior.iai import iai_initialize, iai_drive
 from torchdrivesim.behavior.replay import interaction_replay, ReplayWrapper
-from torchdrivesim.behavior.heuristic import heuristic_initialize
 from torchdrivesim.kinematic import KinematicBicycle, TeleportingKinematicModel
 from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh

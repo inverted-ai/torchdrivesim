@@ -1,0 +1,326 @@
+[
+    {
+        "actor_id": 2876,
+        "agent_type": "traffic-light",
+        "x": 92.38,
+        "y": 68.378,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2877,
+        "agent_type": "traffic-light",
+        "x": 101.475,
+        "y": 55.499,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 3.142
+    },
+    {
+        "actor_id": 2878,
+        "agent_type": "traffic-light",
+        "x": 88.377,
+        "y": 45.785,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2879,
+        "agent_type": "traffic-light",
+        "x": 92.392,
+        "y": 142.026,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2880,
+        "agent_type": "traffic-light",
+        "x": 101.824,
+        "y": 129.415,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 3.142
+    },
+    {
+        "actor_id": 2881,
+        "agent_type": "traffic-light",
+        "x": 88.388,
+        "y": 119.766,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2882,
+        "agent_type": "traffic-light",
+        "x": 92.402,
+        "y": 208.691,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2883,
+        "agent_type": "traffic-light",
+        "x": 101.563,
+        "y": 195.141,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 3.142
+    },
+    {
+        "actor_id": 2884,
+        "agent_type": "traffic-light",
+        "x": 88.398,
+        "y": 186.256,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2885,
+        "agent_type": "traffic-light",
+        "x": 101.67,
+        "y": 326.589,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 3.142
+    },
+    {
+        "actor_id": 2886,
+        "agent_type": "traffic-light",
+        "x": 88.418,
+        "y": 317.014,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2887,
+        "agent_type": "traffic-light",
+        "x": 79.563,
+        "y": 330.577,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 0.0
+    },
+    {
+        "actor_id": 2888,
+        "agent_type": "traffic-light",
+        "x": 347.906,
+        "y": 326.61,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 3.142
+    },
+    {
+        "actor_id": 2889,
+        "agent_type": "traffic-light",
+        "x": 334.708,
+        "y": 317.233,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2890,
+        "agent_type": "traffic-light",
+        "x": 325.508,
+        "y": 330.61,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 0.0
+    },
+    {
+        "actor_id": 2891,
+        "agent_type": "traffic-light",
+        "x": 167.579,
+        "y": 55.491,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 3.142
+    },
+    {
+        "actor_id": 2892,
+        "agent_type": "traffic-light",
+        "x": 154.024,
+        "y": 46.048,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2893,
+        "agent_type": "traffic-light",
+        "x": 144.839,
+        "y": 59.493,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 0.0
+    },
+    {
+        "actor_id": 2894,
+        "agent_type": "traffic-light",
+        "x": 334.872,
+        "y": 45.998,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2895,
+        "agent_type": "traffic-light",
+        "x": 324.878,
+        "y": 59.471,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 0.0
+    },
+    {
+        "actor_id": 2896,
+        "agent_type": "traffic-light",
+        "x": 338.893,
+        "y": 10.952,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2897,
+        "agent_type": "traffic-light",
+        "x": 348.392,
+        "y": -1.999,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -3.142
+    },
+    {
+        "actor_id": 2898,
+        "agent_type": "traffic-light",
+        "x": 338.858,
+        "y": 69.391,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2899,
+        "agent_type": "traffic-light",
+        "x": 334.827,
+        "y": 120.558,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2900,
+        "agent_type": "traffic-light",
+        "x": 325.388,
+        "y": 133.515,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 0.0
+    },
+    {
+        "actor_id": 2901,
+        "agent_type": "traffic-light",
+        "x": 338.813,
+        "y": 144.119,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2902,
+        "agent_type": "traffic-light",
+        "x": 334.788,
+        "y": 185.611,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -1.571
+    },
+    {
+        "actor_id": 2903,
+        "agent_type": "traffic-light",
+        "x": 325.32,
+        "y": 199.159,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 0.0
+    },
+    {
+        "actor_id": 2904,
+        "agent_type": "traffic-light",
+        "x": 338.773,
+        "y": 209.419,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2905,
+        "agent_type": "traffic-light",
+        "x": 144.561,
+        "y": 1.954,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -0.0
+    },
+    {
+        "actor_id": 2906,
+        "agent_type": "traffic-light",
+        "x": 158.066,
+        "y": 11.447,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2907,
+        "agent_type": "traffic-light",
+        "x": 168.541,
+        "y": -2.043,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -3.142
+    },
+    {
+        "actor_id": 2908,
+        "agent_type": "traffic-light",
+        "x": 79.132,
+        "y": 1.958,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -0.0
+    },
+    {
+        "actor_id": 2909,
+        "agent_type": "traffic-light",
+        "x": 92.372,
+        "y": 11.55,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": 1.571
+    },
+    {
+        "actor_id": 2910,
+        "agent_type": "traffic-light",
+        "x": 102.928,
+        "y": -2.05,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -3.142
+    },
+    {
+        "actor_id": 2911,
+        "agent_type": "traffic-light",
+        "x": 325.411,
+        "y": 1.989,
+        "length": 1.0,
+        "width": 4.0,
+        "orientation": -0.0
+    }
+]
