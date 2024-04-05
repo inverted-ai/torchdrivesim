@@ -18,12 +18,13 @@ from torchdrivesim.map import find_map_config
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
 from torchdrivesim.traffic_controls import traffic_controls_from_map_config
+from torchdrivesim.traffic_lights import TrafficLightState
 from torchdrivesim.utils import Resolution
 
 
 @dataclass
 class SimulationConfig:
-    map_name: str = "carla_Town03"
+    map_name: str = "carla_Town10HD"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
@@ -38,6 +39,8 @@ def simulate(cfg: SimulationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
     map_cfg = find_map_config(cfg.map_name)
+    traffic_light_controller = map_cfg.traffic_light_controller
+    initial_light_state_name = traffic_light_controller.current_state_with_name
     if cfg.center is None:
         cfg.center = map_cfg.center
     driving_surface_mesh = map_cfg.road_mesh.to(device)
@@ -46,7 +49,8 @@ def simulate(cfg: SimulationConfig):
 
     location = map_cfg.iai_location_name
     agent_attributes, agent_states, recurrent_states =\
-        iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
+        iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None,
+                       traffic_light_state_history=[initial_light_state_name])
     agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
     agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
     kinematic_model = KinematicBicycle()
@@ -54,6 +58,7 @@ def simulate(cfg: SimulationConfig):
     kinematic_model.set_state(agent_states)
     renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
     traffic_controls = traffic_controls_from_map_config(map_cfg)
+    traffic_controls['traffic_light'].set_state(traffic_light_controller.current_state_tensor.unsqueeze(0))
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
@@ -66,7 +71,8 @@ def simulate(cfg: SimulationConfig):
     npc_mask[0] = False
     simulator = IAIWrapper(
         simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],
-        rear_axis_offset=agent_attributes[..., 2:3], locations=[location]
+        rear_axis_offset=agent_attributes[..., 2:3], locations=[location],
+        traffic_light_controller=traffic_light_controller
     )
 
     images = []
