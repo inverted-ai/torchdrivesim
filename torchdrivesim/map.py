@@ -7,6 +7,7 @@ from typing import Optional, Tuple, Dict, List
 import torchdrivesim
 from torchdrivesim.lanelet2 import LaneletMap, load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.traffic_lights import TrafficLightController
 
 
 @dataclass
@@ -68,7 +69,11 @@ class MapConfig:
             stoplines = [Stopline(**d) for d in json.load(f)]
         return stoplines
 
-    # TODO: traffic light controllers
+    @property
+    def traffic_light_controller(self) -> Optional[TrafficLightController]:
+        if self.traffic_light_controller_path is None:
+            return None
+        return TrafficLightController.from_json(self.traffic_light_controller_path)
 
 
 def _filename_defaults(name: str) -> Dict[str, str]:

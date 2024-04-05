@@ -6,6 +6,8 @@ from typing_extensions import Self
 from functools import reduce, lru_cache
 from enum import auto, Enum
 import logging
+import torch
+
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +249,18 @@ class TrafficLightController:
     @property
     def current_state(self):
         return self._current_state
+    
+    @property
+    def current_state_tensor(self):
+        """
+        Convert the current state to a float tensor based on the order of the _default_allowed_states for TrafficLightControl
+        """
+        from torchdrivesim.traffic_controls import TrafficLightControl
+        return torch.tensor([TrafficLightControl._default_allowed_states().index(state.name) for state in self.current_state.values()], dtype=float)
+    
+    @property
+    def current_state_with_name(self):
+        return {k: v.name for k, v in self._current_state.items()}
 
     @property
     def state_per_machine(self):
