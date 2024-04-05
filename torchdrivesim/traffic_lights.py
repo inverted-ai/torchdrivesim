@@ -249,15 +249,7 @@ class TrafficLightController:
     @property
     def current_state(self):
         return self._current_state
-    
-    @property
-    def current_state_tensor(self):
-        """
-        Convert the current state to a float tensor based on the order of the _default_allowed_states for TrafficLightControl
-        """
-        from torchdrivesim.traffic_controls import TrafficLightControl
-        return torch.tensor([TrafficLightControl._default_allowed_states().index(state.name) for state in self.current_state.values()], dtype=float)
-    
+
     @property
     def current_state_with_name(self):
         return {k: v.name for k, v in self._current_state.items()}
@@ -280,3 +272,8 @@ class TrafficLightController:
             [fsm.get_current_actor_states() for fsm in self.traffic_fsms],
             {},
         )
+
+
+def current_light_state_tensor_from_controller(traffic_light_controller: TrafficLightController, traffic_light_ids: List[int]):
+    from torchdrivesim.traffic_controls import TrafficLightControl
+    return torch.tensor([TrafficLightControl._default_allowed_states().index(traffic_light_controller.current_state[str(_id)].name) for _id in traffic_light_ids])

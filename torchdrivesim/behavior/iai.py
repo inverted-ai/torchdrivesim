@@ -6,8 +6,7 @@ from typing_extensions import Self
 
 from torchdrivesim.behavior.common import InitializationFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
-from torchdrivesim.traffic_lights import TrafficLightController
-
+from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
 def unpack_attributes(attributes) -> torch.Tensor:
     return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
@@ -63,13 +62,16 @@ class IAIWrapper(NPCWrapper):
     """
     def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
                  recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None,
-                 traffic_light_controller: Optional[TrafficLightController] = None):
+                 traffic_light_controller: Optional[TrafficLightController] = None, traffic_light_ids: Optional[List[int]] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
 
         self._locations = locations
         self._npc_predictions = None
         self._recurrent_states = recurrent_states
         self._traffic_light_controller = traffic_light_controller
+        self._traffic_light_ids = traffic_light_ids
+        assert (self._traffic_light_controller is None) == (self._traffic_light_ids is None), \
+                "Both _traffic_light_controller and _traffic_light_ids should be either None or not None"
 
         lenwid = HomogeneousWrapper(self.inner_simulator).get_agent_size()[..., :2]
         if rear_axis_offset is None:
@@ -95,7 +97,8 @@ class IAIWrapper(NPCWrapper):
         self._npc_predictions, self._recurrent_states = self._get_npc_predictions()  # TODO: run async after step
         if self._traffic_light_controller is not None:
             self._traffic_light_controller.tick(0.1)
-            self.get_innermost_simulator().traffic_controls['traffic_light'].set_state(self._traffic_light_controller.current_state_tensor.unsqueeze(0))
+            self.get_innermost_simulator().traffic_controls['traffic_light'].set_state(
+                current_light_state_tensor_from_controller(self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1))
         super().step(action)
         self._npc_predictions = None
 

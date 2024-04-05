@@ -18,7 +18,7 @@ from torchdrivesim.map import find_map_config
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
 from torchdrivesim.traffic_controls import traffic_controls_from_map_config
-from torchdrivesim.traffic_lights import TrafficLightState
+from torchdrivesim.traffic_lights import current_light_state_tensor_from_controller
 from torchdrivesim.utils import Resolution
 
 
@@ -41,6 +41,7 @@ def simulate(cfg: SimulationConfig):
     map_cfg = find_map_config(cfg.map_name)
     traffic_light_controller = map_cfg.traffic_light_controller
     initial_light_state_name = traffic_light_controller.current_state_with_name
+    traffic_light_ids = [stopline.actor_id for stopline in map_cfg.stoplines if stopline.agent_type == 'traffic-light']
     if cfg.center is None:
         cfg.center = map_cfg.center
     driving_surface_mesh = map_cfg.road_mesh.to(device)
@@ -58,7 +59,6 @@ def simulate(cfg: SimulationConfig):
     kinematic_model.set_state(agent_states)
     renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
     traffic_controls = traffic_controls_from_map_config(map_cfg)
-    traffic_controls['traffic_light'].set_state(traffic_light_controller.current_state_tensor.unsqueeze(0))
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
@@ -72,8 +72,10 @@ def simulate(cfg: SimulationConfig):
     simulator = IAIWrapper(
         simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],
         rear_axis_offset=agent_attributes[..., 2:3], locations=[location],
-        traffic_light_controller=traffic_light_controller
+        traffic_light_controller=traffic_light_controller,
+        traffic_light_ids=traffic_light_ids
     )
+    traffic_controls['traffic_light'].set_state(current_light_state_tensor_from_controller(traffic_light_controller, traffic_light_ids).unsqueeze(0))
 
     images = []
     for _ in range(cfg.steps):
