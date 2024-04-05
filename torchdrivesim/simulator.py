@@ -440,9 +440,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         Returns:
             a functor of BxA tensors
         """
-        if self.get_traffic_controls() is not None and 'traffic-light' in self.get_traffic_controls():
+        if self.get_traffic_controls() is not None and 'traffic_light' in self.get_traffic_controls():
             violation = self.across_agent_types(
-                lambda state, lenwid, mask: self.get_traffic_controls()['traffic-light'].compute_violation(
+                lambda state, lenwid, mask: self.get_traffic_controls()['traffic_light'].compute_violation(
                     torch.cat([state[..., :2], lenwid, state[..., 2:3]], dim=-1)
                 ) * mask.to(state.dtype),
                 self.get_state(), self.get_agent_size(), self.get_present_mask(),

@@ -1,6 +1,7 @@
 """
 An example showing how to define an OpenAI gym environment based on TorchDriveSim.
 It uses the IAI API to provide behaviors for other vehicles and requires an access key to run.
+See https://github.com/inverted-ai/torchdriveenv for a production-quality RL environment.
 """
 import contextlib
 import os
@@ -18,6 +19,7 @@ from torch import Tensor
 
 from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
 from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.map import find_map_config
 from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import RendererConfig, renderer_from_config
 from torchdrivesim.utils import Resolution
@@ -31,14 +33,9 @@ logger = logging.getLogger(__name__)
 class TorchDriveGymEnvConfig:
     simulator: TorchDriveConfig = TorchDriveConfig()
     visualize_to: Optional[str] = None
-    driving_surface_mesh_path: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
-    )
-    location: str = 'Town03'
+    map_name: str = 'carla_Town03'
     res: int = 1024
     fov: float = 200
-    center: Tuple[float, float] = (0, 0)
-    left_handed: bool = True
     agent_count: int = 5
     steps: int = 20
 
@@ -148,13 +145,18 @@ class IAIGymEnv(GymEnv):
     """
     def __init__(self, cfg: TorchDriveGymEnvConfig):
         device = torch.device('cuda')
-        driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
-        simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
-                                         renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
+        map_cfg = find_map_config(cfg.map_name)
+        if map_cfg is None:
+            raise RuntimeError(f'Map {cfg.map_name} not found')
+        driving_surface_mesh = map_cfg.road_mesh.to(device)
+        simulator_cfg = TorchDriveConfig(
+            left_handed_coordinates=map_cfg.left_handed_coordinates,
+            renderer=RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates)
+        )
+        iai_location = map_cfg.iai_location_name
 
-        iai_location = f'carla:{":".join(cfg.location.split("_"))}'
         agent_attributes, agent_states, recurrent_states = \
-            iai_initialize(location=iai_location, agent_count=cfg.agent_count, center=tuple(cfg.center))
+            iai_initialize(location=iai_location, agent_count=cfg.agent_count, center=tuple(map_cfg.center))
         agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
         agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
             torch.float32)

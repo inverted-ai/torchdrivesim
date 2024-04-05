@@ -67,11 +67,21 @@ contacting us. For academics, we may be able to offer free API keys.
 
 ## Maps and Map Formats
 
-TorchDriveSim uses Lanelet2 as its map format, but it runs without Lanelet2 on any of the pre-defined
-maps available as meshes in this repo, although it won't be able to detect wrong way infractions and use certain
-heuristic behavioral models. To use those features, and to use TorchDriveSim with your own maps, you'll need to install
-Lanelet2 with its Python bindings. You can either use the official distribution or the fork hosted by Inverted AI,
-which allows for installation without ROS.
+Several CARLA maps (`carla_Town01`, `carla_Town02`, `carla_Town03`, `carla_Town04`, `carla_Town10HD`)
+are included in `torchdrivesim` itself and can be loaded
+by name. To include other maps, place the files in the format described below somewhere in a folder referenced by the
+`TDS_RESOURCE_PATH` environment variable. Generally, a map is defined by a folder with the following structure:
+```
+MAPNAME/
+  metadata.json  # custom metadata format
+  MAPNAME.osm  # road network in Lanelet2 format
+  MAPNAME_mesh.json  # custom road mesh format, can be derived from the .osm file
+  MAPNAME_stoplines.json  # custom format specifying traffic lights, stop signs, and yield signs, if needed
+```
+
+See the bundled maps in `torchdrivesim/resources/maps` for examples. There is currently no tooling available
+for creating TorchDriveSim-compatible maps, but you can try the experimental OpenDRIVE
+[converter](https://github.com/inverted-ai/map-converter).
 
 ## Scenario Definition
 
