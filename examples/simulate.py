@@ -24,7 +24,7 @@ from torchdrivesim.utils import Resolution
 
 @dataclass
 class SimulationConfig:
-    map_name: str = "carla_Town10HD"
+    map_name: str = "carla_Town03"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
