@@ -14,10 +14,9 @@ from omegaconf import OmegaConf
 
 from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
 from torchdrivesim.kinematic import KinematicBicycle
-from torchdrivesim.map import find_map_config
+from torchdrivesim.map import find_map_config, traffic_controls_from_map_config
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
-from torchdrivesim.traffic_controls import traffic_controls_from_map_config
 from torchdrivesim.traffic_lights import current_light_state_tensor_from_controller
 from torchdrivesim.utils import Resolution
 

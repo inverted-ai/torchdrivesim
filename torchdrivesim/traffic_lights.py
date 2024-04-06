@@ -8,6 +8,7 @@ from enum import auto, Enum
 import logging
 import torch
 
+from torchdrivesim.traffic_controls import TrafficLightControl
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +275,10 @@ class TrafficLightController:
         )
 
 
-def current_light_state_tensor_from_controller(traffic_light_controller: TrafficLightController, traffic_light_ids: List[int]):
-    from torchdrivesim.traffic_controls import TrafficLightControl
-    return torch.tensor([TrafficLightControl._default_allowed_states().index(traffic_light_controller.current_state[str(_id)].name) for _id in traffic_light_ids])
+def current_light_state_tensor_from_controller(
+        traffic_light_controller: TrafficLightController, traffic_light_ids: List[int]
+) -> torch.Tensor:
+    return torch.tensor([
+        TrafficLightControl._default_allowed_states().index(traffic_light_controller.current_state[str(_id)].name)
+        for _id in traffic_light_ids]
+    )
