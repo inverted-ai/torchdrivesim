@@ -11,9 +11,8 @@ import numpy as np
 import imageio
 from omegaconf import OmegaConf
 
-from torchdrivesim.map import find_map_config, download_iai_map
+from torchdrivesim.map import find_map_config, download_iai_map, traffic_controls_from_map_config
 from torchdrivesim.rendering import  renderer_from_config, RendererConfig
-from torchdrivesim.traffic_controls import traffic_controls_from_map_config
 from torchdrivesim.utils import Resolution
 
 

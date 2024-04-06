@@ -4,9 +4,13 @@ import os
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, List
 
+import torch
+
 import torchdrivesim
 from torchdrivesim.lanelet2 import LaneletMap, load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.traffic_controls import BaseTrafficControl, TrafficLightControl, StopSignControl, YieldControl
+from torchdrivesim.traffic_lights import TrafficLightController
 
 
 @dataclass
@@ -68,7 +72,11 @@ class MapConfig:
             stoplines = [Stopline(**d) for d in json.load(f)]
         return stoplines
 
-    # TODO: traffic light controllers
+    @property
+    def traffic_light_controller(self) -> Optional[TrafficLightController]:
+        if self.traffic_light_controller_path is None:
+            return None
+        return TrafficLightController.from_json(self.traffic_light_controller_path)
 
 
 def _filename_defaults(name: str) -> Dict[str, str]:
@@ -179,3 +187,32 @@ def download_iai_map(location_name: str, save_path: str) -> None:
     cfg.mesh_path = os.path.abspath(mesh_path)
 
     store_map_config(cfg, os.path.join(save_path, 'metadata.json'))
+
+
+def traffic_controls_from_map_config(cfg: MapConfig) -> Dict[str, BaseTrafficControl]:
+    traffic_control_poses = {
+        'traffic-light': [],
+        'stop-sign': [],
+        'yield-sign': [],
+    }
+    for stopline in cfg.stoplines:
+        if stopline.agent_type not in traffic_control_poses.keys():
+            continue
+        pos = torch.tensor(
+            [stopline.x, stopline.y, stopline.length, stopline.width, stopline.orientation],
+        )
+        traffic_control_poses[stopline.agent_type].append(pos)
+    traffic_controls = dict()
+    if traffic_control_poses['traffic-light']:
+        traffic_controls['traffic_light'] = TrafficLightControl(
+            torch.stack(traffic_control_poses['traffic-light']).unsqueeze(0)
+        )
+    if traffic_control_poses['stop-sign']:
+        traffic_controls['stop_sign'] = StopSignControl(
+            torch.stack(traffic_control_poses['stop-sign']).unsqueeze(0)
+        )
+    if traffic_control_poses['yield-sign']:
+        traffic_controls['yield_sign'] = YieldControl(
+            torch.stack(traffic_control_poses['yield-sign']).unsqueeze(0)
+        )
+    return traffic_controls

@@ -1,0 +1,1048 @@
+[
+  [
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "red",
+        "3416": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "green",
+        "3416": "red"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "yellow",
+        "3416": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "red",
+        "3416": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3414": "green",
+        "3415": "red",
+        "3416": "red"
+      },
+      "duration": "15",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3414": "yellow",
+        "3415": "red",
+        "3416": "red"
+      },
+      "duration": "5",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "red",
+        "3416": "red"
+      },
+      "duration": "2",
+      "state": 6,
+      "next_state": 7
+    },
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "red",
+        "3416": "green"
+      },
+      "duration": "15",
+      "state": 7,
+      "next_state": 8
+    },
+    {
+      "actor_states": {
+        "3414": "red",
+        "3415": "red",
+        "3416": "yellow"
+      },
+      "duration": "5",
+      "state": 8,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "red",
+        "3434": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3401": "green",
+        "3429": "red",
+        "3434": "red"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3401": "yellow",
+        "3429": "red",
+        "3434": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "red",
+        "3434": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "green",
+        "3434": "red"
+      },
+      "duration": "10",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "yellow",
+        "3434": "red"
+      },
+      "duration": "5",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "red",
+        "3434": "red"
+      },
+      "duration": "2",
+      "state": 6,
+      "next_state": 7
+    },
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "red",
+        "3434": "green"
+      },
+      "duration": "15",
+      "state": 7,
+      "next_state": 8
+    },
+    {
+      "actor_states": {
+        "3401": "red",
+        "3429": "red",
+        "3434": "yellow"
+      },
+      "duration": "5",
+      "state": 8,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "red",
+        "3428": "red",
+        "4400": "red",
+        "4427": "red",
+        "4428": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3400": "green",
+        "3427": "red",
+        "3428": "red",
+        "4400": "green",
+        "4427": "red",
+        "4428": "red"
+      },
+      "duration": "20",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3400": "yellow",
+        "3427": "red",
+        "3428": "red",
+        "4400": "yellow",
+        "4427": "red",
+        "4428": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "red",
+        "3428": "red",
+        "4400": "red",
+        "4427": "red",
+        "4428": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "red",
+        "3428": "green",
+        "4400": "red",
+        "4427": "red",
+        "4428": "green"
+      },
+      "duration": "20",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "red",
+        "3428": "yellow",
+        "4400": "red",
+        "4427": "red",
+        "4428": "yellow"
+      },
+      "duration": "5",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "red",
+        "3428": "red",
+        "4400": "red",
+        "4427": "red",
+        "4428": "red"
+      },
+      "duration": "2",
+      "state": 6,
+      "next_state": 7
+    },
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "green",
+        "3428": "red",
+        "4400": "red",
+        "4427": "green",
+        "4428": "red"
+      },
+      "duration": "20",
+      "state": 7,
+      "next_state": 8
+    },
+    {
+      "actor_states": {
+        "3400": "red",
+        "3427": "yellow",
+        "3428": "red",
+        "4400": "red",
+        "4427": "yellow",
+        "4428": "red"
+      },
+      "duration": "5",
+      "state": 8,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3421": "red",
+        "3422": "green",
+        "3423": "red",
+        "4421": "red",
+        "4422": "green"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3421": "green",
+        "3422": "green",
+        "3423": "red",
+        "4421": "green",
+        "4422": "green"
+      },
+      "duration": "20",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3421": "yellow",
+        "3422": "green",
+        "3423": "red",
+        "4421": "yellow",
+        "4422": "green"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3421": "red",
+        "3422": "green",
+        "3423": "red",
+        "4421": "red",
+        "4422": "green"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3421": "red",
+        "3422": "green",
+        "3423": "green",
+        "4421": "red",
+        "4422": "green"
+      },
+      "duration": "20",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3421": "red",
+        "3422": "green",
+        "3423": "yellow",
+        "4421": "red",
+        "4422": "green"
+      },
+      "duration": "5",
+      "state": 5,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3402": "red",
+        "3413": "red",
+        "3440": "red",
+        "3441": "red",
+        "4402": "red",
+        "4413": "red",
+        "5402": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3402": "red",
+        "3413": "red",
+        "3440": "green",
+        "3441": "green",
+        "4402": "red",
+        "4413": "red",
+        "5402": "red"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3402": "red",
+        "3413": "red",
+        "3440": "yellow",
+        "3441": "yellow",
+        "4402": "red",
+        "4413": "red",
+        "5402": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3402": "red",
+        "3413": "red",
+        "3440": "red",
+        "3441": "red",
+        "4402": "red",
+        "4413": "red",
+        "5402": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3402": "green",
+        "3413": "green",
+        "3440": "red",
+        "3441": "red",
+        "4402": "red",
+        "4413": "red",
+        "5402": "green"
+      },
+      "duration": "10",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3402": "green",
+        "3413": "green",
+        "3440": "red",
+        "3441": "red",
+        "4402": "green",
+        "4413": "green",
+        "5402": "green"
+      },
+      "duration": "20",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3402": "yellow",
+        "3413": "yellow",
+        "3440": "red",
+        "3441": "red",
+        "4402": "yellow",
+        "4413": "yellow",
+        "5402": "yellow"
+      },
+      "duration": "7",
+      "state": 6,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3424": "red",
+        "3425": "red",
+        "3426": "green",
+        "4424": "red",
+        "4426": "green"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3424": "green",
+        "3425": "red",
+        "3426": "green",
+        "4424": "green",
+        "4426": "green"
+      },
+      "duration": "20",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3424": "yellow",
+        "3425": "red",
+        "3426": "green",
+        "4424": "yellow",
+        "4426": "green"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3424": "red",
+        "3425": "red",
+        "3426": "green",
+        "4424": "red",
+        "4426": "green"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3424": "red",
+        "3425": "green",
+        "3426": "green",
+        "4424": "red",
+        "4426": "green"
+      },
+      "duration": "15",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3424": "red",
+        "3425": "yellow",
+        "3426": "green",
+        "4424": "red",
+        "4426": "green"
+      },
+      "duration": "5",
+      "state": 5,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3407": "red",
+        "3408": "red",
+        "3409": "red",
+        "3410": "red",
+        "4407": "red",
+        "4410": "red",
+        "5407": "red",
+        "6407": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3407": "red",
+        "3408": "green",
+        "3409": "green",
+        "3410": "red",
+        "4407": "red",
+        "4410": "red",
+        "5407": "red",
+        "6407": "red"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3407": "red",
+        "3408": "yellow",
+        "3409": "yellow",
+        "3410": "red",
+        "4407": "red",
+        "4410": "red",
+        "5407": "red",
+        "6407": "red"
+      },
+      "duration": "6",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3407": "red",
+        "3408": "red",
+        "3409": "red",
+        "3410": "red",
+        "4407": "red",
+        "4410": "red",
+        "5407": "red",
+        "6407": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3407": "red",
+        "3408": "red",
+        "3409": "red",
+        "3410": "green",
+        "4407": "red",
+        "4410": "red",
+        "5407": "green",
+        "6407": "green"
+      },
+      "duration": "10",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3407": "green",
+        "3408": "red",
+        "3409": "red",
+        "3410": "green",
+        "4407": "green",
+        "4410": "green",
+        "5407": "green",
+        "6407": "green"
+      },
+      "duration": "20",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3407": "yellow",
+        "3408": "red",
+        "3409": "red",
+        "3410": "yellow",
+        "4407": "yellow",
+        "4410": "yellow",
+        "5407": "yellow",
+        "6407": "yellow"
+      },
+      "duration": "7",
+      "state": 6,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3403": "red",
+        "3404": "red",
+        "3405": "red",
+        "3406": "red",
+        "4403": "red",
+        "4404": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3403": "red",
+        "3404": "red",
+        "3405": "green",
+        "3406": "green",
+        "4403": "red",
+        "4404": "red"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3403": "red",
+        "3404": "red",
+        "3405": "yellow",
+        "3406": "yellow",
+        "4403": "red",
+        "4404": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3403": "red",
+        "3404": "red",
+        "3405": "red",
+        "3406": "red",
+        "4403": "red",
+        "4404": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3403": "green",
+        "3404": "red",
+        "3405": "red",
+        "3406": "red",
+        "4403": "red",
+        "4404": "green"
+      },
+      "duration": "10",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3403": "green",
+        "3404": "green",
+        "3405": "red",
+        "3406": "red",
+        "4403": "green",
+        "4404": "green"
+      },
+      "duration": "20",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3403": "yellow",
+        "3404": "yellow",
+        "3405": "red",
+        "3406": "red",
+        "4403": "yellow",
+        "4404": "yellow"
+      },
+      "duration": "7",
+      "state": 6,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3430": "red",
+        "3431": "red",
+        "3432": "red",
+        "3433": "red",
+        "4430": "red",
+        "4431": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3430": "red",
+        "3431": "red",
+        "3432": "green",
+        "3433": "green",
+        "4430": "red",
+        "4431": "red"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3430": "red",
+        "3431": "red",
+        "3432": "yellow",
+        "3433": "yellow",
+        "4430": "red",
+        "4431": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3430": "red",
+        "3431": "red",
+        "3432": "red",
+        "3433": "red",
+        "4430": "red",
+        "4431": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3430": "green",
+        "3431": "red",
+        "3432": "red",
+        "3433": "red",
+        "4430": "red",
+        "4431": "green"
+      },
+      "duration": "10",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3430": "green",
+        "3431": "green",
+        "3432": "red",
+        "3433": "red",
+        "4430": "green",
+        "4431": "green"
+      },
+      "duration": "20",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3430": "yellow",
+        "3431": "yellow",
+        "3432": "red",
+        "3433": "red",
+        "4430": "yellow",
+        "4431": "yellow"
+      },
+      "duration": "7",
+      "state": 6,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3417": "green",
+        "3418": "red",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "12",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3417": "yellow",
+        "3418": "red",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "5",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "green",
+        "3420": "red"
+      },
+      "duration": "12",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "yellow",
+        "3420": "red"
+      },
+      "duration": "5",
+      "state": 5,
+      "next_state": 6
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "2",
+      "state": 6,
+      "next_state": 7
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "red",
+        "3420": "green"
+      },
+      "duration": "12",
+      "state": 7,
+      "next_state": 8
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "red",
+        "3420": "yellow"
+      },
+      "duration": "5",
+      "state": 8,
+      "next_state": 9
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "red",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "2",
+      "state": 9,
+      "next_state": 10
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "green",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "12",
+      "state": 10,
+      "next_state": 11
+    },
+    {
+      "actor_states": {
+        "3417": "red",
+        "3418": "yellow",
+        "3419": "red",
+        "3420": "red"
+      },
+      "duration": "5",
+      "state": 11,
+      "next_state": 0
+    }
+  ],
+  [
+    {
+      "actor_states": {
+        "3399": "red",
+        "3411": "red",
+        "4399": "red",
+        "4411": "red"
+      },
+      "duration": "2",
+      "state": 0,
+      "next_state": 1
+    },
+    {
+      "actor_states": {
+        "3399": "red",
+        "3411": "green",
+        "4399": "red",
+        "4411": "green"
+      },
+      "duration": "15",
+      "state": 1,
+      "next_state": 2
+    },
+    {
+      "actor_states": {
+        "3399": "red",
+        "3411": "yellow",
+        "4399": "red",
+        "4411": "yellow"
+      },
+      "duration": "7",
+      "state": 2,
+      "next_state": 3
+    },
+    {
+      "actor_states": {
+        "3399": "red",
+        "3411": "red",
+        "4399": "red",
+        "4411": "red"
+      },
+      "duration": "2",
+      "state": 3,
+      "next_state": 4
+    },
+    {
+      "actor_states": {
+        "3399": "green",
+        "3411": "red",
+        "4399": "green",
+        "4411": "red"
+      },
+      "duration": "15",
+      "state": 4,
+      "next_state": 5
+    },
+    {
+      "actor_states": {
+        "3399": "yellow",
+        "3411": "red",
+        "4399": "yellow",
+        "4411": "red"
+      },
+      "duration": "7",
+      "state": 5,
+      "next_state": 0
+    }
+  ]
+]
