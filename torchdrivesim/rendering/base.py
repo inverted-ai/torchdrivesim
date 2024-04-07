@@ -490,7 +490,7 @@ class BirdviewRenderer(abc.ABC):
                 continue
             verts, faces = self.build_verts_faces_from_bounding_box(element.corners)
             if control_type == 'traffic_light':
-                categories = [f'traffic_light_{state}' for state in element.allowed_states]
+                categories = [f'{control_type}_{state}' for state in element.allowed_states]
                 vert_category = element.state.unsqueeze(-1).expand(element.state.shape + (4,)).flatten(-2, -1)
                 meshes.append(BirdviewMesh(
                     verts=verts, faces=faces, categories=categories, vert_category=vert_category,

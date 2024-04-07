@@ -1,0 +1,18 @@
+{
+    "name": "carla_Town04",
+    "left_handed_coordinates": true,
+    "center": [
+        -50.56166076660156,
+        19.930511474609375
+    ],
+    "lanelet_path": "carla_Town04.osm",
+    "lanelet_map_origin": [
+        0.0,
+        0.0
+    ],
+    "mesh_path": "carla_Town04_mesh.json",
+    "stoplines_path": "carla_Town04_stoplines.json",
+    "traffic_light_controller_path": "carla_Town04_traffic_light_controller.json",
+    "iai_location_name": "carla:Town04",
+    "note": null
+}

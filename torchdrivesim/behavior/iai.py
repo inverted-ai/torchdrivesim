@@ -11,17 +11,18 @@ from invertedai.common import TrafficLightState
 
 from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
-
+from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
 def unpack_attributes(attributes) -> torch.Tensor:
     return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
 
 
-def iai_initialize(location, agent_count, center=(0, 0)):
+def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history:Optional[List[Dict]]=None):
     import invertedai
     try:
         response = invertedai.api.initialize(
-            location=location, agent_count=agent_count, location_of_interest=center
+            location=location, agent_count=agent_count, location_of_interest=center,
+            traffic_light_state_history=traffic_light_state_history
         )
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
@@ -136,21 +137,6 @@ def iai_location_info_from_local(location: str):
     return response
 
 
-def cache_iai_location_info(locations: List[str]):
-    import invertedai
-    try:
-        if not os.path.isdir(IAI_LOCATION_INFO_DIR):
-            os.mkdir(IAI_LOCATION_INFO_DIR)
-        for location in locations:
-            response = invertedai.api.location_info(
-                location=location
-            )
-            with open(f"{IAI_LOCATION_INFO_DIR}/{location}.pkl", "wb") as f:
-                pickle.dump(response, f)
-    except invertedai.error.InvalidRequestError:
-        raise LocationInfoFailedError()
-
-
 def get_static_actors(location_info_response):
     static_actors = dict()
     for actor in location_info_response.static_actors:
@@ -174,7 +160,9 @@ class IAIWrapper(NPCWrapper):
             used in the kinematic bicycle model. By default, a realistic value based on the vehicle length is used.
     """
     def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
-                 recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None, car_sequences: Optional[Dict[int, List[List[float]]]] = None):
+                 recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None,
+                 car_sequences: Optional[Dict[int, List[List[float]]]] = None,
+                 traffic_light_controller: Optional[TrafficLightController] = None, traffic_light_ids: Optional[List[int]] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
 
         self._locations = locations
@@ -182,6 +170,10 @@ class IAIWrapper(NPCWrapper):
         self._recurrent_states = recurrent_states
         self._car_sequences = car_sequences
         self._iai_timestep = 0
+        self._traffic_light_controller = traffic_light_controller
+        self._traffic_light_ids = traffic_light_ids
+        assert (self._traffic_light_controller is None) == (self._traffic_light_ids is None), \
+                "Both _traffic_light_controller and _traffic_light_ids should be either None or not None"
 
         lenwid = HomogeneousWrapper(self.inner_simulator).get_agent_size()[..., :2]
         if rear_axis_offset is None:
@@ -202,11 +194,13 @@ class IAIWrapper(NPCWrapper):
         for i in range(self.batch_size):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
-                             traffic_lights_states=traffic_lights_states)
+                             traffic_lights_states=self._traffic_light_controller.current_state_with_name if self._traffic_light_controller is not None else None)
+
             if self._car_sequences is not None:
                 for agent_idx in self._car_sequences:
                     if self._iai_timestep < len(self._car_sequences[agent_idx]):
                         s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
+
             states.append(s)
             recurrent.append(r)
         states = torch.stack(states, dim=0).to(self.get_state().device)
@@ -217,6 +211,10 @@ class IAIWrapper(NPCWrapper):
 
     def step(self, action):
         self._npc_predictions, self._recurrent_states = self._get_npc_predictions()  # TODO: run async after step
+        if self._traffic_light_controller is not None:
+            self._traffic_light_controller.tick(0.1)
+            self.get_innermost_simulator().traffic_controls['traffic_light'].set_state(
+                current_light_state_tensor_from_controller(self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1))
         super().step(action)
         self._npc_predictions = None
         self._iai_timestep += 1

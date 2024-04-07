@@ -1,5 +1,6 @@
 """
 Simple demonstration for how to grab a map and visualize it.
+Downloading maps from the IAI API requires IAI_API_KEY to be set.
 """
 import os
 import sys
@@ -8,24 +9,19 @@ from typing import Optional, Tuple
 
 import numpy as np
 import imageio
-import lanelet2
 from omegaconf import OmegaConf
 
-from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrivesim.mesh import BirdviewMesh
-from torchdrivesim.rendering import BirdviewRenderer, renderer_from_config, RendererConfig
-from torchdrivesim.simulator import TorchDriveConfig
+from torchdrivesim.map import find_map_config, download_iai_map, traffic_controls_from_map_config
+from torchdrivesim.rendering import  renderer_from_config, RendererConfig
 from torchdrivesim.utils import Resolution
 
 
 @dataclass
 class MapVisualizationConfig:
-    driving_surface_mesh_path: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
-    )
-    map_name: str = "Town03"
+    map_name: str = "carla_Town03"
+    iai_location_to_download: Optional[str] = None
     res: int = 1024
-    fov: float = 1000
+    fov: float = 400
     center: Optional[Tuple[float, float]] = None
     map_origin: Tuple[float, float] = (0, 0)
     orientation: float = 0
@@ -35,11 +31,19 @@ class MapVisualizationConfig:
 def visualize_map(cfg: MapVisualizationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
-    driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
-    renderer_cfg = RendererConfig(left_handed_coordinates=True)
+    if cfg.iai_location_to_download is not None:
+        download_iai_map(cfg.iai_location_to_download, save_path=f'{cfg.map_name}')
+    map_cfg = find_map_config(cfg.map_name)
+    driving_surface_mesh = map_cfg.road_mesh.to(device)
+    renderer_cfg = RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates)
     renderer = renderer_from_config(
         renderer_cfg, device=device, static_mesh=driving_surface_mesh
     )
+
+    traffic_controls = traffic_controls_from_map_config(map_cfg)
+    controls_mesh = renderer.make_traffic_controls_mesh(traffic_controls).to(renderer.device)
+    renderer.add_static_meshes([controls_mesh])
+
     map_image = renderer.render_static_meshes(res=res, fov=cfg.fov)
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)
     imageio.imsave(

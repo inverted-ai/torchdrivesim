@@ -272,6 +272,13 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_waypoints_state(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAx1 tensors representing current agent waypoints state.
+        """
+        pass
+
+    @abc.abstractmethod
     def get_waypoints_mask(self) -> TensorPerAgentType:
         """
         Returns a functor of BxAxM boolean tensors representing current agent waypoints present mask.
@@ -762,6 +769,9 @@ class Simulator(SimulatorInterface):
     def get_waypoints(self):
         return self.waypoint_goals.get_waypoints() if self.waypoint_goals is not None else None
 
+    def get_waypoints_state(self):
+        return self.waypoint_goals.state if self.waypoint_goals is not None else None
+
     def get_waypoints_mask(self):
         return self.waypoint_goals.get_masks() if self.waypoint_goals is not None else None
 
@@ -1085,6 +1095,9 @@ class SimulatorWrapper(SimulatorInterface):
     def get_waypoints(self):
         return self.inner_simulator.get_waypoints()
 
+    def get_waypoints_state(self):
+        return self.inner_simulator.get_waypoints_state()
+
     def get_waypoints_mask(self):
         return self.inner_simulator.get_waypoints_mask()
 
@@ -1203,6 +1216,14 @@ class NPCWrapper(SimulatorWrapper):
                 lambda x, k: x[..., k.logical_not(), :, :], waypoints, self.npc_mask
             )
         return waypoints
+
+    def get_waypoints_state(self):
+        waypoints_state = self.inner_simulator.get_waypoints_state()
+        if waypoints_state is not None:
+            waypoints_state = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :], waypoints_state, self.npc_mask
+            )
+        return waypoints_state
 
     def get_waypoints_mask(self):
         masks = self.inner_simulator.get_waypoints_mask()
@@ -1488,6 +1509,12 @@ class HomogeneousWrapper(SimulatorWrapper):
         if waypoints is not None:
             waypoints = self.agent_concat(waypoints, agent_dim=-3)
         return waypoints
+
+    def get_waypoints_state(self):
+        waypoints_state = self.inner_simulator.get_waypoints_state()
+        if waypoints_state is not None:
+            waypoints_state = self.agent_concat(waypoints_state, agent_dim=-2)
+        return waypoints_state
 
     def get_waypoints_mask(self):
         masks = self.inner_simulator.get_waypoints_mask()
@@ -1893,6 +1920,12 @@ class SelectiveWrapper(SimulatorWrapper):
         if waypoints is not None:
             waypoints = self._restrict_tensor(waypoints, agent_dim=-3)
         return waypoints
+
+    def get_waypoints_state(self):
+        waypoints_state = self.inner_simulator.get_waypoints_state()
+        if waypoints_state is not None:
+            waypoints_state = self._restrict_tensor(waypoints_state, agent_dim=-2)
+        return waypoints_state
 
     def get_waypoints_mask(self):
         masks = self.inner_simulator.get_waypoints_mask()

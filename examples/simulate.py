@@ -14,27 +14,22 @@ from omegaconf import OmegaConf
 
 from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
 from torchdrivesim.kinematic import KinematicBicycle
-from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.map import find_map_config, traffic_controls_from_map_config
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
 from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.traffic_lights import current_light_state_tensor_from_controller
 from torchdrivesim.utils import Resolution
 
 
 @dataclass
 class SimulationConfig:
-    driving_surface_mesh_path: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "../resources/maps/carla/meshes/Town03_driving_surface_mesh.pkl"
-    )
-    map_name: str = "Town03"
+    map_name: str = "carla_Town03"
     res: int = 1024
     fov: float = 200
     center: Optional[Tuple[float, float]] = None
-    map_origin: Tuple[float, float] = (0, 0)
     orientation: float = np.pi / 2
     save_path: str = './simulation.gif'
     method: str = 'iai'
-    left_handed: bool = True
     agent_count: int = 5
     steps: int = 20
 
@@ -42,33 +37,44 @@ class SimulationConfig:
 def simulate(cfg: SimulationConfig):
     device = 'cuda'
     res = Resolution(cfg.res, cfg.res)
-    driving_surface_mesh = BirdviewMesh.unpickle(cfg.driving_surface_mesh_path).to(device)
-    simulator_cfg = TorchDriveConfig(left_handed_coordinates=cfg.left_handed,
-                                     renderer=RendererConfig(left_handed_coordinates=cfg.left_handed))
+    map_cfg = find_map_config(cfg.map_name)
+    traffic_light_controller = map_cfg.traffic_light_controller
+    initial_light_state_name = traffic_light_controller.current_state_with_name
+    traffic_light_ids = [stopline.actor_id for stopline in map_cfg.stoplines if stopline.agent_type == 'traffic-light']
+    if cfg.center is None:
+        cfg.center = map_cfg.center
+    driving_surface_mesh = map_cfg.road_mesh.to(device)
+    simulator_cfg = TorchDriveConfig(left_handed_coordinates=map_cfg.left_handed_coordinates,
+                                     renderer=RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates))
 
-    location = f'carla:{":".join(cfg.map_name.split("_"))}'
+    location = map_cfg.iai_location_name
     agent_attributes, agent_states, recurrent_states =\
-        iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None)
+        iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None,
+                       traffic_light_state_history=[initial_light_state_name])
     agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
     agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
     kinematic_model = KinematicBicycle()
     kinematic_model.set_params(lr=agent_attributes[..., 2])
     kinematic_model.set_state(agent_states)
     renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+    traffic_controls = traffic_controls_from_map_config(map_cfg)
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
         kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
         initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
-        renderer=renderer,
+        renderer=renderer, traffic_controls=traffic_controls,
     )
     simulator = HomogeneousWrapper(simulator)
     npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
     npc_mask[0] = False
     simulator = IAIWrapper(
         simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],
-        rear_axis_offset=agent_attributes[..., 2:3], locations=[location]
+        rear_axis_offset=agent_attributes[..., 2:3], locations=[location],
+        traffic_light_controller=traffic_light_controller,
+        traffic_light_ids=traffic_light_ids
     )
+    traffic_controls['traffic_light'].set_state(current_light_state_tensor_from_controller(traffic_light_controller, traffic_light_ids).unsqueeze(0))
 
     images = []
     for _ in range(cfg.steps):
