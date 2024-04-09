@@ -855,9 +855,7 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_action))
 
         self.across_agent_types(lambda kin, act: kin.step(act), self.kinematic_model, agent_action)
-        self.traffic_controls_step()
 
-    def traffic_controls_step(self):
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
@@ -1333,7 +1331,6 @@ class NPCWrapper(SimulatorWrapper):
             lambda x, k: x[..., torch.logical_not(k)], self.inner_simulator.get_present_mask(), self.npc_mask
         )
         self.update_present_mask(non_replay_present_mask)
-
 
     def update_present_mask(self, present_mask):
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), present_mask)

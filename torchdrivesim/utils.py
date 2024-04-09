@@ -13,6 +13,7 @@ from torch import Tensor
 
 Resolution = collections.namedtuple('Resolution', ['width', 'height'])
 
+
 def isin(x: Tensor, y: Tensor) -> Tensor:
     """
     Checks whether elements of tensor x are contained in tensor y.

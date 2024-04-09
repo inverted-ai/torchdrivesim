@@ -153,7 +153,6 @@ class IAIWrapper(NPCWrapper):
     def _get_npc_predictions(self):
         states, recurrent = [], []
         agent_states = HomogeneousWrapper(self.inner_simulator).get_state()
-
         for i in range(self.batch_size):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
