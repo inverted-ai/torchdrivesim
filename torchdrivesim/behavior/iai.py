@@ -159,7 +159,7 @@ class IAIWrapper(NPCWrapper):
             if self._car_sequences is not None:
                 for agent_idx in self._car_sequences:
                     if self._iai_timestep < len(self._car_sequences[agent_idx]):
-                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep]).cuda()
+                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep])
 
             states.append(s)
             recurrent.append(r)
