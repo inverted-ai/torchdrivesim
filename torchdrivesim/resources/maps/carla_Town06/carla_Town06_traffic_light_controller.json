@@ -1,0 +1,768 @@
+[
+[
+  {
+    "actor_states": {
+      "4041": "red",
+      "4101": "red",
+      "5041": "red",
+      "5101": "red",
+      "6041": "red",
+      "6101": "red",
+      "7041": "red",
+      "7101": "red",
+      "8041": "red",
+      "8101": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4041": "red",
+      "4101": "green",
+      "5041": "red",
+      "5101": "green",
+      "6041": "red",
+      "6101": "green",
+      "7041": "red",
+      "7101": "green",
+      "8041": "red",
+      "8101": "green"
+    },
+    "duration": "25",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4041": "red",
+      "4101": "yellow",
+      "5041": "red",
+      "5101": "yellow",
+      "6041": "red",
+      "6101": "yellow",
+      "7041": "red",
+      "7101": "yellow",
+      "8041": "red",
+      "8101": "yellow"
+    },
+    "duration": "8",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4041": "red",
+      "4101": "red",
+      "5041": "red",
+      "5101": "red",
+      "6041": "red",
+      "6101": "red",
+      "7041": "red",
+      "7101": "red",
+      "8041": "red",
+      "8101": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4041": "green",
+      "4101": "red",
+      "5041": "green",
+      "5101": "red",
+      "6041": "green",
+      "6101": "red",
+      "7041": "green",
+      "7101": "red",
+      "8041": "green",
+      "8101": "red"
+    },
+    "duration": "25",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4041": "yellow",
+      "4101": "red",
+      "5041": "yellow",
+      "5101": "red",
+      "6041": "yellow",
+      "6101": "red",
+      "7041": "yellow",
+      "7101": "red",
+      "8041": "yellow",
+      "8101": "red"
+    },
+    "duration": "8",
+    "state": 5,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "red",
+      "4104": "red",
+      "5100": "red",
+      "5103": "red",
+      "5104": "red",
+      "6100": "red",
+      "6103": "red",
+      "6104": "red",
+      "7100": "red"
+    },
+    "duration": "4",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "green",
+      "4104": "red",
+      "5100": "red",
+      "5103": "red",
+      "5104": "red",
+      "6100": "red",
+      "6103": "red",
+      "6104": "green",
+      "7100": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "yellow",
+      "4104": "red",
+      "5100": "red",
+      "5103": "red",
+      "5104": "red",
+      "6100": "red",
+      "6103": "red",
+      "6104": "yellow",
+      "7100": "red"
+    },
+    "duration": "5",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "red",
+      "4104": "red",
+      "5100": "red",
+      "5103": "red",
+      "5104": "red",
+      "6100": "red",
+      "6103": "red",
+      "6104": "red",
+      "7100": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "red",
+      "4104": "green",
+      "5100": "red",
+      "5103": "green",
+      "5104": "green",
+      "6100": "red",
+      "6103": "green",
+      "6104": "red",
+      "7100": "red"
+    },
+    "duration": "25",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "red",
+      "4104": "yellow",
+      "5100": "red",
+      "5103": "yellow",
+      "5104": "yellow",
+      "6100": "red",
+      "6103": "yellow",
+      "6104": "red",
+      "7100": "red"
+    },
+    "duration": "8",
+    "state": 5,
+    "next_state": 6
+  },
+  {
+    "actor_states": {
+      "4100": "red",
+      "4103": "red",
+      "4104": "red",
+      "5100": "red",
+      "5103": "red",
+      "5104": "red",
+      "6100": "red",
+      "6103": "red",
+      "6104": "red",
+      "7100": "red"
+    },
+    "duration": "2",
+    "state": 6,
+    "next_state": 7
+  },
+  {
+    "actor_states": {
+      "4100": "green",
+      "4103": "red",
+      "4104": "red",
+      "5100": "green",
+      "5103": "red",
+      "5104": "red",
+      "6100": "green",
+      "6103": "red",
+      "6104": "red",
+      "7100": "green"
+    },
+    "duration": "25",
+    "state": 7,
+    "next_state": 8
+  },
+  {
+    "actor_states": {
+      "4100": "yellow",
+      "4103": "red",
+      "4104": "red",
+      "5100": "yellow",
+      "5103": "red",
+      "5104": "red",
+      "6100": "yellow",
+      "6103": "red",
+      "6104": "red",
+      "7100": "yellow"
+    },
+    "duration": "8",
+    "state": 8,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4040": "red",
+      "4095": "red",
+      "5040": "red",
+      "5095": "red",
+      "6040": "red",
+      "6095": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4040": "green",
+      "4095": "green",
+      "5040": "green",
+      "5095": "green",
+      "6040": "green",
+      "6095": "green"
+    },
+    "duration": "60",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4040": "yellow",
+      "4095": "yellow",
+      "5040": "yellow",
+      "5095": "yellow",
+      "6040": "yellow",
+      "6095": "yellow"
+    },
+    "duration": "10",
+    "state": 2,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4038": "red",
+      "4092": "red",
+      "4096": "red",
+      "5038": "red",
+      "5092": "green",
+      "5096": "red",
+      "6092": "red",
+      "6096": "red",
+      "7096": "green"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4038": "red",
+      "4092": "red",
+      "4096": "green",
+      "5038": "red",
+      "5092": "green",
+      "5096": "green",
+      "6092": "red",
+      "6096": "green",
+      "7096": "green"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4038": "red",
+      "4092": "red",
+      "4096": "yellow",
+      "5038": "red",
+      "5092": "green",
+      "5096": "yellow",
+      "6092": "red",
+      "6096": "yellow",
+      "7096": "green"
+    },
+    "duration": "5",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4038": "red",
+      "4092": "red",
+      "4096": "red",
+      "5038": "red",
+      "5092": "green",
+      "5096": "red",
+      "6092": "red",
+      "6096": "red",
+      "7096": "green"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4038": "green",
+      "4092": "green",
+      "4096": "red",
+      "5038": "green",
+      "5092": "green",
+      "5096": "red",
+      "6092": "green",
+      "6096": "red",
+      "7096": "green"
+    },
+    "duration": "20",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4038": "yellow",
+      "4092": "yellow",
+      "4096": "red",
+      "5038": "yellow",
+      "5092": "green",
+      "5096": "red",
+      "6092": "yellow",
+      "6096": "red",
+      "7096": "green"
+    },
+    "duration": "5",
+    "state": 5,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4091": "red",
+      "4097": "red",
+      "5091": "red",
+      "5097": "red",
+      "6097": "red",
+      "7097": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4091": "green",
+      "4097": "red",
+      "5091": "green",
+      "5097": "red",
+      "6097": "red",
+      "7097": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4091": "yellow",
+      "4097": "red",
+      "5091": "yellow",
+      "5097": "red",
+      "6097": "red",
+      "7097": "red"
+    },
+    "duration": "5",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4091": "red",
+      "4097": "red",
+      "5091": "red",
+      "5097": "red",
+      "6097": "red",
+      "7097": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4091": "red",
+      "4097": "green",
+      "5091": "red",
+      "5097": "green",
+      "6097": "green",
+      "7097": "green"
+    },
+    "duration": "30",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4091": "red",
+      "4097": "yellow",
+      "5091": "red",
+      "5097": "yellow",
+      "6097": "yellow",
+      "7097": "yellow"
+    },
+    "duration": "8",
+    "state": 5,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4090": "red",
+      "4099": "red",
+      "5090": "red",
+      "5099": "red",
+      "6090": "red",
+      "6099": "red",
+      "7099": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4090": "green",
+      "4099": "red",
+      "5090": "green",
+      "5099": "red",
+      "6090": "green",
+      "6099": "red",
+      "7099": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4090": "yellow",
+      "4099": "red",
+      "5090": "yellow",
+      "5099": "red",
+      "6090": "yellow",
+      "6099": "red",
+      "7099": "red"
+    },
+    "duration": "5",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4090": "red",
+      "4099": "red",
+      "5090": "red",
+      "5099": "red",
+      "6090": "red",
+      "6099": "red",
+      "7099": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4090": "red",
+      "4099": "green",
+      "5090": "red",
+      "5099": "green",
+      "6090": "red",
+      "6099": "green",
+      "7099": "green"
+    },
+    "duration": "30",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4090": "red",
+      "4099": "yellow",
+      "5090": "red",
+      "5099": "yellow",
+      "6090": "red",
+      "6099": "yellow",
+      "7099": "yellow"
+    },
+    "duration": "8",
+    "state": 5,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4039": "red",
+      "4093": "green",
+      "4094": "green",
+      "5039": "red",
+      "5093": "red",
+      "5094": "red",
+      "6093": "red",
+      "6094": "red",
+      "7094": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4039": "green",
+      "4093": "green",
+      "4094": "green",
+      "5039": "green",
+      "5093": "green",
+      "5094": "red",
+      "6093": "green",
+      "6094": "red",
+      "7094": "red"
+    },
+    "duration": "30",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4039": "yellow",
+      "4093": "green",
+      "4094": "green",
+      "5039": "yellow",
+      "5093": "yellow",
+      "5094": "red",
+      "6093": "yellow",
+      "6094": "red",
+      "7094": "red"
+    },
+    "duration": "8",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4039": "red",
+      "4093": "green",
+      "4094": "green",
+      "5039": "red",
+      "5093": "red",
+      "5094": "red",
+      "6093": "red",
+      "6094": "red",
+      "7094": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4039": "red",
+      "4093": "green",
+      "4094": "green",
+      "5039": "red",
+      "5093": "red",
+      "5094": "green",
+      "6093": "red",
+      "6094": "green",
+      "7094": "green"
+    },
+    "duration": "30",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4039": "red",
+      "4093": "green",
+      "4094": "green",
+      "5039": "red",
+      "5093": "red",
+      "5094": "yellow",
+      "6093": "red",
+      "6094": "yellow",
+      "7094": "yellow"
+    },
+    "duration": "8",
+    "state": 5,
+    "next_state": 0
+  }
+],
+[
+  {
+    "actor_states": {
+      "4098": "red",
+      "4102": "red",
+      "5098": "red",
+      "5102": "red",
+      "6098": "red",
+      "6102": "red",
+      "7098": "red",
+      "7102": "red",
+      "8098": "red",
+      "8102": "red"
+    },
+    "duration": "2",
+    "state": 0,
+    "next_state": 1
+  },
+  {
+    "actor_states": {
+      "4098": "green",
+      "4102": "red",
+      "5098": "green",
+      "5102": "red",
+      "6098": "green",
+      "6102": "red",
+      "7098": "green",
+      "7102": "red",
+      "8098": "green",
+      "8102": "red"
+    },
+    "duration": "20",
+    "state": 1,
+    "next_state": 2
+  },
+  {
+    "actor_states": {
+      "4098": "yellow",
+      "4102": "red",
+      "5098": "yellow",
+      "5102": "red",
+      "6098": "yellow",
+      "6102": "red",
+      "7098": "yellow",
+      "7102": "red",
+      "8098": "yellow",
+      "8102": "red"
+    },
+    "duration": "8",
+    "state": 2,
+    "next_state": 3
+  },
+  {
+    "actor_states": {
+      "4098": "red",
+      "4102": "red",
+      "5098": "red",
+      "5102": "red",
+      "6098": "red",
+      "6102": "red",
+      "7098": "red",
+      "7102": "red",
+      "8098": "red",
+      "8102": "red"
+    },
+    "duration": "2",
+    "state": 3,
+    "next_state": 4
+  },
+  {
+    "actor_states": {
+      "4098": "red",
+      "4102": "green",
+      "5098": "red",
+      "5102": "green",
+      "6098": "red",
+      "6102": "green",
+      "7098": "red",
+      "7102": "green",
+      "8098": "red",
+      "8102": "green"
+    },
+    "duration": "20",
+    "state": 4,
+    "next_state": 5
+  },
+  {
+    "actor_states": {
+      "4098": "red",
+      "4102": "yellow",
+      "5098": "red",
+      "5102": "yellow",
+      "6098": "red",
+      "6102": "yellow",
+      "7098": "red",
+      "7102": "yellow",
+      "8098": "red",
+      "8102": "yellow"
+    },
+    "duration": "8",
+    "state": 5,
+    "next_state": 0
+  }
+]
+]

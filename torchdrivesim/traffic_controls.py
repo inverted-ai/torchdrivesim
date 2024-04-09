@@ -2,11 +2,8 @@
 Definitions of traffic controls. Currently, we support traffic lights, stop signs, and yield signs.
 """
 from typing import List, Optional, Dict
-from functools import reduce
 
 import math
-import os
-import json
 import random
 import torch
 from torch import Tensor
@@ -27,11 +24,9 @@ class BaseTrafficControl:
         mask: BxN boolean tensor indicating whether a given traffic control element is present and not a padding.
     """
     def __init__(self, pos: Tensor, allowed_states: Optional[List[str]] = None,
-                 replay_states: Optional[Tensor] = None, mask: Optional[Tensor] = None, ids: Optional[List] = None,
-                 use_mock_lights: bool = False, preset_states: Optional[Dict[int, List[str]]] = None):
+                 replay_states: Optional[Tensor] = None, mask: Optional[Tensor] = None,
+                 preset_states: Optional[Dict[int, List[str]]] = None):
         self.pos = pos
-        self.ids = ids
-        self.use_mock_lights = use_mock_lights
         self.allowed_states = allowed_states if allowed_states is not None else self._default_allowed_states()
         self.replay_states = replay_states if replay_states is not None else self._default_replay_states()
         self.mask = mask if mask is not None else self._default_mask()
@@ -83,7 +78,6 @@ class BaseTrafficControl:
         other = self.__class__(
             pos=self.pos.clone(), allowed_states=self.allowed_states.copy(),
             replay_states=self.replay_states.clone(), mask=self.mask.clone(),
-            ids=self.ids.copy(), use_mock_lights=self.use_mock_lights
         )
         other.state = self.state.clone()
         return other
@@ -201,36 +195,12 @@ class TrafficLightStateMachine:
         return self.current_state['actor_states']
 
 
-class WholeMapTrafficLightController:
-    def __init__(self, data_dir):
-        self.traffic_fsms = []
-        for file in os.listdir(data_dir):
-            file_path = os.path.join(data_dir, file)
-            with open(file_path, "r") as f:
-                self.traffic_fsms.append(TrafficLightStateMachine(json.load(f)))
-
-    def tick(self, dt=0.1):
-        [fsm.tick(dt) for fsm in self.traffic_fsms]
-
-    def get_current_actor_states(self):
-        self.state = reduce(lambda x, y: {**x, **y}, [fsm.get_current_actor_states() for fsm in self.traffic_fsms], {})
-        return self.state
-
-
 class TrafficLightControl(BaseTrafficControl):
     """
     Traffic lights, with default allowed states of ['red', 'yellow', 'green'].
     An agent is regarded to violate the traffic light if the light is red and the agent
     bounding box substantially overlaps with the stop line.
     """
-    def __init__(self, location, *args, **kwargs):
-        self.location = location
-        STATE_DATA_DIR = os.path.join(
-            os.path.dirname(os.path.realpath(
-                __file__)), f"resources/traffic_light_states/{location}"
-        )
-        self.controller = WholeMapTrafficLightController(STATE_DATA_DIR)
-        super(TrafficLightControl, self).__init__(*args, **kwargs)
 
     @classmethod
     def _default_allowed_states(cls) -> List[str]:
@@ -251,26 +221,6 @@ class TrafficLightControl(BaseTrafficControl):
         else:
             red_light_violations = torch.zeros(batch_size, num_agents, dtype=torch.bool, device=agent_state.device)
         return red_light_violations
-
-    def compute_state(self, time: int) -> Tensor:
-        self.controller.tick()
-        current_actor_states = self.controller.get_current_actor_states()
-        states = [self.allowed_states.index(current_actor_states[str(id)]) for id in self.ids]
-        return torch.Tensor(states).unsqueeze(0)
-
-
-    def copy(self):
-        """
-        Duplicates this object, allowing for independent subsequent execution.
-        """
-        other = self.__class__(
-            location=self.location,
-            pos=self.pos.clone(), allowed_states=self.allowed_states.copy(),
-            replay_states=self.replay_states.clone(), mask=self.mask.clone(),
-            ids=self.ids.copy(), use_mock_lights=self.use_mock_lights
-        )
-        other.state = self.state.clone()
-        return other
 
 
 class YieldControl(BaseTrafficControl):

@@ -7,7 +7,6 @@ import random
 import torch
 from torch import Tensor
 from typing_extensions import Self
-from invertedai.common import TrafficLightState
 
 from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
@@ -116,35 +115,6 @@ def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, rec
     return agent_states, response.recurrent_states
 
 
-def iai_location_info(location: str):
-    import invertedai
-    try:
-        response = invertedai.api.location_info(
-            location=location
-        )
-    except invertedai.error.InvalidRequestError:
-        raise LocationInfoFailedError()
-    return response
-
-
-def iai_location_info_from_local(location: str):
-    path = os.path.join(
-            os.path.dirname(os.path.realpath(
-                __file__)), f"../resources/location_info"
-        )
-    with open(f"{path}/{location}.pkl", "rb") as f:
-        response = pickle.load(f)
-    return response
-
-
-def get_static_actors(location_info_response):
-    static_actors = dict()
-    for actor in location_info_response.static_actors:
-        static_actors[actor.actor_id] = {'pos': torch.Tensor([actor.center.x, actor.center.y, actor.length, actor.width, actor.orientation]),
-                                         'agent_type': actor.agent_type}
-    return static_actors
-
-
 class IAIWrapper(NPCWrapper):
     """
     Uses IAI API to control NPCs, making a call every time step.
@@ -183,13 +153,6 @@ class IAIWrapper(NPCWrapper):
     def _get_npc_predictions(self):
         states, recurrent = [], []
         agent_states = HomogeneousWrapper(self.inner_simulator).get_state()
-        traffic_controls = self.get_innermost_simulator().get_traffic_controls()
-        if (traffic_controls is not None) and ("traffic_light" in traffic_controls):
-            traffic_light_control = traffic_controls["traffic_light"]
-            traffic_lights_states = dict(zip(traffic_light_control.ids, traffic_light_control.state.squeeze()))
-            traffic_lights_states = {k:TrafficLightState(traffic_light_control.allowed_states[int(traffic_lights_states[k])]) for k in traffic_lights_states}
-        else:
-            traffic_lights_states = [None]
 
         for i in range(self.batch_size):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
