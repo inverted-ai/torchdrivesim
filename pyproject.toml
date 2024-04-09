@@ -22,7 +22,7 @@ dependencies = [
     "scipy",
     "imageio",
     "torch>=1.10.1",
-    "invertedai==0.0.14",
+    "invertedai==0.0.16",
     "omegaconf",
     "opencv-python",
 ]
