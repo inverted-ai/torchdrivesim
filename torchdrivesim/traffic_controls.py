@@ -1,10 +1,8 @@
 """
 Definitions of traffic controls. Currently, we support traffic lights, stop signs, and yield signs.
 """
-from typing import List, Optional, Dict
+from typing import List, Optional
 
-import math
-import random
 import torch
 from torch import Tensor
 

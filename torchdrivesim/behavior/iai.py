@@ -1,14 +1,12 @@
 from typing import List, Optional, Dict
 
-import os
 import math
-import pickle
 import random
 import torch
 from torch import Tensor
 from typing_extensions import Self
 
-from torchdrivesim.behavior.common import InitializationFailedError, LocationInfoFailedError
+from torchdrivesim.behavior.common import InitializationFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
