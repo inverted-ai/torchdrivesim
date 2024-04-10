@@ -49,6 +49,10 @@ class CV2Renderer(BirdviewRenderer):
                     image = cv2.fillConvexPoly(img=image, points=polygon, color=color, shift=0, lineType=cv2.LINE_AA)
             image = torch.from_numpy(image)
             image = image.transpose(-2, -3)  # point x upwards, flip to right-handed coordinate frame
+
+            if self.cfg.left_handed_coordinates:
+                image = image.flip(dims=(-2,))  # flip horizontally
+
             image_batch.append(image)
         images = torch.stack(image_batch, dim=0).to(mesh.device)
         return images
