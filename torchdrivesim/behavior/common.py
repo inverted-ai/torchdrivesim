@@ -1,5 +1,2 @@
-from invertedai.error import InvertedAIError
-
-
-class InitializationFailedError(InvertedAIError):
+class InitializationFailedError(RuntimeError):
     pass

@@ -1,10 +1,11 @@
 from typing import List, Optional, Dict
 
-import math
 import random
 import torch
 from torch import Tensor
 from typing_extensions import Self
+
+from invertedai.common import TrafficLightState, RecurrentState
 
 from torchdrivesim.behavior.common import InitializationFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
@@ -14,7 +15,7 @@ def unpack_attributes(attributes) -> torch.Tensor:
     return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
 
 
-def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history:Optional[List[Dict]]=None):
+def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history: Optional[List[Dict[int, TrafficLightState]]] = None) -> (Tensor, Tensor, List[RecurrentState]):
     import invertedai
     try:
         response = invertedai.api.initialize(
@@ -32,84 +33,21 @@ def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_his
     return agent_attributes, agent_states, response.recurrent_states
 
 
-def iai_conditional_initialize(location, agent_count, agent_attributes=None, agent_states=None, recurrent_states=None, center=(0, 0), traffic_light_state_history=None):
-    import invertedai
-    try:
-        INITIALIZE_FOV = 120
-        conditional_agent_attributes = []
-        conditional_agent_states = []
-        conditional_recurrent_states = []
-        outside_agent_states = []
-        outside_agent_attributes = []
-        outside_recurrent_states = []
-
-        for i in range(len(agent_states)):
-            agent_state = agent_states[i]
-            dist = math.dist(center, (agent_state.center.x, agent_state.center.y))
-            if dist < INITIALIZE_FOV:
-                conditional_agent_states.append(agent_state)
-                conditional_agent_attributes.append(agent_attributes[i])
-                conditional_recurrent_states.append(recurrent_states[i])
-            else:
-                outside_agent_states.append(agent_state)
-                outside_agent_attributes.append(agent_attributes[i])
-                outside_recurrent_states.append(recurrent_states[i])
-
-        agent_count -= len(conditional_agent_states)
-        if agent_count > 0:
-            try:
-                seed = random.randint(1, 10000)
-                response = invertedai.api.initialize(
-                    location=location,
-                    agent_attributes=conditional_agent_attributes,
-                    states_history=[conditional_agent_states],
-                    agent_count=agent_count,
-                    location_of_interest=center,
-                    traffic_light_state_history=traffic_light_state_history,
-                    random_seed = seed
-                )
-                agent_attribute_list = response.agent_attributes + outside_agent_attributes
-                agent_state_list = response.agent_states + outside_agent_states
-                recurrent_state_list = response.recurrent_states + outside_recurrent_states
-            except Exception:
-                agent_attribute_list = agent_attributes
-                agent_state_list = agent_states
-                recurrent_state_list = recurrent_states
-        else:
-            agent_attribute_list = agent_attributes
-            agent_state_list = agent_states
-            recurrent_state_list = recurrent_states
-
-    except invertedai.error.InvalidRequestError:
-        raise InitializationFailedError()
-
-    agent_attributes = torch.stack(
-        [torch.tensor(at.tolist()[:3]) for at in agent_attribute_list], dim=-2
-    )
-    agent_states = torch.stack(
-        [torch.tensor(st.tolist()) for st in agent_state_list], dim=-2
-    )
-    return agent_attributes, agent_states, recurrent_state_list
-
-
-def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List, traffic_lights_states: Dict = None):
+def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List[RecurrentState], traffic_lights_states: Optional[Dict[int, TrafficLightState]] = None) -> (Tensor, List[RecurrentState]):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
-    try:
-        agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
-        agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
-        seed = random.randint(1, 10000)
-        response = invertedai.api.drive(
-            location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-            recurrent_states=recurrent_states,
-            traffic_lights_states=traffic_lights_states,
-            random_seed=seed
-        )
-        agent_states = torch.stack(
-            [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
-        )
-    except Exception as e:
-        raise e
+    agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
+    agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
+    seed = random.randint(1, 10000)
+    response = invertedai.api.drive(
+        location=location, agent_states=agent_states, agent_attributes=agent_attributes,
+        recurrent_states=recurrent_states,
+        traffic_lights_states=traffic_lights_states,
+        random_seed=seed
+    )
+    agent_states = torch.stack(
+        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
+    )
     return agent_states, response.recurrent_states
 
 
@@ -129,15 +67,16 @@ class IAIWrapper(NPCWrapper):
     """
     def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
                  recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None,
-                 car_sequences: Optional[Dict[int, List[List[float]]]] = None,
+                 replay_states: Optional[Tensor] = None, replay_mask: Optional[Tensor] = None,
                  traffic_light_controller: Optional[TrafficLightController] = None, traffic_light_ids: Optional[List[int]] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
 
         self._locations = locations
         self._npc_predictions = None
         self._recurrent_states = recurrent_states
-        self._car_sequences = car_sequences
-        self._iai_timestep = 0
+        self._replay_states = replay_states
+        self._replay_mask = replay_mask
+        self._replay_timestep = 0
         self._traffic_light_controller = traffic_light_controller
         self._traffic_light_ids = traffic_light_ids
         assert (self._traffic_light_controller is None) == (self._traffic_light_ids is None), \
@@ -156,10 +95,9 @@ class IAIWrapper(NPCWrapper):
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
                              traffic_lights_states=self._traffic_light_controller.current_state_with_name if self._traffic_light_controller is not None else None)
 
-            if self._car_sequences is not None:
-                for agent_idx in self._car_sequences:
-                    if self._iai_timestep < len(self._car_sequences[agent_idx]):
-                        s[agent_idx] = torch.Tensor(self._car_sequences[agent_idx][self._iai_timestep])
+            if self._replay_states is not None:
+                if self._replay_timestep < self._replay_states.shape[2]:
+                    s[self._replay_mask[i, :, self._replay_timestep]] = torch.Tensor(self._replay_states[i, self._replay_mask[i, :, self._replay_timestep], self._replay_timestep, :])
 
             states.append(s)
             recurrent.append(r)
@@ -177,7 +115,7 @@ class IAIWrapper(NPCWrapper):
                 current_light_state_tensor_from_controller(self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1))
         super().step(action)
         self._npc_predictions = None
-        self._iai_timestep += 1
+        self._replay_timestep += 1
 
     def to(self, device) -> Self:
         super().to(device)
