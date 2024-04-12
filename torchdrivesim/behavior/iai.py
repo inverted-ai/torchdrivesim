@@ -97,7 +97,7 @@ class IAIWrapper(NPCWrapper):
 
             if self._replay_states is not None:
                 if self._replay_timestep < self._replay_states.shape[2]:
-                    s[self._replay_mask[i, :, self._replay_timestep]] = torch.Tensor(self._replay_states[i, self._replay_mask[i, :, self._replay_timestep], self._replay_timestep, :])
+                    s[self._replay_mask[i, :, self._replay_timestep]] = self._replay_states[i, self._replay_mask[i, :, self._replay_timestep], self._replay_timestep, :]
 
             states.append(s)
             recurrent.append(r)
