@@ -97,7 +97,7 @@ class IAIWrapper(NPCWrapper):
 
             if self._replay_states is not None:
                 if self._replay_timestep < self._replay_states.shape[2]:
-                    s[self._replay_mask[i, :, self._replay_timestep]] = torch.Tensor(self._replay_states[i, self._replay_mask[i, :, self._replay_timestep], self._replay_timestep, :])
+                    s[self._replay_mask[i, :, self._replay_timestep]] = self._replay_states[i, self._replay_mask[i, :, self._replay_timestep], self._replay_timestep, :]
 
             states.append(s)
             recurrent.append(r)
@@ -114,7 +114,7 @@ class IAIWrapper(NPCWrapper):
             self.get_innermost_simulator().traffic_controls['traffic_light'].set_state(
                 current_light_state_tensor_from_controller(self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1))
         super().step(action)
-        self._npc_predictions = None
+#        self._npc_predictions = None
         self._replay_timestep += 1
 
     def to(self, device) -> Self:
