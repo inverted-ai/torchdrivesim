@@ -11,6 +11,7 @@ from torchdrivesim.behavior.common import InitializationFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
+
 def unpack_attributes(attributes) -> torch.Tensor:
     return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
 
@@ -18,9 +19,11 @@ def unpack_attributes(attributes) -> torch.Tensor:
 def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history: Optional[List[Dict[int, TrafficLightState]]] = None) -> (Tensor, Tensor, List[RecurrentState]):
     import invertedai
     try:
+        seed = random.randint(1, 10000)
         response = invertedai.api.initialize(
             location=location, agent_count=agent_count, location_of_interest=center,
-            traffic_light_state_history=traffic_light_state_history
+            traffic_light_state_history=traffic_light_state_history,
+            random_seed=seed,
         )
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
