@@ -1,23 +1,29 @@
 from typing import List, Optional, Dict
 
+import random
 import torch
 from torch import Tensor
 from typing_extensions import Self
+
+from invertedai.common import TrafficLightState, RecurrentState
 
 from torchdrivesim.behavior.common import InitializationFailedError
 from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
 from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
+
 def unpack_attributes(attributes) -> torch.Tensor:
     return torch.tensor([attributes.length, attributes.width, attributes.rear_axis_offset])
 
 
-def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history:Optional[List[Dict]]=None):
+def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_history: Optional[List[Dict[int, TrafficLightState]]] = None) -> (Tensor, Tensor, List[RecurrentState]):
     import invertedai
     try:
+        seed = random.randint(1, 10000)
         response = invertedai.api.initialize(
             location=location, agent_count=agent_count, location_of_interest=center,
-            traffic_light_state_history=traffic_light_state_history
+            traffic_light_state_history=traffic_light_state_history,
+            random_seed=seed,
         )
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
@@ -30,15 +36,17 @@ def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_his
     return agent_attributes, agent_states, response.recurrent_states
 
 
-def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List,
-              traffic_lights_states: Optional[dict] = None):
+def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List[RecurrentState], traffic_lights_states: Optional[Dict[int, TrafficLightState]] = None) -> (Tensor, List[RecurrentState]):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
     agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
     agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
+    seed = random.randint(1, 10000)
     response = invertedai.api.drive(
         location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-        recurrent_states=recurrent_states, traffic_lights_states=traffic_lights_states
+        recurrent_states=recurrent_states,
+        traffic_lights_states=traffic_lights_states,
+        random_seed=seed
     )
     agent_states = torch.stack(
         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
@@ -62,12 +70,16 @@ class IAIWrapper(NPCWrapper):
     """
     def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
                  recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None,
+                 replay_states: Optional[Tensor] = None, replay_mask: Optional[Tensor] = None,
                  traffic_light_controller: Optional[TrafficLightController] = None, traffic_light_ids: Optional[List[int]] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
 
         self._locations = locations
         self._npc_predictions = None
         self._recurrent_states = recurrent_states
+        self._replay_states = replay_states
+        self._replay_mask = replay_mask
+        self._replay_timestep = 0
         self._traffic_light_controller = traffic_light_controller
         self._traffic_light_ids = traffic_light_ids
         assert (self._traffic_light_controller is None) == (self._traffic_light_ids is None), \
@@ -85,6 +97,11 @@ class IAIWrapper(NPCWrapper):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],
                              traffic_lights_states=self._traffic_light_controller.current_state_with_name if self._traffic_light_controller is not None else None)
+
+            if self._replay_states is not None:
+                if self._replay_timestep < self._replay_states.shape[2]:
+                    s[self._replay_mask[i, :, self._replay_timestep]] = self._replay_states[i, self._replay_mask[i, :, self._replay_timestep], self._replay_timestep, :]
+
             states.append(s)
             recurrent.append(r)
         states = torch.stack(states, dim=0).to(self.get_state().device)
@@ -101,6 +118,7 @@ class IAIWrapper(NPCWrapper):
                 current_light_state_tensor_from_controller(self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1))
         super().step(action)
         self._npc_predictions = None
+        self._replay_timestep += 1
 
     def to(self, device) -> Self:
         super().to(device)

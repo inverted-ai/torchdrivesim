@@ -169,7 +169,7 @@ class TrafficLightControl(BaseTrafficControl):
             agent_corners = agent_corners.reshape(-1, 1, 4, 2).expand(-1, num_lights, -1, -1)
             control_corners = self.corners.unsqueeze(1).expand(-1, num_agents, -1, -1, -1).reshape(-1, num_lights, 4, 2)
             overlap = (oriented_box_intersection_2d(agent_corners, control_corners)[0] > 0)
-            is_red_light = (self.state == self.allowed_states.index('red'))
+            is_red_light = (self.state.to(overlap.device) == self.allowed_states.index('red'))
             is_red_light = is_red_light.unsqueeze(1).expand(-1, num_agents, -1).reshape(-1, num_lights)
             red_light_violations = torch.logical_and(overlap, is_red_light)
             red_light_violations = red_light_violations.any(dim=-1).reshape(batch_size, num_agents)

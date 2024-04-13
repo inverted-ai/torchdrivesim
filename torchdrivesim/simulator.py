@@ -832,6 +832,7 @@ class Simulator(SimulatorInterface):
         self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_action))
 
         self.across_agent_types(lambda kin, act: kin.step(act), self.kinematic_model, agent_action)
+
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
@@ -1693,7 +1694,7 @@ class BirdviewRecordingWrapper(RecordingWrapper):
         if os.path.dirname(filename) != '':
             os.makedirs(os.path.dirname(filename), exist_ok=True)
         imageio.mimsave(
-            filename, [bv[batch_index].cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for bv in bvs],
+            filename, [bv[batch_index].floor().cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for bv in bvs],
             format="GIF-PIL", fps=fps
         )
         try:

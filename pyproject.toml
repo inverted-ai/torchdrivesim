@@ -53,4 +53,3 @@ version = {attr = "torchdrivesim.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["torchdrivesim*"]
-

@@ -1,11 +1,11 @@
 """
 Miscellaneous utilities, including for geometric operations on tensors.
 """
+import numpy as np
 import collections
 from functools import reduce
 from typing import Tuple, List, Dict
 
-import numpy as np
 import torch
 from torch import Tensor
 
