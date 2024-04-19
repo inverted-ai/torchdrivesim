@@ -40,7 +40,7 @@ def simulate(cfg: SimulationConfig):
     map_cfg = find_map_config(cfg.map_name)
     traffic_light_controller = map_cfg.traffic_light_controller
     initial_light_state_name = traffic_light_controller.current_state_with_name
-    traffic_light_ids = [stopline.actor_id for stopline in map_cfg.stoplines if stopline.agent_type == 'traffic-light']
+    traffic_light_ids = [stopline.actor_id for stopline in map_cfg.stoplines if stopline.agent_type == 'traffic_light']
     if cfg.center is None:
         cfg.center = map_cfg.center
     driving_surface_mesh = map_cfg.road_mesh.to(device)

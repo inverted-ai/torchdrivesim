@@ -22,7 +22,14 @@ class Stopline:
     length: float
     width: float
     orientation: float
-
+    
+    def __post_init__(self):
+        if self.agent_type == "traffic-light":
+            self.agent_type = "traffic_light"
+        elif self.agent_type == "stop-sign":
+            self.agent_type = "stop_sign"
+        elif self.agent_type in ["yield-sign", "yield"]:
+            self.agent_type = "yield_sign"
 
 @dataclass
 class MapConfig:
@@ -191,9 +198,9 @@ def download_iai_map(location_name: str, save_path: str) -> None:
 
 def traffic_controls_from_map_config(cfg: MapConfig) -> Dict[str, BaseTrafficControl]:
     traffic_control_poses = {
-        'traffic-light': [],
-        'stop-sign': [],
-        'yield-sign': [],
+        'traffic_light': [],
+        'stop_sign': [],
+        'yield_sign': [],
     }
     for stopline in cfg.stoplines:
         if stopline.agent_type not in traffic_control_poses.keys():
@@ -203,16 +210,16 @@ def traffic_controls_from_map_config(cfg: MapConfig) -> Dict[str, BaseTrafficCon
         )
         traffic_control_poses[stopline.agent_type].append(pos)
     traffic_controls = dict()
-    if traffic_control_poses['traffic-light']:
+    if traffic_control_poses['traffic_light']:
         traffic_controls['traffic_light'] = TrafficLightControl(
-            torch.stack(traffic_control_poses['traffic-light']).unsqueeze(0)
+            torch.stack(traffic_control_poses['traffic_light']).unsqueeze(0)
         )
-    if traffic_control_poses['stop-sign']:
+    if traffic_control_poses['stop_sign']:
         traffic_controls['stop_sign'] = StopSignControl(
-            torch.stack(traffic_control_poses['stop-sign']).unsqueeze(0)
+            torch.stack(traffic_control_poses['stop_sign']).unsqueeze(0)
         )
-    if traffic_control_poses['yield-sign']:
+    if traffic_control_poses['yield_sign']:
         traffic_controls['yield_sign'] = YieldControl(
-            torch.stack(traffic_control_poses['yield-sign']).unsqueeze(0)
+            torch.stack(traffic_control_poses['yield_sign']).unsqueeze(0)
         )
     return traffic_controls
