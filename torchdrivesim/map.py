@@ -28,7 +28,7 @@ class Stopline:
             self.agent_type = "traffic_light"
         elif self.agent_type == "stop-sign":
             self.agent_type = "stop_sign"
-        elif self.agent_type == "yield-sign":
+        elif self.agent_type in ["yield-sign", "yield"]:
             self.agent_type = "yield_sign"
 
 @dataclass
