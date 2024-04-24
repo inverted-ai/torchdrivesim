@@ -367,12 +367,24 @@ class BirdviewRenderer(abc.ABC):
 
         static_mesh = self.static_mesh
         if self.cfg.highlight_ego_vehicle:
-            agent_state = agent_state.copy()
-            agent_state['ego'] = agent_state['vehicle'][:, :1]
-            agent_state['vehicle'] = agent_state['vehicle'][:, 1:]
-            agent_attributes = agent_attributes.copy()
-            agent_attributes['ego'] = agent_attributes['vehicle'][:, :1]
-            agent_attributes['vehicle'] = agent_attributes['vehicle'][:, 1:]
+            # need to preserve the element order in the dictionary for this trick to work
+            agent_state_new = dict()
+            for k, v in agent_state.items():
+                if k == 'vehicle':
+                    agent_state_new['ego'] = v[:, :1]
+                    agent_state_new['vehicle'] = v[:, 1:]
+                else:
+                    agent_state_new[k] = v
+            agent_state = agent_state_new
+
+            agent_attributes_new = dict()
+            for k, v in agent_attributes.items():
+                if k == 'vehicle':
+                    agent_attributes_new['ego'] = v[:, :1]
+                    agent_attributes_new['vehicle'] = v[:, 1:]
+                else:
+                    agent_attributes_new[k] = v
+            agent_attributes = agent_attributes_new
         actor_mesh = self.make_actor_mesh(agent_state, agent_attributes)
 
         actor_mesh = actor_mesh.expand(n_cameras_per_batch)
