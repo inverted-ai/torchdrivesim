@@ -188,6 +188,7 @@ def download_iai_map(location_name: str, save_path: str) -> None:
         iai_location_name=location_name,
         left_handed_coordinates=location_name.split(':')[0] == 'carla',  # TODO: update once IAI API returns this info
         lanelet_path=os.path.abspath(lanelet_path),
+        stoplines_path=os.path.abspath(stoplines_path),
     )
     mesh_path = os.path.join(save_path, pathname_defaults['mesh_path'])
     cfg.road_mesh.save(mesh_path)
