@@ -1,7 +1,7 @@
 [
     {
         "actor_id": 4289,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 5.81,
         "y": -6.899,
         "length": 1.0,
@@ -10,7 +10,7 @@
     },
     {
         "actor_id": 4316,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -100.704,
         "y": 63.25,
         "length": 1.0,
@@ -19,7 +19,7 @@
     },
     {
         "actor_id": 4317,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -90.569,
         "y": 53.564,
         "length": 1.0,
@@ -28,7 +28,7 @@
     },
     {
         "actor_id": 4318,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -111.132,
         "y": 52.266,
         "length": 1.0,
@@ -37,7 +37,7 @@
     },
     {
         "actor_id": 4319,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 74.219,
         "y": 2.34,
         "length": 1.0,
@@ -46,7 +46,7 @@
     },
     {
         "actor_id": 4320,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -2.047,
         "y": 8.11,
         "length": 1.0,
@@ -55,7 +55,7 @@
     },
     {
         "actor_id": 4321,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 71.818,
         "y": 67.723,
         "length": 1.0,
@@ -64,7 +64,7 @@
     },
     {
         "actor_id": 4322,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 71.722,
         "y": 54.727,
         "length": 1.0,
@@ -73,7 +73,7 @@
     },
     {
         "actor_id": 4323,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 60.248,
         "y": 63.708,
         "length": 1.0,
@@ -82,7 +82,7 @@
     },
     {
         "actor_id": 4324,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 15.513,
         "y": -240.218,
         "length": 1.0,
@@ -91,7 +91,7 @@
     },
     {
         "actor_id": 4325,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -16.618,
         "y": -240.787,
         "length": 1.0,
@@ -100,7 +100,7 @@
     },
     {
         "actor_id": 4326,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -0.068,
         "y": -228.464,
         "length": 1.0,
@@ -109,7 +109,7 @@
     },
     {
         "actor_id": 4327,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -5.357,
         "y": -14.657,
         "length": 1.0,
@@ -118,7 +118,7 @@
     },
     {
         "actor_id": 4328,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -103.09,
         "y": 43.24,
         "length": 1.0,
@@ -127,7 +127,7 @@
     },
     {
         "actor_id": 4329,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 69.218,
         "y": -8.688,
         "length": 1.0,
@@ -136,7 +136,7 @@
     },
     {
         "actor_id": 4330,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 56.383,
         "y": 0.463,
         "length": 1.0,
@@ -145,7 +145,7 @@
     },
     {
         "actor_id": 4331,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -21.674,
         "y": 0.369,
         "length": 1.0,
@@ -154,7 +154,7 @@
     },
     {
         "actor_id": 5289,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 5.795,
         "y": -3.399,
         "length": 1.0,
@@ -163,7 +163,7 @@
     },
     {
         "actor_id": 2548,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -34.439945220947266,
         "y": -105.50096130371094,
         "length": 1.0,
@@ -172,7 +172,7 @@
     },
     {
         "actor_id": 2547,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -83.29193878173828,
         "y": -158.43881225585938,
         "length": 1.0,
@@ -181,7 +181,7 @@
     },
     {
         "actor_id": 2546,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -72.59134674072266,
         "y": -148.96945190429688,
         "length": 1.0,
@@ -190,7 +190,7 @@
     },
     {
         "actor_id": 2545,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -62.778873443603516,
         "y": -161.73878479003906,
         "length": 1.0,
@@ -199,7 +199,7 @@
     },
     {
         "actor_id": 2544,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -0.7248027324676514,
         "y": -149.9126739501953,
         "length": 1.0,
@@ -208,7 +208,7 @@
     },
     {
         "actor_id": 2543,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -11.72284984588623,
         "y": -157.7403106689453,
         "length": 1.0,
@@ -217,7 +217,7 @@
     },
     {
         "actor_id": 2542,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -4.074623107910156,
         "y": -168.0586700439453,
         "length": 1.0,
@@ -226,7 +226,7 @@
     },
     {
         "actor_id": 2541,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -90.6219253540039,
         "y": -65.39070892333984,
         "length": 1.0,
@@ -235,7 +235,7 @@
     },
     {
         "actor_id": 2540,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -97.86372375488281,
         "y": 116.82077026367188,
         "length": 1.0,
@@ -244,7 +244,7 @@
     },
     {
         "actor_id": 2539,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -23.728347778320312,
         "y": -97.93952178955078,
         "length": 1.0,
@@ -253,7 +253,7 @@
     },
     {
         "actor_id": 2538,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -110.08873748779297,
         "y": 108.58430480957031,
         "length": 1.0,
@@ -262,7 +262,7 @@
     },
     {
         "actor_id": 2537,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -117.91744995117188,
         "y": 117.67273712158203,
         "length": 1.0,
@@ -271,7 +271,7 @@
     },
     {
         "actor_id": 2536,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -99.31346130371094,
         "y": 8.667142868041992,
         "length": 1.0,
@@ -280,7 +280,7 @@
     },
     {
         "actor_id": 2535,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -102.71498107910156,
         "y": -9.789599418640137,
         "length": 1.0,
@@ -289,7 +289,7 @@
     },
     {
         "actor_id": 2534,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -91.72700500488281,
         "y": -2.4481536746025085,
         "length": 1.0,
@@ -298,7 +298,7 @@
     },
     {
         "actor_id": 2533,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -98.97383117675781,
         "y": -54.94938659667969,
         "length": 1.0,
@@ -307,7 +307,7 @@
     },
     {
         "actor_id": 2532,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -102.38152313232422,
         "y": -72.24956512451172,
         "length": 1.0,
@@ -316,7 +316,7 @@
     },
     {
         "actor_id": 2531,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -198.33328247070312,
         "y": -151.44813537597656,
         "length": 1.0,
@@ -325,7 +325,7 @@
     },
     {
         "actor_id": 2530,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -201.52606201171875,
         "y": -170.27243041992188,
         "length": 1.0,
@@ -334,7 +334,7 @@
     },
     {
         "actor_id": 2529,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -190.75953674316406,
         "y": -162.98785400390625,
         "length": 1.0,
@@ -343,7 +343,7 @@
     },
     {
         "actor_id": 2528,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -151.750244140625,
         "y": -43.518898010253906,
         "length": 1.0,
@@ -352,7 +352,7 @@
     },
     {
         "actor_id": 2527,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -199.38719177246094,
         "y": 58.885047912597656,
         "length": 1.0,
@@ -361,7 +361,7 @@
     },
     {
         "actor_id": 2526,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -202.92454528808594,
         "y": 41.57902145385742,
         "length": 1.0,
@@ -370,7 +370,7 @@
     },
     {
         "actor_id": 2525,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -199.05825805664062,
         "y": -25.893213272094727,
         "length": 1.0,
@@ -379,7 +379,7 @@
     },
     {
         "actor_id": 2524,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -201.61428833007812,
         "y": -45.36419677734375,
         "length": 1.0,
@@ -388,7 +388,7 @@
     },
     {
         "actor_id": 2523,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -190.06158447265625,
         "y": -36.86417007446289,
         "length": 1.0,
@@ -397,7 +397,7 @@
     },
     {
         "actor_id": 2522,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -148.85543823242188,
         "y": -26.349225997924805,
         "length": 1.0,
@@ -406,7 +406,7 @@
     },
     {
         "actor_id": 2521,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -141.0740966796875,
         "y": -36.48455047607422,
         "length": 1.0,
@@ -415,7 +415,7 @@
     },
     {
         "actor_id": 2520,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -158.89759826660156,
         "y": -33.52257537841797,
         "length": 1.0,
@@ -424,7 +424,7 @@
     },
     {
         "actor_id": 2519,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -14.006905555725098,
         "y": 61.43630599975586,
         "length": 1.0,
@@ -433,7 +433,7 @@
     },
     {
         "actor_id": 2518,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -5.902244567871094,
         "y": 50.554447174072266,
         "length": 1.0,
@@ -442,7 +442,7 @@
     },
     {
         "actor_id": 2517,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 4.495555877685547,
         "y": 58.98589324951172,
         "length": 1.0,
@@ -451,7 +451,7 @@
     },
     {
         "actor_id": 2516,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -1.5171313285827637,
         "y": -55.216426849365234,
         "length": 1.0,
@@ -460,7 +460,7 @@
     },
     {
         "actor_id": 2514,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -4.862143635749817,
         "y": -73.75467681884766,
         "length": 1.0,
@@ -469,7 +469,7 @@
     },
     {
         "actor_id": 2513,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -99.11486053466797,
         "y": -28.533016204833984,
         "length": 1.0,
@@ -478,7 +478,7 @@
     },
     {
         "actor_id": 2512,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -107.20477294921875,
         "y": -33.12199020385742,
         "length": 1.0,
@@ -487,7 +487,7 @@
     },
     {
         "actor_id": 2511,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -102.55052947998047,
         "y": -40.59386444091797,
         "length": 1.0,
@@ -496,7 +496,7 @@
     },
     {
         "actor_id": 2510,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": -191.99037170410156,
         "y": 48.46409606933594,
         "length": 1.0,

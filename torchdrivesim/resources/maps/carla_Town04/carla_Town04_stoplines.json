@@ -1,7 +1,7 @@
 [
     {
         "actor_id": 3642,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 313.964,
         "y": -110.349,
         "length": 1.0,
@@ -10,7 +10,7 @@
     },
     {
         "actor_id": 3643,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 324.227,
         "y": -121.258,
         "length": 1.0,
@@ -19,7 +19,7 @@
     },
     {
         "actor_id": 3644,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 310.649,
         "y": -131.125,
         "length": 1.0,
@@ -28,7 +28,7 @@
     },
     {
         "actor_id": 3645,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 304.306,
         "y": -246.547,
         "length": 1.0,
@@ -37,7 +37,7 @@
     },
     {
         "actor_id": 3646,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 315.045,
         "y": -231.556,
         "length": 1.0,
@@ -46,7 +46,7 @@
     },
     {
         "actor_id": 3647,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 311.78,
         "y": -257.913,
         "length": 1.0,
@@ -55,7 +55,7 @@
     },
     {
         "actor_id": 3648,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 333.267,
         "y": -168.76,
         "length": 1.0,
@@ -64,7 +64,7 @@
     },
     {
         "actor_id": 3649,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 351.745,
         "y": -161.039,
         "length": 1.0,
@@ -73,7 +73,7 @@
     },
     {
         "actor_id": 3650,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 359.335,
         "y": -172.111,
         "length": 1.0,
@@ -82,7 +82,7 @@
     },
     {
         "actor_id": 3651,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 192.037,
         "y": -245.132,
         "length": 1.0,
@@ -91,7 +91,7 @@
     },
     {
         "actor_id": 3652,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 203.642,
         "y": -237.253,
         "length": 1.0,
@@ -100,7 +100,7 @@
     },
     {
         "actor_id": 3653,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 212.919,
         "y": -249.418,
         "length": 1.0,
@@ -109,7 +109,7 @@
     },
     {
         "actor_id": 3654,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 200.635,
         "y": -258.783,
         "length": 1.0,
@@ -118,7 +118,7 @@
     },
     {
         "actor_id": 3655,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 246.486,
         "y": -119.012,
         "length": 1.0,
@@ -127,7 +127,7 @@
     },
     {
         "actor_id": 3656,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 246.535,
         "y": -169.253,
         "length": 1.0,
@@ -136,7 +136,7 @@
     },
     {
         "actor_id": 3657,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 267.563,
         "y": -122.172,
         "length": 1.0,
@@ -145,7 +145,7 @@
     },
     {
         "actor_id": 3658,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 254.804,
         "y": -129.763,
         "length": 1.0,
@@ -154,7 +154,7 @@
     },
     {
         "actor_id": 3659,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 191.784,
         "y": -307.678,
         "length": 1.0,
@@ -163,7 +163,7 @@
     },
     {
         "actor_id": 3660,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 258.398,
         "y": -160.36,
         "length": 1.0,
@@ -172,7 +172,7 @@
     },
     {
         "actor_id": 3661,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 205.038,
         "y": -298.083,
         "length": 1.0,
@@ -181,7 +181,7 @@
     },
     {
         "actor_id": 3662,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 266.693,
         "y": -172.639,
         "length": 1.0,
@@ -190,7 +190,7 @@
     },
     {
         "actor_id": 3663,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 213.594,
         "y": -311.357,
         "length": 1.0,
@@ -199,7 +199,7 @@
     },
     {
         "actor_id": 3664,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 202.054,
         "y": -320.621,
         "length": 1.0,
@@ -208,7 +208,7 @@
     },
     {
         "actor_id": 3665,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 348.499,
         "y": -179.931,
         "length": 1.0,
@@ -217,7 +217,7 @@
     },
     {
         "actor_id": 3666,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 118.294,
         "y": -169.983,
         "length": 1.0,
@@ -226,7 +226,7 @@
     },
     {
         "actor_id": 3667,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 141.555,
         "y": -173.351,
         "length": 1.0,
@@ -235,7 +235,7 @@
     },
     {
         "actor_id": 3668,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 127.795,
         "y": -183.249,
         "length": 1.0,
@@ -244,7 +244,7 @@
     },
     {
         "actor_id": 3669,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 47.746,
         "y": -170.385,
         "length": 1.0,
@@ -253,7 +253,7 @@
     },
     {
         "actor_id": 3670,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 74.857,
         "y": -173.731,
         "length": 1.0,
@@ -262,7 +262,7 @@
     },
     {
         "actor_id": 3671,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 58.656,
         "y": -182.737,
         "length": 1.0,
@@ -271,7 +271,7 @@
     },
     {
         "actor_id": 3672,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 248.042,
         "y": -307.502,
         "length": 1.0,
@@ -280,7 +280,7 @@
     },
     {
         "actor_id": 3673,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 254.961,
         "y": -180.629,
         "length": 1.0,
@@ -289,7 +289,7 @@
     },
     {
         "actor_id": 3674,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 258.829,
         "y": -300.072,
         "length": 1.0,
@@ -298,7 +298,7 @@
     },
     {
         "actor_id": 3675,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 266.263,
         "y": -310.814,
         "length": 1.0,
@@ -307,7 +307,7 @@
     },
     {
         "actor_id": 3676,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 303.401,
         "y": -168.93,
         "length": 1.0,
@@ -316,7 +316,7 @@
     },
     {
         "actor_id": 3677,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 314.414,
         "y": -160.78,
         "length": 1.0,
@@ -325,7 +325,7 @@
     },
     {
         "actor_id": 3678,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 329.434,
         "y": -172.281,
         "length": 1.0,
@@ -334,7 +334,7 @@
     },
     {
         "actor_id": 3679,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 322.815,
         "y": -250.175,
         "length": 1.0,
@@ -343,7 +343,7 @@
     },
     {
         "actor_id": 3680,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 311.155,
         "y": -187.895,
         "length": 1.0,
@@ -352,7 +352,7 @@
     },
     {
         "actor_id": 3681,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 301.836,
         "y": -118.119,
         "length": 1.0,
@@ -361,7 +361,7 @@
     },
     {
         "actor_id": 3682,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -384.416,
         "y": -9.207,
         "length": 1.0,
@@ -370,7 +370,7 @@
     },
     {
         "actor_id": 3683,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -357.259,
         "y": 5.518,
         "length": 1.0,
@@ -379,7 +379,7 @@
     },
     {
         "actor_id": 3684,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -398.838,
         "y": 26.786,
         "length": 1.0,
@@ -388,7 +388,7 @@
     },
     {
         "actor_id": 4646,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": 315.043,
         "y": -231.344,
         "length": 1.0,
@@ -397,7 +397,7 @@
     },
     {
         "actor_id": 4682,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -380.924,
         "y": -8.952,
         "length": 1.0,
@@ -406,7 +406,7 @@
     },
     {
         "actor_id": 4683,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -357.237,
         "y": 9.018,
         "length": 1.0,
@@ -415,7 +415,7 @@
     },
     {
         "actor_id": 4684,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -398.835,
         "y": 30.286,
         "length": 1.0,
@@ -424,7 +424,7 @@
     },
     {
         "actor_id": 5682,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -380.944,
         "y": -8.738,
         "length": 1.0,
@@ -433,7 +433,7 @@
     },
     {
         "actor_id": 5683,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -357.705,
         "y": 12.521,
         "length": 1.0,
@@ -442,7 +442,7 @@
     },
     {
         "actor_id": 5684,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -398.838,
         "y": 33.786,
         "length": 1.0,
@@ -451,7 +451,7 @@
     },
     {
         "actor_id": 6683,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -357.682,
         "y": 16.021,
         "length": 1.0,
@@ -460,7 +460,7 @@
     },
     {
         "actor_id": 6684,
-        "agent_type": "traffic-light",
+        "agent_type": "traffic_light",
         "x": -398.835,
         "y": 37.286,
         "length": 1.0,
@@ -469,7 +469,7 @@
     },
     {
         "actor_id": 2306,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 191.0994415283203,
         "y": -169.56883239746094,
         "length": 1.0,
@@ -478,7 +478,7 @@
     },
     {
         "actor_id": 2305,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 255.19789123535156,
         "y": -257.5072021484375,
         "length": 1.0,
@@ -487,7 +487,7 @@
     },
     {
         "actor_id": 2304,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 246.63291931152344,
         "y": -246.15000915527344,
         "length": 1.0,
@@ -496,7 +496,7 @@
     },
     {
         "actor_id": 2303,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 258.6377868652344,
         "y": -238.01754760742188,
         "length": 1.0,
@@ -505,7 +505,7 @@
     },
     {
         "actor_id": 2302,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 266.2154846191406,
         "y": -249.78489685058594,
         "length": 1.0,
@@ -514,7 +514,7 @@
     },
     {
         "actor_id": 2301,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 198.84207153320312,
         "y": -180.64404296875,
         "length": 1.0,
@@ -523,7 +523,7 @@
     },
     {
         "actor_id": 3302,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 198.81903076171875,
         "y": -179.64007568359375,
         "length": 1.0,
@@ -532,7 +532,7 @@
     },
     {
         "actor_id": 2300,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 210.76670837402344,
         "y": -172.95693969726562,
         "length": 1.0,
@@ -541,7 +541,7 @@
     },
     {
         "actor_id": 2299,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 201.96592712402344,
         "y": -164.21099853515625,
         "length": 1.0,
@@ -550,7 +550,7 @@
     },
     {
         "actor_id": 3300,
-        "agent_type": "stop-sign",
+        "agent_type": "stop_sign",
         "x": 201.92044067382812,
         "y": -162.21780395507812,
         "length": 1.0,
@@ -559,7 +559,7 @@
     },
     {
         "actor_id": 2298,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": 22.4412841796875,
         "y": 117.7592544555664,
         "length": 1.0,
@@ -568,7 +568,7 @@
     },
     {
         "actor_id": 2295,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": 103.82931518554688,
         "y": -0.774909496307373,
         "length": 1.0,
@@ -577,7 +577,7 @@
     },
     {
         "actor_id": 2294,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -98.98812103271484,
         "y": 44.596187591552734,
         "length": 1.0,
@@ -586,7 +586,7 @@
     },
     {
         "actor_id": 2293,
-        "agent_type": "yield",
+        "agent_type": "yield_sign",
         "x": -23.375755310058594,
         "y": -75.85980224609375,
         "length": 1.0,
