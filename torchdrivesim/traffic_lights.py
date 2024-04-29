@@ -125,7 +125,16 @@ class TrafficLightStateMachine:
         while self._time_remaining <= 0:
             next_state = self._current_state.next_state
             next_duration = self._states[next_state].duration
-            self.set_to(next_state, next_duration)
+            if self._time_remaining == 0:
+                self.set_to(next_state, next_duration)
+                break
+            elif self._time_remaining + next_duration > 0:
+                self._time_remaining += next_duration
+                self.set_to(next_state, self._time_remaining)
+                break
+            else:
+                self._time_remaining += next_duration
+                self._current_state = self._states[next_state]
 
     @property
     def states(self) -> List[TrafficLightGroupState]:
