@@ -68,6 +68,54 @@ def test_tick(traffic_light_state_machine: TrafficLightStateMachine):
         next_state=2)
 
 
+def test_tick_large_dt_middle_of_state(traffic_light_state_machine: TrafficLightStateMachine):
+    traffic_light_state_machine.set_to(0, 10)
+    traffic_light_state_machine.tick(23)
+    assert traffic_light_state_machine.current_state == TrafficLightGroupState(
+        actor_states={
+                "4411": TrafficLightState.green,
+                "3411": TrafficLightState.red,
+                "4399": TrafficLightState.yellow,
+                "3399": TrafficLightState.yellow
+            },
+        sequence_number=2,
+        duration=5,
+        next_state=3)
+    assert traffic_light_state_machine.time_remaining == 2
+
+
+def test_tick_large_dt_end_of_state(traffic_light_state_machine: TrafficLightStateMachine):
+    traffic_light_state_machine.set_to(0, 10)
+    traffic_light_state_machine.tick(25)
+    assert traffic_light_state_machine.current_state == TrafficLightGroupState(
+        actor_states={
+                "4411": TrafficLightState.green,
+                "3411": TrafficLightState.green,
+                "4399": TrafficLightState.red,
+                "3399": TrafficLightState.red
+            },
+        sequence_number=3,
+        duration=10,
+        next_state=4)
+    assert traffic_light_state_machine.time_remaining == 10
+
+
+def test_tick_large_dt_wraps_around_to_earlier_state(traffic_light_state_machine: TrafficLightStateMachine):
+    traffic_light_state_machine.set_to(0, 10)
+    traffic_light_state_machine.tick(45)
+    assert traffic_light_state_machine.current_state == TrafficLightGroupState(
+        actor_states={
+                "4411": TrafficLightState.red,
+                "3411": TrafficLightState.red,
+                "4399": TrafficLightState.red,
+                "3399": TrafficLightState.red
+            },
+        sequence_number=0,
+        duration=10,
+        next_state=1)
+    assert traffic_light_state_machine.time_remaining == 5
+
+
 def test_get_current_actor_states(traffic_light_state_machine: TrafficLightStateMachine):
     traffic_light_state_machine.set_to(4, 3)
     actor_states = traffic_light_state_machine.get_current_actor_states()
