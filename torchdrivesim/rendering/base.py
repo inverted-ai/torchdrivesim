@@ -112,6 +112,21 @@ class Cameras:
 
         return points
 
+    def reverse_transform_points_screen(self, points: Tensor, res: Resolution) -> Tensor:
+        rot_mat = torch.stack([
+            self.sc.flip(dims=[-1]),
+            self.sc * torch.tensor([-1, 1], device=points.device)
+        ], dim=-2)
+
+        # the operations below could be fused for efficiency
+        points = points - torch.tensor([res.width, res.height], device=points.device) / 2
+        points = points / (min(res.height, res.width) / 2)
+        points = - points / self.scale
+        points = torch.matmul(rot_mat.transpose(-1, -2), points.unsqueeze(-1)).squeeze(-1)
+        points = points + self.xy
+
+        return points
+
 
 class BirdviewRenderer(abc.ABC):
     """

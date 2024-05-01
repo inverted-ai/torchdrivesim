@@ -13,6 +13,7 @@ from torchdrivesim.utils import Resolution
 @dataclass
 class CV2RendererConfig(RendererConfig):
     backend: str = 'cv2'
+    trim_mesh_before_rendering: bool = True
 
 
 class CV2Renderer(BirdviewRenderer):
@@ -27,6 +28,16 @@ class CV2Renderer(BirdviewRenderer):
 
         image_batch = []
         pixel_verts = cameras.transform_points_screen(mesh.verts, res=res).cpu().to(torch.int32)
+
+        if self.cfg.trim_mesh_before_rendering:
+            # For efficiency, remove faces that are not visible anyway
+            viewing_polygon = cameras.reverse_transform_points_screen(
+                torch.tensor([
+                    [0, 0], [0, res.height], [res.width, res.height], [res.width, 0]
+                ], device=mesh.device), res=res
+            )
+            viewing_polygon = viewing_polygon * 1.05  # safety margin
+            mesh = mesh.trim(viewing_polygon, trim_face_only=True)
 
         for k in mesh.categories:
             if k not in mesh.colors:
