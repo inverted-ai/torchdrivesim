@@ -33,7 +33,8 @@ class CV2Renderer(BirdviewRenderer):
                     [0, 0], [0, res.height], [res.width, res.height], [res.width, 0]
                 ], device=mesh.device), res=res
             )
-            viewing_polygon = viewing_polygon * 1.05  # safety margin
+            viewing_polygon_center = viewing_polygon.mean(dim=-2)
+            viewing_polygon = viewing_polygon_center + (viewing_polygon - viewing_polygon_center) * 1.05  # safety margin
             mesh = mesh.trim(viewing_polygon)
 
         image_batch = []
