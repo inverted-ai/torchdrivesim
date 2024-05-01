@@ -26,9 +26,6 @@ class CV2Renderer(BirdviewRenderer):
 
     def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
 
-        image_batch = []
-        pixel_verts = cameras.transform_points_screen(mesh.verts, res=res).cpu().to(torch.int32)
-
         if self.cfg.trim_mesh_before_rendering:
             # For efficiency, remove faces that are not visible anyway
             viewing_polygon = cameras.reverse_transform_points_screen(
@@ -37,7 +34,10 @@ class CV2Renderer(BirdviewRenderer):
                 ], device=mesh.device), res=res
             )
             viewing_polygon = viewing_polygon * 1.05  # safety margin
-            mesh = mesh.trim(viewing_polygon, trim_face_only=True)
+            mesh = mesh.trim(viewing_polygon)
+
+        image_batch = []
+        pixel_verts = cameras.transform_points_screen(mesh.verts, res=res).cpu().to(torch.int32)
 
         for k in mesh.categories:
             if k not in mesh.colors:
