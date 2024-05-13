@@ -14,6 +14,7 @@ from torchdrivesim.lanelet2 import LaneletMap, find_lanelet_directions, LaneletE
 from torchdrivesim.mesh import BaseMesh
 from torchdrivesim import assert_pytorch3d_available
 from torchdrivesim.rendering.pytorch3d import Pytorch3DNotFound
+from torchdrivesim.utils import normalize_angle
 
 logger = logging.getLogger(__name__)
 
@@ -229,18 +230,24 @@ def offroad_infraction_loss(agent_states: Tensor, lenwid: Tensor,
 
 
 def lanelet_orientation_loss(lanelet_maps: List[Optional[LaneletMap]], agents_state: Tensor,
-                             recenter_offset: Optional[Tensor] = None) -> Tensor:
+                             recenter_offset: Optional[Tensor] = None,
+                             direction_angle_threshold: float = np.pi / 2,
+                             lanelet_dist_tolerance: float = 1.0) -> Tensor:
     """
     Calculate a loss value of the agent orientation regarding to the direction of the lanelet segment.
     The loss is computed by finding the direction of the lanelet the agent is currently on, and then taking
-    max(0, -cos(δ)) given δ is the orientation difference between the lanelet orientation and the agent orientation.
-    This normalizes the loss range from 0-1 while ignoring the angle difference less than 90 degrees.
+    -cos(δ) given δ is the orientation difference between the lanelet orientation and the agent orientation,
+    unless abs(δ) is smaller or equal to `direction_angle_threshold`, in which case the loss is 0.
+    This normalizes the loss range to [0,1].
     In case it is ambiguous which lanelet the agent is on, the one best matching agent orientation is on.
 
     Args:
         lanelet_maps: a list of B maps; None is means orientation loss won't be computed for that batch element
         agents_state: BxAx4 tensor of agent states x,t,orientation,speed
         recenter_offset: Bx2 tensor that needs to be added to agent coordinates to match them to map
+        direction_angle_threshold: minimal angle between the lane direction and agent direction that's considered
+            an infraction (needs to be at least pi / 2)
+        lanelet_dist_tolerance: how far away from a lanelet the agent can be to still be considered inside
     Returns:
         BxA tensor of orientation losses for all agents
     """
@@ -250,6 +257,8 @@ def lanelet_orientation_loss(lanelet_maps: List[Optional[LaneletMap]], agents_st
     assert len(lanelet_maps) == agents_state.shape[0]
     if recenter_offset is not None:
         assert len(lanelet_maps) == recenter_offset.shape[0]
+    assert direction_angle_threshold >= np.pi / 2,\
+        'direction_angle_threshold smaller than pi / 2 will produce false positives'
 
     for batch_idx in range(len(lanelet_maps)):
         lanelet_map = lanelet_maps[batch_idx]
@@ -263,20 +272,19 @@ def lanelet_orientation_loss(lanelet_maps: List[Optional[LaneletMap]], agents_st
             if recenter_offset is not None:
                 x = x + recenter_offset[batch_idx, 0]
                 y = y + recenter_offset[batch_idx, 1]
-            agent_direction = torch.stack([torch.cos(agent_psi), torch.sin(agent_psi)])
             try:
                 directions = [
-                    torch.tensor(direction) for direction in find_lanelet_directions(
-                        lanelet_map=lanelet_map, x=x, y=y, tags_to_exclude=LANELET_TAGS_TO_EXCLUDE
+                    direction for direction in find_lanelet_directions(
+                        lanelet_map=lanelet_map, x=x, y=y, tags_to_exclude=LANELET_TAGS_TO_EXCLUDE,
+                        lanelet_dist_tolerance=lanelet_dist_tolerance,
                     )
                 ]
-                losses = [
-                    relu(-cosine_similarity(
-                        agent_direction, torch.stack([torch.cos(psi), torch.sin(psi)]).to(device), dim=0
-                    )) for psi in directions
-                ]
-                if len(losses) > 0:
-                    loss = torch.min(torch.stack(losses), dim=0).values
+                if len(directions) > 0:
+                    direction_angle_difference = normalize_angle(torch.tensor(directions).to(device) - agent_psi)
+                    losses = - torch.cos(direction_angle_difference) * (
+                            torch.abs(direction_angle_difference) > direction_angle_threshold
+                    )
+                    loss = losses.min()
                 else:
                     loss = torch.tensor(0.0).to(device)
             except LaneletError:

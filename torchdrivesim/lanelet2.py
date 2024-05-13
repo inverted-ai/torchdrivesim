@@ -60,8 +60,8 @@ def load_lanelet_map(map_path: str, origin: Tuple[float, float] = (0, 0)) -> Lan
     return lanelet_map
 
 
-def find_lanelet_directions(lanelet_map: LaneletMap, x: float, y: float, tags_to_exclude: Optional[List[str]] = None)\
-        -> List[float]:
+def find_lanelet_directions(lanelet_map: LaneletMap, x: float, y: float, tags_to_exclude: Optional[List[str]] = None,
+                            lanelet_dist_tolerance: float = 1.0) -> List[float]:
     """
     For a given point, find local orientations of all lanelets that contain it.
 
@@ -70,6 +70,7 @@ def find_lanelet_directions(lanelet_map: LaneletMap, x: float, y: float, tags_to
         x: first coordinate of the point in the map's coordinate frame
         y: second coordinate of the point in the map's coordinate frame
         tags_to_exclude: lanelets tagged with any of those tags will be omitted as if they didn't exist
+        lanelet_dist_tolerance: how far out of a lanelet a car can be for the lanelet to still be containing it
     Returns:
         for each lanelet, the angle representing its local orientation in radians
     Raises:
@@ -81,7 +82,7 @@ def find_lanelet_directions(lanelet_map: LaneletMap, x: float, y: float, tags_to
         tags_to_exclude = []
     location = lanelet2.core.BasicPoint2d(float(x), float(y))
     location3d = lanelet2.core.BasicPoint3d(float(x), float(y), 0)
-    all_selected_lanelets = lanelet2.geometry.findWithin2d(lanelet_map.laneletLayer, location, 1)
+    all_selected_lanelets = lanelet2.geometry.findWithin2d(lanelet_map.laneletLayer, location, lanelet_dist_tolerance)
     directions = []
     for distance, lanelet in all_selected_lanelets:
         centerline = lanelet.centerline

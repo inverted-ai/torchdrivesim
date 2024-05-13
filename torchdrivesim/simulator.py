@@ -48,6 +48,10 @@ class TorchDriveConfig:
     collision_metric: CollisionMetric = field(default_factory=lambda:CollisionMetric.discs)  #: method to use for computing collisions
     offroad_threshold: float = 0.5  #: how much the agents can go off-road without counting that as infraction
     left_handed_coordinates: bool = False  #: whether the coordinate system is left-handed (z always points upwards)
+    wrong_way_angle_threshold: float = np.pi / 2  #: how far the agents can point away from the lane direction
+        # without counting as infraction
+    lanelet_inclusion_tolerance: float = 1.0  #: cars less than this many meters away from a lanelet boundary will still
+        # be considered inside for the purposes of calculating the wrong way infractions
 
 
 # the type system in Python is not sufficiently expressive to parameterize those types,
@@ -758,8 +762,14 @@ class Simulator(SimulatorInterface):
                 idx_no_map = [i for i, item in enumerate(self.lanelet_map) if item is None]
                 logger.debug(f"Batches {idx_no_map} have no lanelet map. Returning zeros for wrong_way losses.")
                 self.warned_no_lanelet = True
-            return self.across_agent_types(lambda state, mask: lanelet_orientation_loss(
-                self.lanelet_map, state, self.recenter_offset) * mask, self.get_state(), self.get_present_mask())
+            return self.across_agent_types(
+                lambda state, mask: lanelet_orientation_loss(
+                    self.lanelet_map, state, self.recenter_offset,
+                    direction_angle_threshold=self.cfg.wrong_way_angle_threshold,
+                    lanelet_dist_tolerance=self.cfg.lanelet_inclusion_tolerance,
+                ) * mask,
+                self.get_state(), self.get_present_mask()
+            )
         else:
             if not self.warned_no_lanelet:
                 logger.debug("No lanelet map is provided. Returning zeros for wrong_way losses.")
