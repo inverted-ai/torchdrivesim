@@ -394,28 +394,28 @@ def bbox2discs(box: Tensor, num_discs: int = 5, backend: str = 'torch') -> Tuple
     agent_wid = box[..., 3:4]
     agent_yaw = box[..., 4:5]
 
-    agent_r = agent_wid/2
-
     if backend == 'torch':
+        agent_r = torch.minimum(agent_len, agent_wid) / 2
         agent_disc_xy = torch.stack([
-                i * ((agent_len / 2) - agent_r) / num_discs_per_side
+                i * ((torch.maximum(agent_len, agent_wid) / 2) - agent_r) / num_discs_per_side
                 for i in range(-num_discs_per_side, num_discs_per_side+1)], dim=-2)
         agent_disc_xy = F.pad(agent_disc_xy, (0,1)) # We don't modify the y axis
 
-        agent_yaw = agent_yaw.unsqueeze(-2)
+        agent_yaw = (agent_yaw + (np.pi / 2) * (agent_wid > agent_len)).unsqueeze(-2)
         agent_disc_center = torch.cat([
             agent_disc_xy[...,0:1] * torch.cos(agent_yaw) - agent_disc_xy[...,1:2] * torch.sin(agent_yaw),
             agent_disc_xy[...,0:1] * torch.sin(agent_yaw) + agent_disc_xy[...,1:2] * torch.cos(agent_yaw),
         ], dim=-1)
         agent_disc_center += agent_xy.unsqueeze(-2)
     elif backend == 'numpy':
+        agent_r = np.minimum(agent_len, agent_wid) / 2
         agent_disc_xy = np.stack([
-                i * ((agent_len / 2) - agent_r) / num_discs_per_side
+                i * ((np.maximum(agent_len, agent_wid) / 2) - agent_r) / num_discs_per_side
                 for i in range(-num_discs_per_side, num_discs_per_side+1)], axis=-2)
         # We don't modify the y axis
         agent_disc_xy = np.pad(agent_disc_xy, ((0,0), (0,0), (0,1)), 'constant', constant_values=0.0)
 
-        agent_yaw = np.expand_dims(agent_yaw, -2)
+        agent_yaw = np.expand_dims(agent_yaw + (np.pi / 2) * (agent_wid > agent_len), -2)
         agent_disc_center = np.concatenate([
             agent_disc_xy[...,0:1] * np.cos(agent_yaw) - agent_disc_xy[...,1:2] * np.sin(agent_yaw),
             agent_disc_xy[...,0:1] * np.sin(agent_yaw) + agent_disc_xy[...,1:2] * np.cos(agent_yaw),
