@@ -238,7 +238,8 @@ def line_segments_to_mesh(points: Tensor, line_width: float = 0.3, eps: float = 
     return BaseMesh(verts=verts, faces=faces)
 
 
-def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False, batch_size: int = 50000) -> BirdviewMesh:
+def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False, batch_size: int = 50000,
+                             left_right_marking_join_threshold: float = 0.1) -> BirdviewMesh:
     """
     Creates a lane marking mesh from a given map.
 
@@ -246,6 +247,7 @@ def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False,
         lanelet_map: map to use
         left_handed: whether the map's coordinate system is left-handed (flips the left and right boundary designations)
         batch_size: controls the amount of points processed in parallel
+        left_right_marking_join_threshold: if left and right markings are this close, they will be treated as joint
     """
     # Each point in the lanelet map becomes a vertex of the road mesh
     n_points = len(lanelet_map.pointLayer)
@@ -286,7 +288,7 @@ def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False,
         for i in range(0, vec_1.shape[0], batch_size):
             for j in range(0, vec_2.shape[0], batch_size):
                 res[i:i+batch_size, j:j+batch_size] = scipy.spatial.distance.cdist(\
-                    vec_1[i:i+batch_size], vec_2[j:j+batch_size]) < 0.1
+                    vec_1[i:i+batch_size], vec_2[j:j+batch_size]) < left_right_marking_join_threshold
         return res.tocsr()
     p00 = calc_distance_sparse(left_points_t[:,0], right_points_t[:,0])
     p11 = calc_distance_sparse(left_points_t[:,1], right_points_t[:,1])
