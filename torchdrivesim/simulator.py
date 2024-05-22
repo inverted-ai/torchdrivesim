@@ -52,6 +52,7 @@ class TorchDriveConfig:
         # without counting as infraction
     lanelet_inclusion_tolerance: float = 1.0  #: cars less than this many meters away from a lanelet boundary will still
         # be considered inside for the purposes of calculating the wrong way infractions
+    waypoint_removal_threshold: float = 2.0  #: how close the agent needs to get to the waypoint to consider it achieved
 
 
 # the type system in Python is not sufficiently expressive to parameterize those types,
@@ -847,7 +848,7 @@ class Simulator(SimulatorInterface):
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
         if self.waypoint_goals is not None:
-            self.waypoint_goals.step(self.get_state(), self.internal_time)
+            self.waypoint_goals.step(self.get_state(), self.internal_time, threshold=self.cfg.waypoint_removal_threshold)
 
     def set_state(self, agent_state, mask=None):
         if mask is None:
