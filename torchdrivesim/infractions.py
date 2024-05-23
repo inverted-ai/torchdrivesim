@@ -288,7 +288,7 @@ def lanelet_orientation_loss(lanelet_maps: List[Optional[LaneletMap]], agents_st
                 else:
                     loss = torch.tensor(0.0).to(device)
             except LaneletError:
-                logger.error(
+                logger.debug(
                     "Lanelet errors occurred during computing the orientation losses."
                     " Setting the wrong way loss for the agent to be zero.")
                 loss = torch.tensor(0.0).to(device)
