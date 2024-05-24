@@ -152,7 +152,7 @@ class WaypointGoal:
             self.state = self.state[idx]
         return self
 
-    def step(self, agent_states: TensorPerAgentType, time: int, threshold = 2.0) -> None:
+    def step(self, agent_states: TensorPerAgentType, time: int = 0, threshold: float = 2.0) -> None:
         """
         Advances the state of the waypoints.
         """
