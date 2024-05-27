@@ -310,8 +310,8 @@ def iou_differentiable(box1: Tensor, box2: Tensor, fast: bool = True) -> Tensor:
     Accepts multiple batch dimensions.
 
     Args:
-        box1: Bx5 tensor x,y,length,width,orientation
-        box2: Bx5 tensor
+        box1: BxAx5 tensor x,y,length,width,orientation
+        box2: BxAx5 tensor
         fast: whether to use faster but less accurate method
     Returns:
         tensor of shape (B,) with IoU values
