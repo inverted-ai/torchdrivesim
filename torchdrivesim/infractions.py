@@ -507,8 +507,8 @@ def collision_detection_with_discs(box1: Tensor, box2: Tensor, num_discs: int = 
     A bounding box is described by 5 values in this order: (x, y, length, width, orientation)
 
     Args:
-        box1: Bx5 tensor
-        box2: Bx5 tensor
+        box1: BxAx5 tensor
+        box2: BxAx5 tensor
         num_discs: The number of discs used to represent a vehicle. Must be a positive odd number.
         backend: Either torch or numpy.
 
