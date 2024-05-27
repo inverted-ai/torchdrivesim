@@ -314,7 +314,7 @@ def iou_differentiable(box1: Tensor, box2: Tensor, fast: bool = True) -> Tensor:
         box2: BxAx5 tensor
         fast: whether to use faster but less accurate method
     Returns:
-        tensor of shape (B,) with IoU values
+        tensor of shape (B,A) with IoU values
     """
     if fast:
         iou = iou_differentiable_fast(box1, box2)
@@ -513,7 +513,7 @@ def collision_detection_with_discs(box1: Tensor, box2: Tensor, num_discs: int = 
         backend: Either torch or numpy.
 
     Returns:
-        tensor of shape (B,) with collision values between corresponding agents
+        tensor of shape (B,A) with collision values between corresponding agents
     """
     batch_size = box1.shape[0]
     num_agents = box1.shape[1]
