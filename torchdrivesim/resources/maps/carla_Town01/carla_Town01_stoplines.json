@@ -6,7 +6,7 @@
         "y": 68.378,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2877,
@@ -15,7 +15,7 @@
         "y": 55.499,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 2878,
@@ -24,7 +24,7 @@
         "y": 45.785,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2879,
@@ -33,7 +33,7 @@
         "y": 142.026,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2880,
@@ -42,7 +42,7 @@
         "y": 129.415,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 2881,
@@ -51,7 +51,7 @@
         "y": 119.766,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2882,
@@ -60,7 +60,7 @@
         "y": 208.691,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2883,
@@ -69,7 +69,7 @@
         "y": 195.141,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 2884,
@@ -78,7 +78,7 @@
         "y": 186.256,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2885,
@@ -87,7 +87,7 @@
         "y": 326.589,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 2886,
@@ -96,7 +96,7 @@
         "y": 317.014,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2887,
@@ -114,7 +114,7 @@
         "y": 326.61,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 2889,
@@ -123,7 +123,7 @@
         "y": 317.233,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2890,
@@ -141,7 +141,7 @@
         "y": 55.491,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 2892,
@@ -150,7 +150,7 @@
         "y": 46.048,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2893,
@@ -168,7 +168,7 @@
         "y": 45.998,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2895,
@@ -186,7 +186,7 @@
         "y": 10.952,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2897,
@@ -195,7 +195,7 @@
         "y": -1.999,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -3.142
+        "orientation": -3.1411853071795868
     },
     {
         "actor_id": 2898,
@@ -204,7 +204,7 @@
         "y": 69.391,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2899,
@@ -213,7 +213,7 @@
         "y": 120.558,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2900,
@@ -231,7 +231,7 @@
         "y": 144.119,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2902,
@@ -240,7 +240,7 @@
         "y": 185.611,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 2903,
@@ -258,7 +258,7 @@
         "y": 209.419,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2905,
@@ -267,7 +267,7 @@
         "y": 1.954,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     },
     {
         "actor_id": 2906,
@@ -276,7 +276,7 @@
         "y": 11.447,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2907,
@@ -285,7 +285,7 @@
         "y": -2.043,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -3.142
+        "orientation": -3.1411853071795868
     },
     {
         "actor_id": 2908,
@@ -294,7 +294,7 @@
         "y": 1.958,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     },
     {
         "actor_id": 2909,
@@ -303,7 +303,7 @@
         "y": 11.55,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 2910,
@@ -312,7 +312,7 @@
         "y": -2.05,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -3.142
+        "orientation": -3.1411853071795868
     },
     {
         "actor_id": 2911,
@@ -321,6 +321,6 @@
         "y": 1.989,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     }
 ]
