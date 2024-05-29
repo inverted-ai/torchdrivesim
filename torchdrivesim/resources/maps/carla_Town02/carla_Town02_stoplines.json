@@ -6,7 +6,7 @@
         "y": 236.931,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 3162,
@@ -15,7 +15,7 @@
         "y": 229.693,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 3163,
@@ -33,7 +33,7 @@
         "y": 191.609,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     },
     {
         "actor_id": 3165,
@@ -42,7 +42,7 @@
         "y": 199.33,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 3166,
@@ -51,7 +51,7 @@
         "y": 187.619,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -3.142
+        "orientation": -3.1411853071795868
     },
     {
         "actor_id": 3167,
@@ -60,7 +60,7 @@
         "y": 191.568,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     },
     {
         "actor_id": 3168,
@@ -69,7 +69,7 @@
         "y": 199.294,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 3169,
@@ -78,7 +78,7 @@
         "y": 187.576,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -3.142
+        "orientation": -3.1411853071795868
     },
     {
         "actor_id": 3170,
@@ -87,7 +87,7 @@
         "y": 180.875,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 3171,
@@ -96,7 +96,7 @@
         "y": 191.636,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     },
     {
         "actor_id": 3172,
@@ -105,7 +105,7 @@
         "y": 199.289,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 3173,
@@ -114,7 +114,7 @@
         "y": 229.878,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 3174,
@@ -123,7 +123,7 @@
         "y": 240.954,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -0.0
+        "orientation": 0.0
     },
     {
         "actor_id": 3175,
@@ -132,7 +132,7 @@
         "y": 248.474,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 3176,
@@ -141,7 +141,7 @@
         "y": 187.554,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 3177,
@@ -150,7 +150,7 @@
         "y": 181.189,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 3178,
@@ -159,7 +159,7 @@
         "y": 248.148,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     },
     {
         "actor_id": 3179,
@@ -168,7 +168,7 @@
         "y": 236.877,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 3180,
@@ -177,7 +177,7 @@
         "y": 227.428,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 3181,
@@ -186,7 +186,7 @@
         "y": 302.532,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 3.142
+        "orientation": 3.1411853071795868
     },
     {
         "actor_id": 3182,
@@ -195,7 +195,7 @@
         "y": 295.69,
         "length": 1.0,
         "width": 4.0,
-        "orientation": -1.571
+        "orientation": 1.5709999999999997
     },
     {
         "actor_id": 3183,
@@ -213,6 +213,6 @@
         "y": 199.365,
         "length": 1.0,
         "width": 4.0,
-        "orientation": 1.571
+        "orientation": -1.5709999999999997
     }
 ]
