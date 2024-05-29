@@ -6,7 +6,6 @@ imageio
 --find-links https://download.pytorch.org/whl/torch_stable.html
 torch==2.1.2+cu118
 --find-links  https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu118_pyt210/download.html
-pytorch3d==0.7.5
 omegaconf
 invertedai
 pytest>=5.4.3
