@@ -229,7 +229,7 @@ def traffic_controls_from_map_config(cfg: MapConfig) -> Dict[str, BaseTrafficCon
     return traffic_controls
 
 
-def find_wrong_way_stoplines(map_cfg: MapConfig) -> List[int]:
+def find_wrong_way_stoplines(map_cfg: MapConfig, angle_threshold: float = np.pi/6) -> List[int]:
     wrong_way_stopline_ids = []
     lanelet_map = map_cfg.lanelet_map
     if lanelet_map is None:
@@ -237,6 +237,6 @@ def find_wrong_way_stoplines(map_cfg: MapConfig) -> List[int]:
     stoplines = map_cfg.stoplines
     for stopline in stoplines:
         lanelet_orientations = find_lanelet_directions(lanelet_map, stopline.x, stopline.y, lanelet_dist_tolerance=0)
-        if lanelet_orientations and not any([normalize_angle(psi - stopline.orientation) < np.pi / 2 for psi in lanelet_orientations]):
+        if lanelet_orientations and not any([abs(normalize_angle(psi - stopline.orientation)) < angle_threshold for psi in lanelet_orientations]):
             wrong_way_stopline_ids.append(stopline.actor_id)
     return wrong_way_stopline_ids
