@@ -29,8 +29,8 @@ class BaseTrafficControl:
         self.mask = mask if mask is not None else self._default_mask()
 
         self.corners = box2corners_th(self.pos)
-        corner_mask = self.mask.to(self.corners.dtype).reshape(self.mask.shape[0], self.mask.shape[1], 1, 1)
-        self.corners = self.corners * corner_mask + (1 - corner_mask) * -1000  # Set masked bboxes far from center
+        self.corners_mask = self.mask.to(self.corners.dtype).reshape(self.mask.shape[0], self.mask.shape[1], 1, 1)
+        self.corners = self.corners * self.corners_mask + (1 - self.corners_mask) * -1000  # Set masked bboxes far from center
         self.state = self._default_state()
 
     @classmethod
@@ -70,6 +70,7 @@ class BaseTrafficControl:
         """
         self.pos = self.pos.to(device)
         self.corners = self.corners.to(device)
+        self.corners_mask = self.corners_mask.to(device)
         self.replay_states = self.replay_states.to(device)
         self.mask = self.mask.to(device)
         self.state = self.state.to(device)
@@ -90,6 +91,7 @@ class BaseTrafficControl:
         ).reshape((n * x.shape[0],) + x.shape[1:])
         self.pos = enlarge(self.pos)
         self.corners = enlarge(self.corners)
+        self.corners_mask = enlarge(self.corners_mask)
         self.mask = enlarge(self.mask)
         self.replay_states = enlarge(self.replay_states)
         self.state = enlarge(self.state)
@@ -107,6 +109,7 @@ class BaseTrafficControl:
 
         self.pos = self.pos[idx]
         self.corners = self.corners[idx]
+        self.corners_mask = self.corners_mask[idx]
         self.mask = self.mask[idx]
         self.replay_states = self.replay_states[idx]
         self.state = self.state[idx]

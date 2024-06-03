@@ -23,7 +23,7 @@ from torchdrivesim.rendering import BirdviewRenderer, RendererConfig, renderer_f
 from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
     compute_agent_collisions_metric_pytorch3d, compute_agent_collisions_metric, collision_detection_with_discs
 from torchdrivesim.traffic_controls import BaseTrafficControl
-from torchdrivesim.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
+from torchdrivesim.utils import Resolution, is_inside_polygon, isin, relative, assert_equal, rotate
 
 logger = logging.getLogger(__name__)
 
@@ -287,6 +287,20 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     def get_waypoints_mask(self) -> TensorPerAgentType:
         """
         Returns a functor of BxAxM boolean tensors representing current agent waypoints present mask.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_egocentric_centerlines(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxLxPx2 tensors representing egocentric centerlines.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_centerlines_mask(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxL boolean tensors representing the valid centerlines.
         """
         pass
 
@@ -564,7 +578,8 @@ class Simulator(SimulatorInterface):
                  cfg: TorchDriveConfig, renderer: Optional[BirdviewRenderer] = None,
                  lanelet_map: Optional[List[Optional[LaneletMap]]] = None, recenter_offset: Optional[Tensor] = None,
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
-                 waypoint_goals: Optional[WaypointGoal] = None):
+                 waypoint_goals: Optional[WaypointGoal] = None, centerline_pts: Optional[Tensor] = None,
+                 centerline_valid: Optional[Tensor] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -592,6 +607,8 @@ class Simulator(SimulatorInterface):
 
         self.traffic_controls = traffic_controls
         self.waypoint_goals = waypoint_goals
+        self.centerline_pts = centerline_pts
+        self.centerline_valid = centerline_valid
 
         if cfg.left_handed_coordinates:
             def set_left_handed(kin):
@@ -757,6 +774,24 @@ class Simulator(SimulatorInterface):
     def get_waypoints_mask(self):
         return self.waypoint_goals.get_masks() if self.waypoint_goals is not None else None
 
+    def get_egocentric_centerlines(self):
+        if self.centerline_pts is not None:
+            def _transform_centerlines(states):
+                out = rotate(self.centerline_pts[:, None] - states[..., None, None, :2], -states[..., None, None, 2:3])
+                if self.centerline_valid is not None:
+                    out = out * self.centerline_valid.unsqueeze(-4)
+                return out
+            return self.across_agent_types(_transform_centerlines, self.get_state())
+        else:
+            return None
+
+    def get_centerlines_mask(self):
+        if self.centerline_valid is not None:
+            return self.across_agent_types(lambda a_c: self.centerline_valid.unsqueeze(1).expand(-1, a_c, -1, -1, -1),
+                self.agent_count)
+        else:
+            return None
+
     def compute_wrong_way(self):
         if self.lanelet_map is not None:
             if isinstance(self.lanelet_map, Iterable) and None in self.lanelet_map and not self.warned_no_lanelet:
@@ -789,8 +824,9 @@ class Simulator(SimulatorInterface):
 
     def get_all_agents_absolute(self):
         return self.across_agent_types(
-            lambda state, size, present: torch.cat([state[..., :3], size, present.unsqueeze(-1)], dim=-1),
-            self.get_state(), self.get_agent_size(), self.get_present_mask()
+            lambda state, size, agent_type, present: torch.cat([state, size, agent_type.unsqueeze(-1),
+                                                                present.unsqueeze(-1)], dim=-1),
+            self.get_state(), self.get_agent_size(), self.get_agent_type(), self.get_present_mask()
         )
 
     def get_all_agents_relative(self, exclude_self=True):
@@ -810,7 +846,9 @@ class Simulator(SimulatorInterface):
                                        target_xy=all_xy.unsqueeze(-3), target_psi=all_psi.unsqueeze(-3))
             rel_state = torch.cat([rel_xy, rel_psi], dim=-1)
             # insert the info that doesn't vary with the coordinate frame
-            rel_pos = torch.cat([rel_state, all_abs_agent_pos[..., 3:].unsqueeze(-3).expand_as(rel_state)], dim=-1)
+            num_additional_dims = all_abs_agent_pos[..., 3:].shape[-1]
+            rel_pos = torch.cat([rel_state, all_abs_agent_pos[..., 3:].unsqueeze(-3).expand(*rel_state.shape[:-1],
+                num_additional_dims)], dim=-1)
             if exclude_self:
                 # remove the diagonal of the current agent type
                 to_keep = torch.eye(agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
@@ -821,7 +859,7 @@ class Simulator(SimulatorInterface):
                 rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
                 rel_pos = rel_pos[..., to_keep, :]
                 # the result has one less agent in the penultimate dimension
-                rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], agent_count, all_agent_count - 1, 6))
+                rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], agent_count, all_agent_count - 1, all_abs_agent_pos.shape[-1]))
             return rel_pos
 
         return self.across_agent_types(
@@ -1087,6 +1125,12 @@ class SimulatorWrapper(SimulatorInterface):
     def get_waypoints_mask(self):
         return self.inner_simulator.get_waypoints_mask()
 
+    def get_egocentric_centerlines(self):
+        return self.inner_simulator.get_egocentric_centerlines()
+
+    def get_centerlines_mask(self):
+        return self.inner_simulator.get_centerlines_mask()
+
     def get_all_agents_absolute(self):
         return self.inner_simulator.get_all_agents_absolute()
 
@@ -1218,6 +1262,22 @@ class NPCWrapper(SimulatorWrapper):
                 lambda x, k: x[..., k.logical_not(), :], masks, self.npc_mask
             )
         return masks
+
+    def get_egocentric_centerlines(self):
+        egocentric_centerlines = self.inner_simulator.get_egocentric_centerlines()
+        if egocentric_centerlines is not None:
+            egocentric_centerlines = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :, :], egocentric_centerlines, self.npc_mask
+            )
+        return egocentric_centerlines
+
+    def get_centerlines_mask(self):
+        centerlines_mask = self.inner_simulator.get_centerlines_mask()
+        if centerlines_mask is not None:
+            centerlines_mask = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :, :], centerlines_mask, self.npc_mask
+            )
+        return centerlines_mask
 
     def get_agent_size(self):
         sizes = self.across_agent_types(
@@ -1506,6 +1566,18 @@ class HomogeneousWrapper(SimulatorWrapper):
         if masks is not None:
             masks = self.agent_concat(masks, agent_dim=-2)
         return masks
+
+    def get_egocentric_centerlines(self):
+        egocentric_centerlines = self.inner_simulator.get_egocentric_centerlines()
+        if egocentric_centerlines is not None:
+            egocentric_centerlines = self.agent_concat(egocentric_centerlines, agent_dim=-4)
+        return egocentric_centerlines
+
+    def get_centerlines_mask(self):
+        centerlines_mask = self.inner_simulator.get_centerlines_mask()
+        if centerlines_mask is not None:
+            centerlines_mask = self.agent_concat(centerlines_mask, agent_dim=-4)
+        return centerlines_mask
 
     def get_all_agents_absolute(self):
         agent_info = self.inner_simulator.get_all_agents_absolute()
@@ -1842,6 +1914,11 @@ class SelectiveWrapper(SimulatorWrapper):
                 lambda x, i: x.gather(index=i[..., None, None].expand(i.shape + x.shape[-2:]), dim=agent_dim),
                 tensor, self.get_exposed_agents()
             )
+        elif agent_dim == -4:
+            return self.across_agent_types(
+                lambda x, i: x.gather(index=i[..., None, None, None].expand(i.shape + x.shape[-3:]), dim=agent_dim),
+                tensor, self.get_exposed_agents()
+            )
         else:
             raise NotImplementedError
 
@@ -1917,6 +1994,18 @@ class SelectiveWrapper(SimulatorWrapper):
         if masks is not None:
             masks = self._restrict_tensor(masks, agent_dim=-2)
         return masks
+
+    def get_egocentric_centerlines(self):
+        egocentric_centerlines = self.inner_simulator.get_egocentric_centerlines()
+        if egocentric_centerlines is not None:
+            egocentric_centerlines = self._restrict_tensor(egocentric_centerlines, agent_dim=-4)
+        return egocentric_centerlines
+
+    def get_centerlines_mask(self):
+        centerlines_mask = self.inner_simulator.get_centerlines_mask()
+        if centerlines_mask is not None:
+            centerlines_mask = self._restrict_tensor(centerlines_mask, agent_dim=-4)
+        return centerlines_mask
 
     def get_all_agents_absolute(self):
         return self._restrict_tensor(self.inner_simulator.get_all_agents_absolute(), agent_dim=-2)
