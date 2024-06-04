@@ -640,6 +640,8 @@ class Simulator(SimulatorInterface):
     def to(self, device):
         self.road_mesh = self.road_mesh.to(device)
         self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
+        self.centerline_pts = self.centerline_pts.to(device)
+        self.centerline_valid = self.centerline_valid.to(device)
         self.agent_size = self.agent_functor.to_device(self.agent_size, device)
         self.agent_type = self.agent_functor.to_device(self.agent_type, device)
         self.present_mask = self.agent_functor.to_device(self.present_mask, device)
@@ -658,7 +660,8 @@ class Simulator(SimulatorInterface):
             cfg=self.cfg, renderer=self.renderer.copy(), lanelet_map=self.lanelet_map,
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
-            waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None
+            waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None,
+            centerline_pts=self.centerline_pts, centerline_valid=self.centerline_valid
         )
         return other
 
@@ -674,6 +677,8 @@ class Simulator(SimulatorInterface):
         self.agent_type = self.across_agent_types(enlarge, self.agent_type)
         self.present_mask = self.across_agent_types(enlarge, self.present_mask)
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
+        self.centerline_pts = enlarge(self.centerline_pts) if self.centerline_pts is not None else None
+        self.centerline_valid = enlarge(self.centerline_valid) if self.centerline_valid is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
         # kinematic models are expanded in place
@@ -700,6 +705,8 @@ class Simulator(SimulatorInterface):
 
         self.road_mesh = self.road_mesh[idx]
         self.recenter_offset = self.recenter_offset[idx] if self.recenter_offset is not None else None
+        self.centerline_pts = self.centerline_pts[idx] if self.centerline_pts is not None else None
+        self.centerline_valid = self.centerline_valid[idx] if self.centerline_valid is not None else None
         self.lanelet_map = [self.lanelet_map[i] for i in idx] if self.lanelet_map is not None else None
         self.agent_size = self.across_agent_types(
             lambda x: x[idx], self.agent_size
