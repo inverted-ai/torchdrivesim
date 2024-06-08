@@ -640,8 +640,8 @@ class Simulator(SimulatorInterface):
     def to(self, device):
         self.road_mesh = self.road_mesh.to(device)
         self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
-        self.centerline_pts = self.centerline_pts.to(device)
-        self.centerline_valid = self.centerline_valid.to(device)
+        self.centerline_pts = self.centerline_pts.to(device) if self.centerline_pts is not None else None
+        self.centerline_valid = self.centerline_valid.to(device) if self.centerline_valid is not None else None
         self.agent_size = self.agent_functor.to_device(self.agent_size, device)
         self.agent_type = self.agent_functor.to_device(self.agent_type, device)
         self.present_mask = self.agent_functor.to_device(self.present_mask, device)
