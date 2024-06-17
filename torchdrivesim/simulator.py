@@ -305,6 +305,34 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_egocentric_left_bounds(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxLxPx2 tensors representing egocentric left bounds.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_left_bounds_mask(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxL boolean tensors representing the valid left bounds.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_egocentric_right_bounds(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxLxPx2 tensors representing egocentric right bounds.
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_right_bounds_mask(self) -> TensorPerAgentType:
+        """
+        Returns a functor of BxAxL boolean tensors representing the valid right bounds.
+        """
+        pass
+
+    @abc.abstractmethod
     def step(self, agent_action: TensorPerAgentType) -> None:
         """
         Runs the simulation for one step with given agent actions.
@@ -579,7 +607,9 @@ class Simulator(SimulatorInterface):
                  lanelet_map: Optional[List[Optional[LaneletMap]]] = None, recenter_offset: Optional[Tensor] = None,
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_goals: Optional[WaypointGoal] = None, centerline_pts: Optional[Tensor] = None,
-                 centerline_valid: Optional[Tensor] = None):
+                 centerline_valid: Optional[Tensor] = None, left_bound_pts: Optional[Tensor] = None,
+                 left_bound_valid: Optional[Tensor] = None, right_bound_pts: Optional[Tensor] = None,
+                 right_bound_valid: Optional[Tensor] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -609,6 +639,10 @@ class Simulator(SimulatorInterface):
         self.waypoint_goals = waypoint_goals
         self.centerline_pts = centerline_pts
         self.centerline_valid = centerline_valid
+        self.left_bound_pts = left_bound_pts
+        self.left_bound_valid = left_bound_valid
+        self.right_bound_pts = right_bound_pts
+        self.right_bound_valid = right_bound_valid
 
         if cfg.left_handed_coordinates:
             def set_left_handed(kin):
@@ -642,6 +676,10 @@ class Simulator(SimulatorInterface):
         self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
         self.centerline_pts = self.centerline_pts.to(device) if self.centerline_pts is not None else None
         self.centerline_valid = self.centerline_valid.to(device) if self.centerline_valid is not None else None
+        self.left_bound_pts = self.left_bound_pts.to(device) if self.left_bound_pts is not None else None
+        self.left_bound_valid = self.left_bound_valid.to(device) if self.left_bound_valid is not None else None
+        self.right_bound_pts = self.right_bound_pts.to(device) if self.right_bound_pts is not None else None
+        self.right_bound_valid = self.right_bound_valid.to(device) if self.right_bound_valid is not None else None
         self.agent_size = self.agent_functor.to_device(self.agent_size, device)
         self.agent_type = self.agent_functor.to_device(self.agent_type, device)
         self.present_mask = self.agent_functor.to_device(self.present_mask, device)
@@ -661,7 +699,9 @@ class Simulator(SimulatorInterface):
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
             waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None,
-            centerline_pts=self.centerline_pts, centerline_valid=self.centerline_valid
+            centerline_pts=self.centerline_pts, centerline_valid=self.centerline_valid,
+            left_bound_pts=self.left_bound_pts, left_bound_valid=self.left_bound_valid,
+            right_bound_pts=self.right_bound_pts, right_bound_valid=self.right_bound_valid,
         )
         return other
 
@@ -679,6 +719,10 @@ class Simulator(SimulatorInterface):
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
         self.centerline_pts = enlarge(self.centerline_pts) if self.centerline_pts is not None else None
         self.centerline_valid = enlarge(self.centerline_valid) if self.centerline_valid is not None else None
+        self.left_bound_pts = enlarge(self.left_bound_pts) if self.left_bound_pts is not None else None
+        self.left_bound_valid = enlarge(self.left_bound_valid) if self.left_bound_valid is not None else None
+        self.right_bound_pts = enlarge(self.right_bound_pts) if self.right_bound_pts is not None else None
+        self.right_bound_valid = enlarge(self.right_bound_valid) if self.right_bound_valid is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
         # kinematic models are expanded in place
@@ -707,6 +751,10 @@ class Simulator(SimulatorInterface):
         self.recenter_offset = self.recenter_offset[idx] if self.recenter_offset is not None else None
         self.centerline_pts = self.centerline_pts[idx] if self.centerline_pts is not None else None
         self.centerline_valid = self.centerline_valid[idx] if self.centerline_valid is not None else None
+        self.left_bound_pts = self.left_bound_pts[idx] if self.left_bound_pts is not None else None
+        self.left_bound_valid = self.left_bound_valid[idx] if self.left_bound_valid is not None else None
+        self.right_bound_pts = self.right_bound_pts[idx] if self.right_bound_pts is not None else None
+        self.right_bound_valid = self.right_bound_valid[idx] if self.right_bound_valid is not None else None
         self.lanelet_map = [self.lanelet_map[i] for i in idx] if self.lanelet_map is not None else None
         self.agent_size = self.across_agent_types(
             lambda x: x[idx], self.agent_size
@@ -795,6 +843,42 @@ class Simulator(SimulatorInterface):
     def get_centerlines_mask(self):
         if self.centerline_valid is not None:
             return self.across_agent_types(lambda a_c: self.centerline_valid.unsqueeze(1).expand(-1, a_c, -1, -1, -1),
+                self.agent_count)
+        else:
+            return None
+
+    def get_egocentric_left_bounds(self):
+        if self.left_bound_pts is not None:
+            def _transform_left_bounds(states):
+                out = rotate(self.left_bound_pts[:, None] - states[..., None, None, :2], -states[..., None, None, 2:3])
+                if self.left_bound_valid is not None:
+                    out = out * self.left_bound_valid.unsqueeze(-4)
+                return out
+            return self.across_agent_types(_transform_left_bounds, self.get_state())
+        else:
+            return None
+
+    def get_left_bounds_mask(self):
+        if self.left_bound_valid is not None:
+            return self.across_agent_types(lambda a_c: self.left_bound_valid.unsqueeze(1).expand(-1, a_c, -1, -1, -1),
+                self.agent_count)
+        else:
+            return None
+
+    def get_egocentric_right_bounds(self):
+        if self.right_bound_pts is not None:
+            def _transform_right_bounds(states):
+                out = rotate(self.right_bound_pts[:, None] - states[..., None, None, :2], -states[..., None, None, 2:3])
+                if self.right_bound_valid is not None:
+                    out = out * self.right_bound_valid.unsqueeze(-4)
+                return out
+            return self.across_agent_types(_transform_right_bounds, self.get_state())
+        else:
+            return None
+
+    def get_right_bounds_mask(self):
+        if self.right_bound_valid is not None:
+            return self.across_agent_types(lambda a_c: self.right_bound_valid.unsqueeze(1).expand(-1, a_c, -1, -1, -1),
                 self.agent_count)
         else:
             return None
@@ -1138,6 +1222,18 @@ class SimulatorWrapper(SimulatorInterface):
     def get_centerlines_mask(self):
         return self.inner_simulator.get_centerlines_mask()
 
+    def get_egocentric_left_bounds(self):
+        return self.inner_simulator.get_egocentric_left_bounds()
+
+    def get_left_bounds_mask(self):
+        return self.inner_simulator.get_left_bounds_mask()
+
+    def get_egocentric_right_bounds(self):
+        return self.inner_simulator.get_egocentric_right_bounds()
+
+    def get_right_bounds_mask(self):
+        return self.inner_simulator.get_right_bounds_mask()
+
     def get_all_agents_absolute(self):
         return self.inner_simulator.get_all_agents_absolute()
 
@@ -1285,6 +1381,38 @@ class NPCWrapper(SimulatorWrapper):
                 lambda x, k: x[..., k.logical_not(), :, :, :], centerlines_mask, self.npc_mask
             )
         return centerlines_mask
+
+    def get_egocentric_left_bounds(self):
+        egocentric_left_bounds = self.inner_simulator.get_egocentric_left_bounds()
+        if egocentric_left_bounds is not None:
+            egocentric_left_bounds = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :, :], egocentric_left_bounds, self.npc_mask
+            )
+        return egocentric_left_bounds
+
+    def get_left_bounds_mask(self):
+        left_bounds_mask = self.inner_simulator.get_left_bounds_mask()
+        if left_bounds_mask is not None:
+            left_bounds_mask = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :, :], left_bounds_mask, self.npc_mask
+            )
+        return left_bounds_mask
+
+    def get_egocentric_right_bounds(self):
+        egocentric_right_bounds = self.inner_simulator.get_egocentric_right_bounds()
+        if egocentric_right_bounds is not None:
+            egocentric_right_bounds = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :, :], egocentric_right_bounds, self.npc_mask
+            )
+        return egocentric_right_bounds
+
+    def get_right_bounds_mask(self):
+        right_bounds_mask = self.inner_simulator.get_right_bounds_mask()
+        if right_bounds_mask is not None:
+            right_bounds_mask = self.across_agent_types(
+                lambda x, k: x[..., k.logical_not(), :, :, :], right_bounds_mask, self.npc_mask
+            )
+        return right_bounds_mask
 
     def get_agent_size(self):
         sizes = self.across_agent_types(
@@ -1585,6 +1713,30 @@ class HomogeneousWrapper(SimulatorWrapper):
         if centerlines_mask is not None:
             centerlines_mask = self.agent_concat(centerlines_mask, agent_dim=-4)
         return centerlines_mask
+
+    def get_egocentric_left_bounds(self):
+        egocentric_left_bounds = self.inner_simulator.get_egocentric_left_bounds()
+        if egocentric_left_bounds is not None:
+            egocentric_left_bounds = self.agent_concat(egocentric_left_bounds, agent_dim=-4)
+        return egocentric_left_bounds
+
+    def get_left_bounds_mask(self):
+        left_bounds_mask = self.inner_simulator.get_left_bounds_mask()
+        if left_bounds_mask is not None:
+            left_bounds_mask = self.agent_concat(left_bounds_mask, agent_dim=-4)
+        return left_bounds_mask
+
+    def get_egocentric_right_bounds(self):
+        egocentric_right_bounds = self.inner_simulator.get_egocentric_right_bounds()
+        if egocentric_right_bounds is not None:
+            egocentric_right_bounds = self.agent_concat(egocentric_right_bounds, agent_dim=-4)
+        return egocentric_right_bounds
+
+    def get_right_bounds_mask(self):
+        right_bounds_mask = self.inner_simulator.get_right_bounds_mask()
+        if right_bounds_mask is not None:
+            right_bounds_mask = self.agent_concat(right_bounds_mask, agent_dim=-4)
+        return right_bounds_mask
 
     def get_all_agents_absolute(self):
         agent_info = self.inner_simulator.get_all_agents_absolute()
@@ -2013,6 +2165,30 @@ class SelectiveWrapper(SimulatorWrapper):
         if centerlines_mask is not None:
             centerlines_mask = self._restrict_tensor(centerlines_mask, agent_dim=-4)
         return centerlines_mask
+
+    def get_egocentric_left_bounds(self):
+        egocentric_left_bounds = self.inner_simulator.get_egocentric_left_bounds()
+        if egocentric_left_bounds is not None:
+            egocentric_left_bounds = self._restrict_tensor(egocentric_left_bounds, agent_dim=-4)
+        return egocentric_left_bounds
+
+    def get_left_bounds_mask(self):
+        left_bounds_mask = self.inner_simulator.get_left_bounds_mask()
+        if left_bounds_mask is not None:
+            left_bounds_mask = self._restrict_tensor(left_bounds_mask, agent_dim=-4)
+        return left_bounds_mask
+
+    def get_egocentric_right_bounds(self):
+        egocentric_right_bounds = self.inner_simulator.get_egocentric_right_bounds()
+        if egocentric_right_bounds is not None:
+            egocentric_right_bounds = self._restrict_tensor(egocentric_right_bounds, agent_dim=-4)
+        return egocentric_right_bounds
+
+    def get_right_bounds_mask(self):
+        right_bounds_mask = self.inner_simulator.get_right_bounds_mask()
+        if right_bounds_mask is not None:
+            right_bounds_mask = self._restrict_tensor(right_bounds_mask, agent_dim=-4)
+        return right_bounds_mask
 
     def get_all_agents_absolute(self):
         return self._restrict_tensor(self.inner_simulator.get_all_agents_absolute(), agent_dim=-2)
