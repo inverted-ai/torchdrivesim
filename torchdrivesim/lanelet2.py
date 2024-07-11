@@ -239,7 +239,7 @@ def line_segments_to_mesh(points: Tensor, line_width: float = 0.3, eps: float = 
 
 
 def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False, batch_size: int = 50000,
-                             left_right_marking_join_threshold: float = 0.1) -> BirdviewMesh:
+                             left_right_marking_join_threshold: float = 0.1, lanelets: Optional[List[int]] = None) -> BirdviewMesh:
     """
     Creates a lane marking mesh from a given map.
 
@@ -261,6 +261,8 @@ def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False,
     left_segments_t = set()
     right_segments_t = set()
     for j, l in enumerate(lanelet_map.laneletLayer):
+        if lanelets is not None and l.id not in lanelets:
+            continue
         lb = l.leftBound
         rb = l.rightBound
 
