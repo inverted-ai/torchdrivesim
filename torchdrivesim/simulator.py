@@ -2139,11 +2139,13 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
         self.proximal_timesteps = self.across_agent_types(
             lambda x, y: x.mul(y), self.proximal_timesteps, self.previous_present_mask
         )
-        self.update_present_mask(self.get_present_mask())
+        present_mask = self.get_present_mask()
+        self.inner_simulator.update_present_mask(present_mask)
+        self.previous_present_mask = self.agent_functor(torch.logical_and, present_mask, self.previous_present_mask)
 
     def update_present_mask(self, present_mask):
         self.inner_simulator.update_present_mask(present_mask)
-        self.previous_present_mask = self.agent_functor(torch.logical_and, present_mask, self.previous_present_mask)
+        self.previous_present_mask = present_mask
 
     def get_present_mask(self):
         present_mask = super().get_present_mask()
