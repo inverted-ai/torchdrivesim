@@ -249,6 +249,7 @@ def lanelet_map_to_lane_mesh(lanelet_map: LaneletMap, left_handed: bool = False,
         left_handed: whether the map's coordinate system is left-handed (flips the left and right boundary designations)
         batch_size: controls the amount of points processed in parallel
         left_right_marking_join_threshold: if left and right markings are this close, they will be treated as joint
+        lane_boundary_width: in meters, the thickness of the lane markings
     """
     # Each point in the lanelet map becomes a vertex of the road mesh
     n_points = len(lanelet_map.pointLayer)
