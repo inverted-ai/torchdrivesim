@@ -63,7 +63,8 @@ such replay is not reactive, often resulting in spurious collisions.
 
 For maximum realism and reactivity, we recommend using our (Inverted AI) API for generating realistic behaviors,
 which is integrated with TorchDriveSim. This is a paid offering that requires an API key, which you can obtain by
-contacting us. For academics, we may be able to offer free API keys.
+creating an account [here](https://www.inverted.ai/portal/login). Academic researchers receive free credits when
+they sign up with their institution email.
 
 ## Maps and Map Formats
 
