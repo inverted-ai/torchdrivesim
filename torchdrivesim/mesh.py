@@ -149,6 +149,14 @@ class BaseMesh:
         """
         f = lambda x: x[idx]
         return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces))
+    
+    def shift_by_camera(self, cameras: 'Cameras', inplace: bool = True) -> Self:
+        """
+        Shifts the mesh by the camera position so that the camera is at the origin (0,0).
+        """
+        shifted_mesh = self if inplace else self.clone()
+        shifted_mesh.verts[..., :2] -= cameras.xy.unsqueeze(1)
+        return shifted_mesh
 
     def __getitem__(self, item):  # square bracket syntax for batch element selection
         return self.select_batch_elements(item)

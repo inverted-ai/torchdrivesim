@@ -470,7 +470,7 @@ class BirdviewRenderer(abc.ABC):
         return image
 
     @abc.abstractmethod
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras, shift_by_camera: bool = True)\
             -> Tensor:
         """
         Renders a given mesh, producing BxHxWxC tensor image of float RGB values in [0,255] range.

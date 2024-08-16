@@ -79,7 +79,9 @@ class NvdiffrastRenderer(BirdviewRenderer):
         if self.glctx is None:
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras, shift_by_camera: bool = True) -> torch.Tensor:
+        if shift_by_camera:
+            mesh = mesh.shift_by_camera(cameras)
         for k in mesh.categories:
             if k not in mesh.colors:
                 mesh.colors[k] = tensor_color(self.color_map[k])
