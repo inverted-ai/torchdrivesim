@@ -159,6 +159,7 @@ class BaseMesh:
             inplace: whether to modify the mesh in place
         """
         shifted_mesh = self if inplace else self.clone()
+        shifted_mesh.verts = shifted_mesh.verts.clone()
         shifted_mesh.verts[..., :2] -= xy.unsqueeze(1)
         return shifted_mesh
 
