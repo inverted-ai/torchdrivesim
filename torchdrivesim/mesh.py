@@ -160,7 +160,7 @@ class BaseMesh:
         """
         shifted_mesh = self if inplace else self.clone()
         shifted_mesh.verts = shifted_mesh.verts.clone()
-        shifted_mesh.verts[..., :2] -= xy.unsqueeze(1)
+        shifted_mesh.verts[..., :2] += xy.unsqueeze(1)
         return shifted_mesh
 
     def __getitem__(self, item):  # square bracket syntax for batch element selection

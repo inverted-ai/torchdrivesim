@@ -81,7 +81,7 @@ class NvdiffrastRenderer(BirdviewRenderer):
 
     def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
         if self.cfg.shift_mesh_by_camera_before_rendering:
-            mesh = mesh.translate(cameras.xy)
+            mesh = mesh.translate(-cameras.xy)
             cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
         for k in mesh.categories:
             if k not in mesh.colors:
