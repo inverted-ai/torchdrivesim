@@ -30,6 +30,7 @@ class RendererConfig:
     render_agent_direction: bool = True
     left_handed_coordinates: bool = False
     highlight_ego_vehicle: bool = False
+    shift_mesh_by_camera_before_rendering: bool = True
 
 
 @dataclass
@@ -470,7 +471,7 @@ class BirdviewRenderer(abc.ABC):
         return image
 
     @abc.abstractmethod
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras, shift_by_camera: bool = True)\
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
             -> Tensor:
         """
         Renders a given mesh, producing BxHxWxC tensor image of float RGB values in [0,255] range.
