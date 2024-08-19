@@ -94,6 +94,10 @@ class Pytorch3DRenderer(BirdviewRenderer):
                 mesh.zs[k] = self.rendering_levels[k]
         if self.cfg.highlight_ego_vehicle:
             mesh.colors["ego"] = tensor_color((self.color_map["ego"]))
+        if self.cfg.shift_mesh_by_camera_before_rendering:
+            mesh = mesh.translate(-cameras.xy)
+            cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
+
         meshes = mesh.pytorch3d()
         if res != self.res:
             renderer = self.make_renderer(res, self.cfg.differentiable_rendering,

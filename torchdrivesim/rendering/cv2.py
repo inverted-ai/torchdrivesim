@@ -25,7 +25,9 @@ class CV2Renderer(BirdviewRenderer):
         self.cfg: CV2RendererConfig = cfg
 
     def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
-
+        if self.cfg.shift_mesh_by_camera_before_rendering:
+            mesh = mesh.translate(-cameras.xy)
+            cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
         if self.cfg.trim_mesh_before_rendering:
             # For efficiency, remove faces that are not visible anyway
             viewing_polygon = cameras.reverse_transform_points_screen(

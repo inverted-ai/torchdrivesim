@@ -149,6 +149,19 @@ class BaseMesh:
         """
         f = lambda x: x[idx]
         return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces))
+    
+    def translate(self, xy: torch.Tensor, inplace: bool = True) -> Self:
+        """
+        Shifts the mesh by the given coordinate so that it is at the origin (0,0).
+
+        Args:
+            xy: Bx2 tensor specifying the camera position
+            inplace: whether to modify the mesh in place
+        """
+        shifted_mesh = self if inplace else self.clone()
+        shifted_mesh.verts = shifted_mesh.verts.clone()
+        shifted_mesh.verts[..., :2] += xy.unsqueeze(1)
+        return shifted_mesh
 
     def __getitem__(self, item):  # square bracket syntax for batch element selection
         return self.select_batch_elements(item)

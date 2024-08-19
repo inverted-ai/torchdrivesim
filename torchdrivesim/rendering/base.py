@@ -30,6 +30,7 @@ class RendererConfig:
     render_agent_direction: bool = True
     left_handed_coordinates: bool = False
     highlight_ego_vehicle: bool = False
+    shift_mesh_by_camera_before_rendering: bool = True
 
 
 @dataclass
