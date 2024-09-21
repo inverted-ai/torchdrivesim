@@ -146,6 +146,17 @@ class KinematicModel(ABC):
         return state[..., 0], state[..., 1], state[..., 2], state[..., 3]
 
 
+class CompoundKinematicModel(KinematicModel):
+    def __init__(self, models: Dict[str, KinematicModel], dt: float = 0.1):
+        super().__init__(dt=dt)
+        self.models = models
+
+        # TODO: check batch size of all models
+        # TODO: check for conflicts in parameter names
+
+    #  TODO: implement methods
+
+
 class TeleportingKinematicModel(KinematicModel):
     """
     A trivial kinematic model where the action is the next state.

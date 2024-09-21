@@ -273,69 +273,75 @@ class BirdviewRenderer(abc.ABC):
         psi = pose[..., 2:3].unsqueeze(-2).expand_as(points[..., :1])
         return rotate(points, psi) + xy
 
-    def make_actor_mesh(self, agent_state: Dict[str, Tensor], agent_attributes: Dict[str, Tensor]) -> BirdviewMesh:
+    def make_actor_mesh(self, agent_state: Tensor, agent_attributes: Tensor,
+                        agent_types: Tensor, agent_type_names: List[str]) -> BirdviewMesh:
         """
         Creates a mesh representing given actors. Each vertex and each face corresponds to a unique agent and
         both vertices and faces for each agent are continuous in the resulting tensor to allow for subsequent masking.
         For each agent there are seven vertices and three faces, specifying its bounding box and direction.
         Direction vertices use the 'direction' category, while agent categories are copied from input dictionaries.
         """
-        meshes = []
-        for k in agent_state.keys():
-            lenwid = agent_attributes[k]
-            n_actors = lenwid.shape[-2]
-            length, width = lenwid[..., 0], lenwid[..., 1]
-            state = agent_state[k]
-            corners = torch.stack([
-                torch.stack([x, y], dim=-1) for (x, y) in
-                [(length, width), (length, - width), (- length, - width), (- length, width)]
-            ], dim=-2) * 0.5
-            batch_size = state.size()[0]
-            actor_verts = self.transform(corners, state).reshape(batch_size, n_actors * 4, 2)
+        lenwid = agent_attributes
+        n_actors = lenwid.shape[-2]
+        length, width = lenwid[..., 0], lenwid[..., 1]
+        state = agent_state
+        corners = torch.stack([
+            torch.stack([x, y], dim=-1) for (x, y) in
+            [(length, width), (length, - width), (- length, - width), (- length, width)]
+        ], dim=-2) * 0.5
+        batch_size = state.size()[0]
+        actor_verts = self.transform(corners, state).reshape(batch_size, n_actors * 4, 2)
 
-            actor_faces = torch.tensor([[0, 1, 3], [1, 3, 2]], dtype=torch.long, device=self.device)
-            actor_faces = actor_faces.expand(batch_size, n_actors, 2, 3)
-            offsets = 4 * torch.arange(start=0, end=n_actors, dtype=torch.long,
-                                    device=self.device).reshape(n_actors, 1, 1).expand_as(actor_faces)
-            actor_faces = actor_faces + offsets
-            actor_faces = actor_faces.reshape(batch_size, n_actors * 2, 3)
+        actor_faces = torch.tensor([[0, 1, 3], [1, 3, 2]], dtype=torch.long, device=self.device)
+        actor_faces = actor_faces.expand(batch_size, n_actors, 2, 3)
+        offsets = 4 * torch.arange(start=0, end=n_actors, dtype=torch.long,
+                                device=self.device).reshape(n_actors, 1, 1).expand_as(actor_faces)
+        actor_faces = actor_faces + offsets
+        actor_faces = actor_faces.reshape(batch_size, n_actors * 2, 3)
 
-            if self.cfg.render_agent_direction:
-                direction_mesh = self.make_direction_mesh(lenwid=lenwid, pose=state[..., :3])
-                # custom concatenation of tensors, so that both vertices and faces belonging
-                # to each agent (both bbox and direction) are contiguous
-                # this allows for subsequent masking of agents
-                av = 4  # verts per actor
-                dv = 3  # verts per direction
-                verts = torch.cat([
-                    actor_verts.reshape(batch_size, n_actors, av, 2),
-                    direction_mesh.verts.reshape(batch_size, n_actors, dv, 2)
-                ], dim=-2).reshape(batch_size, n_actors * (av + dv), 2)
-                actor_faces = actor_faces + actor_faces.div(av, rounding_mode='trunc') * dv
-                direction_faces = direction_mesh.faces + av * (direction_mesh.faces.div(dv, rounding_mode='trunc') + 1)
-                faces = torch.cat([
-                    actor_faces.reshape(batch_size, n_actors, 2, 3),
-                    direction_faces.reshape(batch_size, n_actors, 1, 3)
-                ], dim=-2).reshape(batch_size, n_actors * 3, 3)
-                mesh = BirdviewMesh(
-                    verts=verts, faces=faces, categories=[k, 'direction'],
-                    vert_category=torch.cat([
-                        torch.zeros((batch_size, n_actors, av), dtype=torch.int64, device=verts.device),
-                        torch.ones((batch_size, n_actors, dv), dtype=torch.int64, device=verts.device)
-                    ], dim=-1).reshape(batch_size, n_actors * (av + dv)),
-                    colors=dict(), zs=dict(),
-                )
-            else:
-                mesh = BirdviewMesh.set_properties(BaseMesh(verts=actor_verts, faces=actor_faces), category=k)
-            meshes.append(mesh)
-        return BirdviewMesh.concat(meshes)
+        if self.cfg.render_agent_direction:
+            direction_mesh = self.make_direction_mesh(lenwid=lenwid, pose=state[..., :3])
+            # custom concatenation of tensors, so that both vertices and faces belonging
+            # to each agent (both bbox and direction) are contiguous
+            # this allows for subsequent masking of agents
+            av = 4  # verts per actor
+            dv = 3  # verts per direction
+            verts = torch.cat([
+                actor_verts.reshape(batch_size, n_actors, av, 2),
+                direction_mesh.verts.reshape(batch_size, n_actors, dv, 2)
+            ], dim=-2).reshape(batch_size, n_actors * (av + dv), 2)
+            actor_faces = actor_faces + actor_faces.div(av, rounding_mode='trunc') * dv
+            direction_faces = direction_mesh.faces + av * (direction_mesh.faces.div(dv, rounding_mode='trunc') + 1)
+            faces = torch.cat([
+                actor_faces.reshape(batch_size, n_actors, 2, 3),
+                direction_faces.reshape(batch_size, n_actors, 1, 3)
+            ], dim=-2).reshape(batch_size, n_actors * 3, 3)
+            categories = agent_type_names + ['direction']
+            vert_category=torch.cat([
+                agent_types.unsqueeze(-1).expand(agent_types.shape + (av,)),
+                torch.ones((batch_size, n_actors, dv), dtype=torch.int64, device=verts.device) * len(agent_type_names)
+            ], dim=-1).reshape(batch_size, n_actors * (av + dv))
+        else:
+            av = 4
+            dv = 0
+            verts = actor_verts
+            faces = actor_faces
+            categories = agent_type_names
+            vert_category = agent_types.unsqueeze(-1).expand(agent_types.shape + (av,)).reshape(batch_size, n_actors * (av + dv))
+        mesh = BirdviewMesh(
+            verts=verts, faces=faces, categories=categories,
+            vert_category=vert_category,
+            colors=dict(), zs=dict(),
+            )
+        return mesh
 
     def render_frame(
-        self, agent_state: Dict[str, Tensor], agent_attributes: Dict[str, Tensor],
+        self, agent_state: Tensor, agent_attributes: Tensor,
         camera_xy: Optional[Tensor] = None, camera_sc: Optional[Tensor] = None,
-        rendering_mask: Dict[str, Tensor] = None, res: Optional[Resolution] = None,
+        rendering_mask: Optional[Tensor] = None, res: Optional[Resolution] = None,
         traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None, fov: Optional[float] = None,
-        waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None
+        waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
+        agent_types: Tensor = None, agent_type_names: List[str] = None,
     ) -> Tensor:
         """
         Renders the agents and traffic controls on top of the static mesh.
@@ -362,12 +368,12 @@ class BirdviewRenderer(abc.ABC):
         Returns:
             tensor image of float RGB values in [0,255] range with shape shape (B*Nc)xAxCxHxW
         """
-        batch_size = max([v.shape[0] for v in agent_state.values()])
+        batch_size =agent_state.shape[0]
         scale = (2.0 / fov) if fov is not None else self.scale
-        agent_count = sum([v.shape[-2] for v in agent_state.values()])
+        agent_count = agent_state.shape[-2]
         if camera_xy is None:
-            xy = torch.cat([x[..., :2] for x in agent_state.values()], dim=-2)
-            psi = torch.cat([x[..., 2:3] for x in agent_state.values()], dim=-2)
+            xy = agent_state[..., :2]
+            psi = agent_state[..., 2:3]
             sc = torch.cat([torch.sin(psi), torch.cos(psi)], dim=-1)
             n_cameras_per_batch = agent_count
             # Set orthographic camera on agents that are being predicted
@@ -383,31 +389,16 @@ class BirdviewRenderer(abc.ABC):
 
         static_mesh = self.static_mesh
         if self.cfg.highlight_ego_vehicle:
-            # need to preserve the element order in the dictionary for this trick to work
-            agent_state_new = dict()
-            for k, v in agent_state.items():
-                if k == 'vehicle':
-                    agent_state_new['ego'] = v[:, :1]
-                    agent_state_new['vehicle'] = v[:, 1:]
-                else:
-                    agent_state_new[k] = v
-            agent_state = agent_state_new
-
-            agent_attributes_new = dict()
-            for k, v in agent_attributes.items():
-                if k == 'vehicle':
-                    agent_attributes_new['ego'] = v[:, :1]
-                    agent_attributes_new['vehicle'] = v[:, 1:]
-                else:
-                    agent_attributes_new[k] = v
-            agent_attributes = agent_attributes_new
-        actor_mesh = self.make_actor_mesh(agent_state, agent_attributes)
+            if 'ego' not in agent_type_names:
+                agent_type_names.append('ego')
+            agent_types[..., 0] = agent_type_names.index('ego')
+        actor_mesh = self.make_actor_mesh(agent_state, agent_attributes,
+                                          agent_types, agent_type_names)
 
         actor_mesh = actor_mesh.expand(n_cameras_per_batch)
         static_mesh = static_mesh.expand(n_cameras_per_batch)
 
         if rendering_mask is not None:
-            rendering_mask = torch.cat(list(rendering_mask.values()), dim=-1)
             rendering_mask = rendering_mask.flatten(0, 1)
             mask_agents = lambda x: x * rendering_mask.repeat_interleave(
                 x.shape[1] // agent_count, dim=-1

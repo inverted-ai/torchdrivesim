@@ -406,9 +406,12 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
                          waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
-        chunks = [0] + list(np.cumsum(list(agent_count_dict.values())))
-        total_agents = chunks[-1]
+        # chunks = [0] + list(np.cumsum(list(agent_count_dict.values())))
+        # total_agents = chunks[-1]
+        total_agents = self.agent_count
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
+        assert singleton
+        return bv
         bv_dict = {agent_type: bv[..., chunks[i]:chunks[i+1], :, :, :]
                    for (i, agent_type) in enumerate(agent_pos_dict.keys())}
         if singleton:
@@ -557,14 +560,18 @@ class Simulator(SimulatorInterface):
         recenter_offset: if the coordinate system from lanelet_map was shifted, this value will be used to shift it back
         internal_time: initial value for step counter
         traffic_controls: applicable traffic controls by type
+        waypoint_goals: waypoints for each agent
+        agent_types: a tensor of BxA long tensors indicating the agent type index for each agent
+        agent_type_names: a list of agent type names to index into
     """
 
-    def __init__(self, road_mesh: BirdviewMesh, kinematic_model: Dict[str, KinematicModel],
-                 agent_size: Dict[str, Tensor], initial_present_mask: Dict[str, Tensor],
+    def __init__(self, road_mesh: BirdviewMesh, kinematic_model: KinematicModel,
+                 agent_size: Tensor, initial_present_mask: Tensor,
                  cfg: TorchDriveConfig, renderer: Optional[BirdviewRenderer] = None,
                  lanelet_map: Optional[List[Optional[LaneletMap]]] = None, recenter_offset: Optional[Tensor] = None,
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
-                 waypoint_goals: Optional[WaypointGoal] = None):
+                 waypoint_goals: Optional[WaypointGoal] = None,
+                 agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -572,9 +579,14 @@ class Simulator(SimulatorInterface):
         self.agent_size = agent_size
         self.present_mask = initial_present_mask
 
-        self._agent_types = list(self.kinematic_model.keys())
+        if not agent_type_names:
+            agent_type_names = ['vehicle']
+        if agent_types is None:
+            agent_types = torch.zeros_like(initial_present_mask).long()
+
+        self._agent_types = agent_type_names
         self._batch_size = self.road_mesh.batch_size
-        self.agent_type = {a_type: torch.ones_like(a_size[..., 0]).long()*idx for idx, (a_type, a_size) in enumerate(agent_size.items())}
+        self.agent_type = agent_types
 
         self.validate_agent_types()
         self.validate_tensor_shapes()
@@ -603,8 +615,8 @@ class Simulator(SimulatorInterface):
         self.internal_time = internal_time
 
     @property
-    def agent_functor(self) -> DictAgentTypeFunctor:
-        return DictAgentTypeFunctor(agent_types=self.agent_types)
+    def agent_functor(self) -> SingletonAgentTypeFunctor:
+        return SingletonAgentTypeFunctor()
 
     @property
     def agent_types(self):
@@ -711,6 +723,7 @@ class Simulator(SimulatorInterface):
         return self
 
     def validate_agent_types(self):
+        return  # nothing to check here anymore
         # check that all dicts have the same keys and iterate in the same order
         assert list(self.kinematic_model.keys()) == self.agent_types
         assert list(self.agent_size.keys()) == self.agent_types
@@ -796,9 +809,9 @@ class Simulator(SimulatorInterface):
     def get_all_agents_relative(self, exclude_self=True):
         abs_agent_pos = self.get_all_agents_absolute()
         # concatenate absolute agent states across all agent types
-        all_abs_agent_pos = torch.cat(list(abs_agent_pos.values()), dim=-2)
-        cum_agent_count = list(np.cumsum(list(self.agent_count.values())))
-        all_agent_count = cum_agent_count[-1]
+        all_abs_agent_pos = abs_agent_pos  #torch.cat(list(abs_agent_pos.values()), dim=-2)
+        # cum_agent_count = list(np.cumsum(list(self.agent_count.values())))
+        all_agent_count = self.agent_count
         # compute where each agent type starts in the concatenated tensor
         agent_starts = dict(zip(self.agent_count.keys(), [0] + cum_agent_count[:-1]))
 
@@ -834,7 +847,7 @@ class Simulator(SimulatorInterface):
     def step(self, agent_action):
         self.internal_time += 1
         # validate agent types
-        assert list(agent_action.keys()) == self.agent_types
+        # assert list(agent_action.keys()) == self.agent_types
         # validate tensor shape lengths
         self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), agent_action)
         # validate batch size
@@ -856,8 +869,8 @@ class Simulator(SimulatorInterface):
                                            agent_state)
 
         # validate agent types
-        assert list(agent_state.keys()) == self.agent_types
-        assert list(mask.keys()) == self.agent_types
+        # assert list(agent_state.keys()) == self.agent_types
+        # assert list(mask.keys()) == self.agent_types
         # validate tensor shape lengths
         self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), agent_state)
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), mask)
@@ -889,9 +902,6 @@ class Simulator(SimulatorInterface):
         self.present_mask = present_mask
 
     def fit_action(self, future_state, current_state=None):
-        if current_state is None:
-            current_state = {agent_type: None for agent_type in self.agent_types}
-
         action = self.across_agent_types(
             lambda kin, f, c: kin.fit_action(future_state=f, current_state=c),
             self.kinematic_model, future_state, current_state
@@ -907,17 +917,15 @@ class Simulator(SimulatorInterface):
             camera_xy = camera_xy.unsqueeze(1)
             camera_sc = camera_sc.unsqueeze(1)
         n_cameras = camera_xy.shape[-2]
-        present_mask = {k: v.unsqueeze(-2).expand(v.shape[:-1] + (n_cameras,) + v.shape[-1:])
-                        for k, v in self.get_present_mask().items()}
-        rendering_mask = {
-            k: v if rendering_mask is None else v.logical_and(rendering_mask[k])
-            for k, v in present_mask.items()
-        }
+        target_shape = self.get_present_mask().shape
+        present_mask = self.get_present_mask().unsqueeze(-2).expand(target_shape[:-1] + (n_cameras,) + target_shape[-1:])
+        rendering_mask = present_mask if rendering_mask is None else present_mask.logical_and(rendering_mask)
         return self.renderer.render_frame(
             self.get_state(), self.get_agent_size(), camera_xy, camera_sc, rendering_mask, res=res, fov=fov,
             waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()}
-                if self.traffic_controls is not None else None
+                if self.traffic_controls is not None else None,
+            agent_types=self.agent_type, agent_type_names=self.agent_types
         )
 
     def compute_offroad(self):
@@ -933,19 +941,20 @@ class Simulator(SimulatorInterface):
         assert len(box.shape) == 2
         assert box.shape[0] == self.batch_size
         assert box.shape[-1] == 5
-        flattened = HomogeneousWrapper(self)
+        flattened = self
 
         def f(x, agent_dim):
             out = x
-            if agent_types is not None:
-                out = flattened.agent_split(out, agent_dim=agent_dim)
-                out = {k: out[k] for k in agent_types if k in out}
-                if out:
-                    out = flattened.agent_concat(out, agent_dim=agent_dim)
-                else:
-                    new_shape = list(x.shape)
-                    new_shape[agent_dim] = 0
-                    out = torch.zeros(new_shape, dtype=x.dtype, device=x.device)
+            # TODO: replace
+            # if agent_types is not None:
+            #     out = flattened.agent_split(out, agent_dim=agent_dim)
+            #     out = {k: out[k] for k in agent_types if k in out}
+            #     if out:
+            #         out = flattened.agent_concat(out, agent_dim=agent_dim)
+            #     else:
+            #         new_shape = list(x.shape)
+            #         new_shape[agent_dim] = 0
+            #         out = torch.zeros(new_shape, dtype=x.dtype, device=x.device)
             return out
 
         states = f(flattened.get_state(), agent_dim=-2)
@@ -973,8 +982,8 @@ class Simulator(SimulatorInterface):
     def _compute_collision_of_multi_agents(self, mask=None):
         collision_mask = self.get_present_mask() if mask is None else mask  # BxA
         # Need to flatten and get all agents boxes for calculating each agent's collision
-        flattened = HomogeneousWrapper(self)
-        collision_mask = flattened.agent_concat(collision_mask, -1)
+        flattened = self
+        # collision_mask = flattened.agent_concat(collision_mask, -1)
         states = flattened.get_state()
         sizes = flattened.get_agent_size()
         present_mask = flattened.get_present_mask()
@@ -1251,8 +1260,8 @@ class NPCWrapper(SimulatorWrapper):
             )
 
         # validate agent types
-        assert list(agent_state.keys()) == self.agent_types
-        assert list(mask.keys()) == self.agent_types
+        # assert list(agent_state.keys()) == self.agent_types
+        # assert list(mask.keys()) == self.agent_types
         # validate tensor shape lengths
         self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), agent_state)
         self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), mask)
