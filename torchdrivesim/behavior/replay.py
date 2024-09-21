@@ -95,6 +95,7 @@ class ReplayWrapper(NPCWrapper):
         super().to(device)
         self.replay_states = self.agent_functor.to_device(self.replay_states, device)
         self.present_masks = self.agent_functor.to_device(self.present_masks, device)
+        return self
 
     def copy(self):
         inner_copy = self.inner_simulator.copy()
@@ -111,6 +112,7 @@ class ReplayWrapper(NPCWrapper):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         self.replay_states = self.across_agent_types(enlarge, self.replay_states)
         self.present_masks = self.across_agent_types(enlarge, self.present_masks)
+        return self
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
