@@ -229,6 +229,13 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_agent_type_names(self) -> List[str]:
+        """
+        Returns a list of all agent types used in the simulation.
+        """
+        pass
+
+    @abc.abstractmethod
     def get_present_mask(self) -> TensorPerAgentType:
         """
         Returns a functor of BxA boolean tensors indicating which agents are currently present in the simulation.
@@ -796,6 +803,9 @@ class Simulator(SimulatorInterface):
 
     def get_agent_type(self):
         return self.agent_type
+    
+    def get_agent_type_names(self) -> List[str]:
+        return self._agent_types
 
     def get_present_mask(self):
         return self.present_mask
@@ -1083,6 +1093,9 @@ class SimulatorWrapper(SimulatorInterface):
 
     def get_agent_type(self):
         return self.inner_simulator.get_agent_type()
+    
+    def get_agent_type_names(self) -> List[str]:
+        return self.inner_simulator.get_agent_type_names()
 
     def get_present_mask(self):
         return self.inner_simulator.get_present_mask()
@@ -2115,7 +2128,7 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
     """
 
     def __init__(self, simulator: SimulatorInterface, exposed_agent_limit, default_action, warmup_timesteps,
-                 cutoff_polygon_verts: Optional[TensorPerAgentType] = None):
+                 cutoff_polygon_verts: Optional[Tensor] = None):
         self.previous_present_mask = simulator.get_present_mask()
         self.proximal_timesteps = None
         super().__init__(simulator, exposed_agent_limit, default_action,
