@@ -590,6 +590,8 @@ class Simulator(SimulatorInterface):
             agent_type_names = ['vehicle']
         if agent_types is None:
             agent_types = torch.zeros_like(initial_present_mask).long()
+        if len(agent_types) == 1:
+            agent_types = agent_types.expand_as(initial_present_mask)
 
         self._agent_types = agent_type_names
         self._batch_size = self.road_mesh.batch_size

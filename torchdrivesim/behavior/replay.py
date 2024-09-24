@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from typing_extensions import Self
 
 import numpy as np
@@ -57,12 +58,18 @@ class ReplayWrapper(NPCWrapper):
         present_masks: indicates when replay agents appear and disappear; by default they're all present at all times
         time: initial index into the time dimension for replay, incremented at every step
     """
-    def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
-                 agent_states: TensorPerAgentType, present_masks: TensorPerAgentType = None, time: int = 0):
+    def __init__(self, simulator: SimulatorInterface, npc_mask: torch.Tensor,
+                 agent_states: torch.Tensor, present_masks: Optional[torch.Tensor] = None, time: int = 0,
+                 replay_mask: Optional[torch.Tensor] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
+
+        # TODO: add time dimension to replay mask
+        if replay_mask is None:
+            replay_mask = npc_mask.unsqueeze(0).expand((self.batch_size,) + npc_mask.shape)
 
         self.replay_states = agent_states
         self.present_masks = present_masks
+        self.replay_mask = replay_mask
         self.time = time
         self.max_time_step = agent_states.shape[-2]
 
@@ -90,6 +97,10 @@ class ReplayWrapper(NPCWrapper):
         if self.time == self.max_time_step:
             self.time = 0
         super().step(action)
+        updated_state = self.replay_states[..., self.time, :].where(self.replay_mask.unsqueeze(-1), self.inner_simulator.get_state())
+        self.inner_simulator.set_state(updated_state)
+        updated_present_mask = self.present_masks[..., self.time].where(self.replay_mask, self.inner_simulator.get_present_mask())
+        self.inner_simulator.update_present_mask(updated_present_mask)
 
     def to(self, device) -> Self:
         super().to(device)
