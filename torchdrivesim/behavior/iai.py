@@ -131,7 +131,7 @@ class IAIWrapper(NPCWrapper):
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.replay_states = other.across_agent_types(lambda x: x[idx], other.replay_states)
-        other.present_masks = other.across_agent_types(lambda x: x[idx], other.present_masks)
+        other.replay_states = other.replay_states[idx]
+        other.present_masks = other.present_masks[idx]
         other._batch_size = len(idx)
         return other

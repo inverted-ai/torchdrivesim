@@ -179,7 +179,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         How many agents of each type are there in the simulation.
         This counts the available slots, not taking present masks into consideration.
         """
-        return self.across_agent_types(lambda s: s.shape[-2], self.get_agent_size())
+        return self.get_agent_size().shape[-2]
 
     @abc.abstractmethod
     def get_world_center(self) -> Tensor:
@@ -356,56 +356,24 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         Returns:
              a functor of BxAxCxHxW tensors of resulting RGB images for each agent.
         """
-        # compute camera positions
-        agent_pos = self.across_agent_types(lambda s: (s[..., :2], s[..., 2:3]), self.get_state())
-        agent_count = self.agent_count
-        singleton = isinstance(self.agent_functor, SingletonAgentTypeFunctor)
-        agent_pos_dict = dict(agent=agent_pos) if singleton else agent_pos
-        agent_count_dict = dict(agent=agent_count) if singleton else agent_count
-        camera_xy = torch.cat([s[0] for s in agent_pos_dict.values()], dim=-2)
-        camera_psi = torch.cat([s[1] for s in agent_pos_dict.values()], dim=-2)
+        camera_xy = self.get_state()[..., :2]
+        camera_psi = self.get_state()[..., 2:3]
         waypoints = self.get_waypoints()
         if waypoints is not None:
             waypoints_mask = self.get_waypoints_mask()
-            waypoints_dict = dict(agent=waypoints) if singleton else waypoints
-            waypoints_mask_dict = dict(agent=waypoints_mask) if singleton else waypoints_mask
-            waypoints = torch.cat(list(waypoints_dict.values()), dim=-3)
-            waypoints_mask = torch.cat(list(waypoints_mask_dict.values()), dim=-2)
         else:
             waypoints, waypoints_mask = None, None
         if not ego_rotate:
             camera_psi = torch.ones_like(camera_psi) * (np.pi / 2)
-        # render birdview and split resulting tensor across agent types
         rendering_mask = None
         if self.get_innermost_simulator().cfg.single_agent_rendering:
-            agent_types_starting_idx = list(accumulate([0] + list(agent_count_dict.values())))[:-1]
-            agent_rel_starting_idx = {agent_type: agent_types_starting_idx[i]
-                                      for i, agent_type in enumerate(agent_count_dict.keys())}
-            if singleton:
-                agent_rel_starting_idx = 0
-            rendering_mask = self.across_agent_types(
-                lambda a_pos, a_count, a_st_idx:
-                pad(
-                    torch.eye(a_pos[0].shape[1]).to(camera_xy.device),
-                    (0, 0, a_st_idx, camera_xy.shape[1]-a_st_idx-a_count)
-                ).unsqueeze(0).expand(a_pos[0].shape[0], -1, -1)
-                if a_count > 0 else
-                torch.zeros(a_pos[0].shape[0], camera_xy.shape[1], 0).to(camera_xy.device),
-                agent_pos, agent_count, agent_rel_starting_idx)  # BxNcxA where Nc=A
+            rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
                          waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
-        # chunks = [0] + list(np.cumsum(list(agent_count_dict.values())))
-        # total_agents = chunks[-1]
         total_agents = self.agent_count
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
-        assert singleton
         return bv
-        bv_dict = {agent_type: bv[..., chunks[i]:chunks[i+1], :, :, :]
-                   for (i, agent_type) in enumerate(agent_pos_dict.keys())}
-        if singleton:
-            bv_dict = bv_dict['agent']
-        return bv_dict
 
     @abc.abstractmethod
     def compute_offroad(self) -> TensorPerAgentType:
@@ -437,19 +405,14 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         Returns:
             a functor of BxA tensors
         """
+        state = self.get_state()
         if self.get_traffic_controls() is not None and 'traffic_light' in self.get_traffic_controls():
-            violation = self.across_agent_types(
-                lambda state, lenwid, mask: self.get_traffic_controls()['traffic_light'].compute_violation(
-                    torch.cat([state[..., :2], lenwid, state[..., 2:3]], dim=-1)
-                ) * mask.to(state.dtype),
-                self.get_state(), self.get_agent_size(), self.get_present_mask(),
-            )
+            lenwid = self.get_agent_size()[..., :2]
+            violation = self.get_traffic_controls()['traffic_light'].compute_violation(
+                torch.cat([state[..., :2], lenwid, state[..., 2:3]], dim=-1)
+            ) * self.get_present_mask().to(state.dtype)
         else:
-            violation = self.across_agent_types(
-                lambda state, lenwid, mask: torch.zeros(state.shape[0], state.shape[1],
-                                                        dtype=torch.bool, device=state.device),
-                self.get_state(), self.get_agent_size(), self.get_present_mask(),
-            )
+            violation = torch.zeros(state.shape[0], state.shape[1], dtype=torch.bool, device=state.device)
         return violation
 
     @abc.abstractmethod
@@ -505,31 +468,26 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             assert agent_types is None, 'The argument `agent_types` is not supported by the selected collision metric.'
             agent_collisions = self._compute_collision_of_multi_agents()
         else:
-            def f(box, box_type):
-                agent_count = box.shape[-2]
-                if agent_count == 0:
-                    return torch.zeros_like(box[..., 0])
-                else:
-                    # TODO: batch across agent dimension
-                    collisions = []
-                    for i in range(box.shape[-2]):
-                        remove_self_overlap = None
-                        if agent_types is not None:
-                            remove_self_overlap = torch.tensor([innermost_simulator._agent_types[a_type_idx] in agent_types
-                                                            for a_type_idx in box_type[..., i].flatten()], device=box_type.device)
-                            remove_self_overlap = remove_self_overlap.reshape(box_type[..., i].shape)
-                        collision = innermost_simulator._compute_collision_of_single_agent(box[..., i, :],
-                            remove_self_overlap=remove_self_overlap, agent_types=agent_types)
-                        collisions.append(collision)
-                    return torch.stack(collisions, dim=-1)
-
-            agent_box = self.across_agent_types(
-                lambda state, size: torch.cat([state[..., :2], size, state[..., 2:3]], dim=-1),
-                self.get_state(), self.get_agent_size()
-            )
-            agent_collisions = self.across_agent_types(
-                f, agent_box, self.get_agent_type()
-            )
+            state = self.get_state()
+            size = self.get_agent_size()[..., :2]
+            box = torch.cat([state[..., :2], size, state[..., 2:3]], dim=-1)
+            box_type = self.get_agent_type()
+            agent_count = box.shape[-2]
+            if agent_count == 0:
+                return torch.zeros_like(box[..., 0])
+            else:
+                # TODO: batch across agent dimension
+                collisions = []
+                for i in range(box.shape[-2]):
+                    remove_self_overlap = None
+                    if agent_types is not None:
+                        remove_self_overlap = torch.tensor([innermost_simulator.get_agent_type()[a_type_idx] in agent_types
+                                                        for a_type_idx in box_type[..., i].flatten()], device=box_type.device)
+                        remove_self_overlap = remove_self_overlap.reshape(box_type[..., i].shape)
+                    collision = innermost_simulator._compute_collision_of_single_agent(box[..., i, :],
+                        remove_self_overlap=remove_self_overlap, agent_types=agent_types)
+                    collisions.append(collision)
+                agent_collisions = torch.stack(collisions, dim=-1)
 
         return agent_collisions
 
@@ -597,10 +555,7 @@ class Simulator(SimulatorInterface):
         self.waypoint_goals = waypoint_goals
 
         if cfg.left_handed_coordinates:
-            def set_left_handed(kin):
-                kin.left_handed = cfg.left_handed_coordinates
-
-            self.across_agent_types(set_left_handed, self.kinematic_model)
+            self.kinematic_model.left_handed = cfg.left_handed_coordinates
 
         self.warned_no_lanelet = False
         self.internal_time = internal_time
@@ -615,9 +570,7 @@ class Simulator(SimulatorInterface):
 
     @property
     def action_size(self) -> IntPerAgentType:
-        return self.across_agent_types(
-            lambda kin: kin.action_size, self.kinematic_model
-        )
+        return self.kinematic_model.action_size
 
     @property
     def batch_size(self) -> int:
@@ -639,7 +592,7 @@ class Simulator(SimulatorInterface):
 
     def copy(self):
         other = self.__class__(
-            road_mesh=self.road_mesh, kinematic_model=self.across_agent_types(lambda k: k.copy(), self.kinematic_model),
+            road_mesh=self.road_mesh, kinematic_model=self.kinematic_model.copy(),
             agent_size=self.agent_size, initial_present_mask=self.present_mask,
             cfg=self.cfg, renderer=self.renderer.copy(), lanelet_map=self.lanelet_map,
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
@@ -656,18 +609,15 @@ class Simulator(SimulatorInterface):
 
         self.road_mesh = self.road_mesh.expand(n)
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
-        self.agent_size = self.across_agent_types(enlarge, self.agent_size)
-        self.agent_type = self.across_agent_types(enlarge, self.agent_type)
-        self.present_mask = self.across_agent_types(enlarge, self.present_mask)
+        self.agent_size = enlarge(self.agent_size)
+        self.agent_type = enlarge(self.agent_type)
+        self.present_mask = enlarge(self.present_mask)
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
-        # kinematic models are expanded in place
-        def expand_kinematic(kin):
-            kin.map_param(enlarge)
-            kin.set_state(enlarge(kin.get_state()))
-
-        self.across_agent_types(expand_kinematic, self.kinematic_model)
+        # kinematic models are modified in place
+        self.kinematic_model.map_param(enlarge)
+        self.kinematic_model.set_state(enlarge(self.kinematic_model.get_state()))
         self._batch_size *= n
         self.renderer = self.renderer.expand(n)
         if self.traffic_controls is not None:
@@ -687,23 +637,13 @@ class Simulator(SimulatorInterface):
         self.road_mesh = self.road_mesh[idx]
         self.recenter_offset = self.recenter_offset[idx] if self.recenter_offset is not None else None
         self.lanelet_map = [self.lanelet_map[i] for i in idx] if self.lanelet_map is not None else None
-        self.agent_size = self.across_agent_types(
-            lambda x: x[idx], self.agent_size
-        )
-        self.agent_type = self.across_agent_types(
-            lambda x: x[idx], self.agent_type
-        )
-        self.present_mask = self.across_agent_types(
-            lambda x: x[idx], self.present_mask
-        )
+        self.agent_size = self.agent_size[idx]
+        self.agent_type = self.agent_type[idx]
+        self.present_mask = self.present_mask[idx]
 
         # kinematic models are modified in place
-        def select_batch_kinematic(kin):
-            kin.map_param(lambda x: x[idx])
-            kin.set_state(kin.get_state()[idx])
-        self.across_agent_types(
-            select_batch_kinematic, self.kinematic_model
-        )
+        self.kinematic_model.map_param(lambda x: x[idx])
+        self.kinematic_model.set_state(self.kinematic_model.get_state()[idx])
 
         self._batch_size = len(idx)
         self.renderer = self.renderer.select_batch_elements(idx)
@@ -723,34 +663,30 @@ class Simulator(SimulatorInterface):
 
     def validate_tensor_shapes(self):
         # check that tensors have the expected number of dimensions
-        self.across_agent_types(lambda kin: assert_equal(len(kin.get_state().shape), 3), self.kinematic_model)
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), self.agent_size)
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 2), self.agent_type)
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), self.present_mask)
+        assert_equal(len(self.kinematic_model.get_state().shape), 3)
+        assert_equal(len(self.agent_size.shape), 3)
+        assert_equal(len(self.agent_type.shape), 2)
+        assert_equal(len(self.present_mask.shape), 2)
 
         # check that batch size is the same everywhere
         b = self.batch_size
         assert_equal(self.road_mesh.batch_size, b)
-        self.across_agent_types(lambda kin: assert_equal(kin.get_state().shape[0], b), self.kinematic_model)
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], b), self.agent_size)
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], b), self.agent_type)
-        self.across_agent_types(lambda m: assert_equal(m.shape[0], b), self.present_mask)
+        assert_equal(self.kinematic_model.get_state().shape[0], b)
+        assert_equal(self.agent_size.shape[0], b)
+        assert_equal(self.agent_type.shape[0], b)
+        assert_equal(self.present_mask.shape[0], b)
 
         # check that the number of agents is the same everywhere
-        self.validate_agent_count(self.across_agent_types(
-            lambda kin: kin.get_state().shape[-2], self.kinematic_model))
-        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], self.agent_size))
-        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-1], self.agent_type))
-        self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], self.present_mask))
-
-    def validate_agent_count(self, count_dict):
-        self.across_agent_types(assert_equal, count_dict, self.agent_count)
+        assert_equal(self.kinematic_model.get_state().shape[-2], self.agent_count)
+        assert_equal(self.agent_size.shape[-2], self.agent_count)
+        assert_equal(lambda s: self.agent_type.shape[-1], self.agent_count)
+        assert_equal(self.present_mask.shape[-1], self.agent_count)
 
     def get_world_center(self):
         return self.renderer.world_center
 
     def get_state(self):
-        return self.across_agent_types(lambda kin: kin.get_state(), self.kinematic_model)
+        return self.kinematic_model.get_state()
 
     def get_waypoints(self):
         return self.waypoint_goals.get_waypoints() if self.waypoint_goals is not None else None
@@ -767,20 +703,17 @@ class Simulator(SimulatorInterface):
                 idx_no_map = [i for i, item in enumerate(self.lanelet_map) if item is None]
                 logger.debug(f"Batches {idx_no_map} have no lanelet map. Returning zeros for wrong_way losses.")
                 self.warned_no_lanelet = True
-            return self.across_agent_types(
-                lambda state, mask: lanelet_orientation_loss(
-                    self.lanelet_map, state, self.recenter_offset,
-                    direction_angle_threshold=self.cfg.wrong_way_angle_threshold,
-                    lanelet_dist_tolerance=self.cfg.lanelet_inclusion_tolerance,
-                ) * mask,
-                self.get_state(), self.get_present_mask()
-            )
+            return lanelet_orientation_loss(
+                self.lanelet_map, self.get_state(), self.recenter_offset,
+                direction_angle_threshold=self.cfg.wrong_way_angle_threshold,
+                lanelet_dist_tolerance=self.cfg.lanelet_inclusion_tolerance,
+            ) * self.get_present_mask()
         else:
             if not self.warned_no_lanelet:
                 logger.debug("No lanelet map is provided. Returning zeros for wrong_way losses.")
                 self.warned_no_lanelet = True
-            return self.across_agent_types(
-                lambda state: torch.zeros(state.shape[0], state.shape[1]).to(state.device), self.get_state())
+            state = self.get_state()
+            return torch.zeros(state.shape[0], state.shape[1]).to(state.device)
 
     def get_agent_size(self):
         return self.agent_size
@@ -795,61 +728,44 @@ class Simulator(SimulatorInterface):
         return self.present_mask
 
     def get_all_agents_absolute(self):
-        return self.across_agent_types(
-            lambda state, size, present: torch.cat([state[..., :3], size, present.unsqueeze(-1)], dim=-1),
-            self.get_state(), self.get_agent_size(), self.get_present_mask()
-        )
+        return torch.cat([self.get_state()[..., :3], self.get_agent_size(), self.get_present_mask().unsqueeze(-1)], dim=-1)
 
     def get_all_agents_relative(self, exclude_self=True):
         abs_agent_pos = self.get_all_agents_absolute()
-        # concatenate absolute agent states across all agent types
-        all_abs_agent_pos = abs_agent_pos  #torch.cat(list(abs_agent_pos.values()), dim=-2)
-        # cum_agent_count = list(np.cumsum(list(self.agent_count.values())))
         all_agent_count = self.agent_count
-        # compute where each agent type starts in the concatenated tensor
-        agent_starts = dict(zip(self.agent_count.keys(), [0] + cum_agent_count[:-1]))
 
-        def make_relative(abs_pos, agent_start, agent_count):
-            xy, psi = abs_pos[..., :2], abs_pos[..., 2:3]  # current agent type
-            all_xy, all_psi = all_abs_agent_pos[..., :2], all_abs_agent_pos[..., 2:3]  # all agent types
-            # compute relative position of all agents w.r.t. each agent from of current type
-            rel_xy, rel_psi = relative(origin_xy=xy.unsqueeze(-2), origin_psi=psi.unsqueeze(-2),
-                                       target_xy=all_xy.unsqueeze(-3), target_psi=all_psi.unsqueeze(-3))
-            rel_state = torch.cat([rel_xy, rel_psi], dim=-1)
-            # insert the info that doesn't vary with the coordinate frame
-            rel_pos = torch.cat([rel_state, all_abs_agent_pos[..., 3:].unsqueeze(-3).expand_as(rel_state)], dim=-1)
-            if exclude_self:
-                # remove the diagonal of the current agent type
-                to_keep = torch.eye(agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
-                # pad to keep all agents of other types
-                to_keep = pad(to_keep, (agent_start, all_agent_count - agent_start - agent_count), value=True)
-                # need to flatten to index two dimensions simultaneously
-                to_keep = torch.flatten(to_keep)
-                rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
-                rel_pos = rel_pos[..., to_keep, :]
-                # the result has one less agent in the penultimate dimension
-                rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], agent_count, all_agent_count - 1, 6))
-            return rel_pos
-
-        return self.across_agent_types(
-            make_relative, abs_agent_pos, agent_starts, self.agent_count
-        )
+        xy, psi = abs_agent_pos[..., :2], abs_agent_pos[..., 2:3]  # current agent type
+        all_xy, all_psi = abs_agent_pos[..., :2], abs_agent_pos[..., 2:3]  # all agent types
+        # compute relative position of all agents w.r.t. each agent from of current type
+        rel_xy, rel_psi = relative(origin_xy=xy.unsqueeze(-2), origin_psi=psi.unsqueeze(-2),
+                                    target_xy=all_xy.unsqueeze(-3), target_psi=all_psi.unsqueeze(-3))
+        rel_state = torch.cat([rel_xy, rel_psi], dim=-1)
+        # insert the info that doesn't vary with the coordinate frame
+        rel_pos = torch.cat([rel_state, abs_agent_pos[..., 3:].unsqueeze(-3).expand_as(rel_state)], dim=-1)
+        if exclude_self:
+            # remove the diagonal of the current agent type
+            to_keep = torch.eye(all_agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
+            # need to flatten to index two dimensions simultaneously
+            to_keep = torch.flatten(to_keep)
+            rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
+            rel_pos = rel_pos[..., to_keep, :]
+            # the result has one less agent in the penultimate dimension
+            rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], all_agent_count, all_agent_count - 1, 6))
+        return rel_pos
 
     def get_innermost_simulator(self) -> Self:
         return self
 
     def step(self, agent_action):
         self.internal_time += 1
-        # validate agent types
-        # assert list(agent_action.keys()) == self.agent_types
         # validate tensor shape lengths
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), agent_action)
+        assert_equal(len(agent_action.shape), 3)
         # validate batch size
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], self.batch_size), agent_action)
+        assert_equal(agent_action.shape[0], self.batch_size)
         # validate agent numbers
-        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_action))
+        assert_equal(agent_action.shape[-2], self.agent_count)
 
-        self.across_agent_types(lambda kin, act: kin.step(act), self.kinematic_model, agent_action)
+        self.kinematic_model.step(agent_action)
 
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
@@ -859,49 +775,36 @@ class Simulator(SimulatorInterface):
 
     def set_state(self, agent_state, mask=None):
         if mask is None:
-            mask = self.across_agent_types(lambda states: torch.ones_like(states[..., 0], dtype=torch.bool),
-                                           agent_state)
-
-        # validate agent types
-        # assert list(agent_state.keys()) == self.agent_types
-        # assert list(mask.keys()) == self.agent_types
+            mask = torch.ones_like(agent_state[..., 0], dtype=torch.bool)
         # validate tensor shape lengths
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), agent_state)
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), mask)
+        assert_equal(len(agent_state.shape), 3)
+        assert_equal(len(mask.shape), 2)
         # validate batch size
         b = self.batch_size
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], b), agent_state)
-        self.across_agent_types(lambda m: assert_equal(m.shape[0], b), mask)
+        assert_equal(agent_state.shape[0], b)
+        assert_equal(mask.shape[0], b)
         # validate agent numbers
-        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_state))
-        self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], mask))
+        assert_equal(agent_state.shape[-2], self.agent_count)
+        assert_equal(mask.shape[-1], self.agent_count)
 
-        def set_new_state(kinematic, state, mask):
-            state_from_kinematic = kinematic.get_state()
-            state_size, state_from_kinematic_size = state.shape[-1], state_from_kinematic.shape[-1]
-            assert state_size <= state_from_kinematic_size
-            if state_size < state_from_kinematic_size:
-                state = torch.cat([state, state_from_kinematic[..., (state_size-state_from_kinematic_size):]], dim=-1)
-            new_state = state.where(mask.unsqueeze(-1).expand_as(state), kinematic.get_state())
-            kinematic.set_state(new_state)
-            return kinematic
-
-        self.across_agent_types(set_new_state, self.kinematic_model, agent_state, mask)
+        state_from_kinematic = self.kinematic_model.get_state()
+        state_size, state_from_kinematic_size = agent_state.shape[-1], state_from_kinematic.shape[-1]
+        assert state_size <= state_from_kinematic_size
+        state = state_from_kinematic
+        if state_size < state_from_kinematic_size:
+            state = torch.cat([agent_state, state_from_kinematic[..., (state_size-state_from_kinematic_size):]], dim=-1)
+        new_state = state.where(mask.unsqueeze(-1).expand_as(agent_state), state_from_kinematic)
+        self.kinematic_model.set_state(new_state)
 
     def update_present_mask(self, present_mask):
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), present_mask)
-        self.across_agent_types(lambda m: assert_equal(m.shape[0], self.batch_size), present_mask)
-        self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], present_mask))
+        assert_equal(len(present_mask.shape), 2)
+        assert_equal(present_mask.shape[0], self.batch_size)
+        assert_equal(present_mask.shape[-1], self.agent_count)
 
         self.present_mask = present_mask
 
     def fit_action(self, future_state, current_state=None):
-        action = self.across_agent_types(
-            lambda kin, f, c: kin.fit_action(future_state=f, current_state=c),
-            self.kinematic_model, future_state, current_state
-        )
-
-        return action
+        return self.kinematic_model.fit_action(future_state=future_state, current_state=current_state)
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None,
                waypoints=None, waypoints_rendering_mask=None):
@@ -923,19 +826,13 @@ class Simulator(SimulatorInterface):
         )
 
     def compute_offroad(self):
-        offroad = self.across_agent_types(
-            lambda state, lenwid, mask: offroad_infraction_loss(
-                state, lenwid, self.road_mesh, threshold=self.cfg.offroad_threshold
-            ) * mask.to(state.dtype),
-            self.get_state(), self.agent_size, self.get_present_mask(),
-        )
-        return offroad
+        return offroad_infraction_loss(self.get_state(), self.get_agent_size(),
+                                       self.road_mesh, threshold=self.cfg.offroad_threshold) * self.get_present_mask()
 
     def _compute_collision_of_single_agent(self, box, remove_self_overlap=None, agent_types=None):
         assert len(box.shape) == 2
         assert box.shape[0] == self.batch_size
         assert box.shape[-1] == 5
-        flattened = self
 
         def f(x, agent_dim):
             out = x
@@ -951,10 +848,14 @@ class Simulator(SimulatorInterface):
             #         out = torch.zeros(new_shape, dtype=x.dtype, device=x.device)
             return out
 
-        states = f(flattened.get_state(), agent_dim=-2)
+        states = self.get_state()
+        mask = self.get_present_mask()
+        if agent_types is not None:
+            allowed_agent_type_indices = torch.tensor([self.agent_types.index(agent_type) for agent_type in agent_types], device=box.device)
+            mask = mask.logical_and(torch.isin(self.get_agent_type(), allowed_agent_type_indices))
         if states.shape[-2] == 0:
             return torch.zeros_like(box[..., 0])
-        sizes = f(flattened.get_agent_size(), agent_dim=-2)
+        sizes = self.get_agent_size()
         all_boxes = torch.cat([states[..., :2], sizes, states[..., 2:3]], dim=-1)  # TODO: cache this result
         expanded_box = box.unsqueeze(-2).expand_as(all_boxes)
         all_boxes = torch.nan_to_num(all_boxes, nan=0.0)
@@ -966,7 +867,7 @@ class Simulator(SimulatorInterface):
         else:
             raise ValueError("Unrecognized collision metric: " + str(self.cfg.collision_metric))
         overlap = torch.nan_to_num(overlap, nan=0.0)
-        overlap = overlap * f(flattened.get_present_mask(), agent_dim=-1).to(overlap.dtype)
+        overlap = overlap * mask.to(overlap.dtype)
         collision = overlap.sum(dim=-1)
         if remove_self_overlap is None:
             remove_self_overlap = torch.ones_like(collision)
@@ -975,12 +876,9 @@ class Simulator(SimulatorInterface):
 
     def _compute_collision_of_multi_agents(self, mask=None):
         collision_mask = self.get_present_mask() if mask is None else mask  # BxA
-        # Need to flatten and get all agents boxes for calculating each agent's collision
-        flattened = self
-        # collision_mask = flattened.agent_concat(collision_mask, -1)
-        states = flattened.get_state()
-        sizes = flattened.get_agent_size()
-        present_mask = flattened.get_present_mask()
+        states = self.get_state()
+        sizes = self.get_agent_size()
+        present_mask = self.get_present_mask()
         device = states.device
 
         if self.cfg.collision_metric == CollisionMetric.nograd:
@@ -1011,7 +909,6 @@ class Simulator(SimulatorInterface):
             collision = compute_agent_collisions_metric_pytorch3d(all_boxes, collision_mask)
         else:
             raise ValueError("Unrecognized collision metric: " + str(self.cfg.collision_metric))
-        collision = flattened.agent_split(collision, agent_dim=-1)
         return collision
 
 
@@ -1165,10 +1062,8 @@ class NPCWrapper(SimulatorWrapper):
         Returns:
             a functor of BxAxAc tensors, where A is the number of agents in the inner simulator
         """
-        return self.across_agent_types(
-            lambda s, a: torch.zeros(s.shape[:-1] + (a,), dtype=s.dtype, device=s.device),
-            self.inner_simulator.get_state(), self.action_size
-        )
+        state = self.inner_simulator.get_state()
+        return torch.zeros(size=state.shape[:-1] + (self.action_size,), dtype=state.dtype, device=state.device)
 
     def _npc_teleport_to(self) -> Optional[TensorPerAgentType]:
         """
@@ -1192,201 +1087,142 @@ class NPCWrapper(SimulatorWrapper):
         other = self.__class__(inner_copy, npc_mask=self.npc_mask)
         return other
 
-    def validate_agent_count(self, count_dict):
-        self.across_agent_types(assert_equal, count_dict, self.agent_count)
-
     def get_state(self):
-        states = self.across_agent_types(
-            lambda x, k: x[..., k.logical_not(), :], self.inner_simulator.get_state(), self.npc_mask
-        )
-        return states
-
+        return self.inner_simulator.get_state()[..., self.npc_mask.logical_not(), :]
+    
     def get_waypoints(self):
         waypoints = self.inner_simulator.get_waypoints()
         if waypoints is not None:
-            waypoints = self.across_agent_types(
-                lambda x, k: x[..., k.logical_not(), :, :], waypoints, self.npc_mask
-            )
+            waypoints = waypoints[..., self.npc_mask.logical_not(), :, :]
         return waypoints
 
     def get_waypoints_state(self):
         waypoints_state = self.inner_simulator.get_waypoints_state()
         if waypoints_state is not None:
-            waypoints_state = self.across_agent_types(
-                lambda x, k: x[..., k.logical_not(), :], waypoints_state, self.npc_mask
-            )
+            waypoints_state = waypoints_state[..., self.npc_mask.logical_not(), :]
         return waypoints_state
 
     def get_waypoints_mask(self):
         masks = self.inner_simulator.get_waypoints_mask()
         if masks is not None:
-            masks = self.across_agent_types(
-                lambda x, k: x[..., k.logical_not(), :], masks, self.npc_mask
-            )
+            masks = masks[..., self.npc_mask.logical_not(), :]
         return masks
 
     def get_agent_size(self):
-        sizes = self.across_agent_types(
-            lambda x, k: x[..., k.logical_not(), :], self.inner_simulator.get_agent_size(), self.npc_mask
-        )
+        sizes = self.inner_simulator.get_agent_size()[..., self.npc_mask.logical_not(), :]
         return sizes
 
     def get_agent_type(self):
-        sizes = self.across_agent_types(
-            lambda x, k: x[..., k.logical_not()], self.inner_simulator.get_agent_type(), self.npc_mask
-        )
+        sizes = self.inner_simulator.get_agent_type()[..., self.npc_mask.logical_not()]
         return sizes
 
     def get_present_mask(self):
-        present_mask = self.across_agent_types(
-            lambda x, k: x[..., k.logical_not()], self.inner_simulator.get_present_mask(), self.npc_mask
-        )
+        present_mask = self.inner_simulator.get_present_mask()[..., self.npc_mask.logical_not()]
         return present_mask
 
     def get_all_agents_relative(self, exclude_self=True):
         agent_info = self.inner_simulator.get_all_agents_relative(exclude_self=exclude_self)
-        agent_info = self.across_agent_types(
-            lambda x, k: x[..., k.logical_not(), :, :], agent_info, self.npc_mask
-        )
+        agent_info = agent_info[..., self.npc_mask.logical_not(), :, :]
         return agent_info
 
     def set_state(self, agent_state, mask=None):
         if mask is None:
-            mask = self.across_agent_types(
-                lambda states: torch.ones_like(states[..., 0], dtype=torch.bool), agent_state
-            )
+            mask = torch.ones_like(agent_state[..., 0], dtype=torch.bool)
 
-        # validate agent types
-        # assert list(agent_state.keys()) == self.agent_types
-        # assert list(mask.keys()) == self.agent_types
         # validate tensor shape lengths
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), agent_state)
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), mask)
+        assert_equal(len(agent_state.shape), 3)
+        assert_equal(len(mask.shape), 2)
         # validate batch shape
         b = self.batch_size
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], b), agent_state)
-        self.across_agent_types(lambda m: assert_equal(m.shape[0], b), mask)
+        assert_equal(agent_state.shape[0], b)
+        assert_equal(mask.shape[0], b)
         # validate agent numbers
-        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], agent_state))
-        self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], mask))
+        assert_equal(agent_state.shape[-2], self.agent_count)
+        assert_equal(mask.shape[-1], self.agent_count)
 
-        def set_masked_state(old_state, mask, new_state):
-            with_padding = torch.zeros_like(old_state)
-            with_padding[..., torch.logical_not(mask), :] = new_state  # I *think* autodiff handles this correctly
-            selection_mask = self.extend_tensor(mask, old_state.shape[:-2]).unsqueeze(-1).expand_as(old_state)
-            updated_state = old_state.where(selection_mask, with_padding)
-            return updated_state
+        old_state = self.inner_simulator.get_state()
+        mask = self.npc_mask
+        new_state = agent_state
+        with_padding = torch.zeros_like(old_state)
+        with_padding[..., torch.logical_not(mask), :] = new_state  # I *think* autodiff handles this correctly
+        selection_mask = self.extend_tensor(mask, old_state.shape[:-2]).unsqueeze(-1).expand_as(old_state)
+        updated_state = old_state.where(selection_mask, with_padding)
+        states = updated_state
 
-        def make_full_mask(npc_mask, current_mask):
-            non_replay_mask = npc_mask.logical_not()
-            full_mask = torch.zeros_like(non_replay_mask, dtype=torch.bool)
-            full_mask = NPCWrapper.extend_tensor(full_mask, current_mask.shape[:-1]).clone()
-            full_mask[..., non_replay_mask] = current_mask
-            return full_mask
-
-        states = self.across_agent_types(
-            set_masked_state, self.inner_simulator.get_state(), self.npc_mask, agent_state
-        )
-        # Only set state for non-replay agents
-        full_mask = self.across_agent_types(make_full_mask, self.npc_mask, mask)
+        current_mask = mask
+        non_replay_mask = self.npc_mask.logical_not()
+        full_mask = torch.zeros_like(non_replay_mask, dtype=torch.bool)
+        full_mask = NPCWrapper.extend_tensor(full_mask, current_mask.shape[:-1]).clone()
+        full_mask[..., non_replay_mask] = current_mask
 
         self.inner_simulator.set_state(states, mask=full_mask)
 
     def step(self, action):
         # validate tensor shape lengths
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 3), action)
+        assert_equal(len(action.shape), 3)
         # validate batch shape
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], self.batch_size), action)
+        assert_equal(action.shape[0], self.batch_size)
         # validate agent numbers
-        self.validate_agent_count(self.across_agent_types(lambda s: s.shape[-2], action))
-
-        def make_full_action(replay_action, mask, given_action):
-            with_padding = torch.zeros_like(replay_action)
-            with_padding[..., torch.logical_not(mask), :] = given_action
-            selection_mask = self.extend_tensor(mask, replay_action.shape[:-2]).unsqueeze(-1).expand_as(replay_action)
-            full_action = replay_action.where(selection_mask, with_padding)
-            return full_action
+        assert_equal(action.shape[-2], self.agent_count)
 
         # step all agents, with dummy action for replay agents
         npc_action = self._get_npc_action()
-        full_actions = self.across_agent_types(make_full_action, npc_action, self.npc_mask, action)
-        self.inner_simulator.step(full_actions)
+        mask = self.npc_mask
+        given_action = action
+        with_padding = torch.zeros_like(npc_action)
+        with_padding[..., torch.logical_not(mask), :] = given_action
+        selection_mask = self.extend_tensor(mask, npc_action.shape[:-2]).unsqueeze(-1).expand_as(npc_action)
+        full_action = npc_action.where(selection_mask, with_padding)
+        self.inner_simulator.step(full_action)
 
         # set target state for replay vehicles
         npc_state = self._npc_teleport_to()
         if npc_state is not None:
-            full_npc_mask = self.across_agent_types(
-                lambda r, p: r[None, :].expand_as(p), self.npc_mask, self.inner_simulator.get_present_mask()
-            )
+            full_npc_mask = self.npc_mask[None, :].expand_as(self.inner_simulator.get_present_mask())
             self.inner_simulator.set_state(npc_state, mask=full_npc_mask)
 
         # update presence mask of NPCs in case it changed
-        non_replay_present_mask = self.across_agent_types(
-            lambda x, k: x[..., torch.logical_not(k)], self.inner_simulator.get_present_mask(), self.npc_mask
-        )
+        non_replay_present_mask = self.inner_simulator.get_present_mask()[..., torch.logical_not(self.npc_mask)]
         self.update_present_mask(non_replay_present_mask)
 
     def update_present_mask(self, present_mask):
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 2), present_mask)
-        self.across_agent_types(lambda m: assert_equal(m.shape[0], self.batch_size), present_mask)
-        self.validate_agent_count(self.across_agent_types(lambda m: m.shape[-1], present_mask))
+        assert_equal(len(present_mask.shape), 2)
+        assert_equal(present_mask.shape[0], self.batch_size)
+        assert_equal(present_mask.shape[-1], self.agent_count)
 
-        replay_present_mask = self._update_npc_present_mask()
-
-        def make_present_mask(recorded_present_mask, replay_mask, non_replay_present_mask):
-            new_present_mask = recorded_present_mask.clone()
-            new_present_mask[..., torch.logical_not(replay_mask)] = non_replay_present_mask
-            return new_present_mask
-
-        new_present_mask = self.across_agent_types(
-            make_present_mask, replay_present_mask, self.npc_mask, present_mask
-        )
+        recorded_present_mask = self._update_npc_present_mask()
+        new_present_mask = recorded_present_mask.clone()
+        new_present_mask[..., torch.logical_not(self.npc_mask)] = present_mask
         self.inner_simulator.update_present_mask(new_present_mask)
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
                waypoints_rendering_mask=None):
         if rendering_mask is not None:
-            def pad_rendering_mask(rd_mask, rpl_mask):
-                new_mask = torch.zeros(rd_mask.shape[0], rd_mask.shape[1], rpl_mask.shape[0], device=rd_mask.device)
-                new_mask[..., torch.logical_not(rpl_mask)] = rd_mask
-                return new_mask
-            rendering_mask = self.across_agent_types(
-                pad_rendering_mask, rendering_mask, self.npc_mask
-            )
+            new_mask = torch.zeros(rendering_mask.shape[0], rendering_mask.shape[1], self.npc_mask.shape[0], device=rendering_mask.device)
+            new_mask[..., torch.logical_not(self.npc_mask)] = rendering_mask
+            rendering_mask = new_mask
         return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
                                            waypoints_rendering_mask=waypoints_rendering_mask)
 
     def fit_action(self, future_state, current_state=None):
         full_state = self.inner_simulator.get_state()
-
-        def augment_state(full, partial, mask):
-            result = full.clone()
-            result[..., mask.logical_not(), :] = partial
-            return result
-
-        full_future_state = self.across_agent_types(
-            augment_state, full_state, future_state, self.npc_mask
-        )
+        full_future_state = full_state.clone()
+        full_future_state[..., self.npc_mask.logical_not(), :] = future_state
         if current_state is None:
             full_current_state = None
         else:
-            full_current_state = self.across_agent_types(
-                augment_state, full_state, current_state, self.npc_mask
-            )
+            full_current_state = full_state.clone()
+            full_current_state[..., self.npc_mask.logical_not(), :] = current_state
 
         full_action = self.inner_simulator.fit_action(full_future_state, full_current_state)
-        action = self.across_agent_types(
-            lambda x, m: x[..., m.logical_not(), :], full_action, self.npc_mask
-        )
+        action = full_action[..., self.npc_mask.logical_not(), :]
         return action
 
     def compute_offroad(self):
-        offroad = self.across_agent_types(
-            lambda state, lenwid, mask: offroad_infraction_loss(
-                state, lenwid, self.get_innermost_simulator().road_mesh, threshold=self.cfg.offroad_threshold
-            ) * mask.to(state.dtype),
-            self.get_state(), self.get_agent_size(), self.get_present_mask(),
-        )
+        offroad = offroad_infraction_loss(
+            self.get_state(), self.get_agent_size(),
+            self.get_innermost_simulator().road_mesh, threshold=self.cfg.offroad_threshold
+        ) * self.get_present_mask()
         return offroad
 
     def compute_wrong_way(self):
@@ -1397,28 +1233,20 @@ class NPCWrapper(SimulatorWrapper):
                 idx_no_map = [i for i, item in enumerate(innermost_simulator.lanelet_map) if item is None]
                 logger.debug(f"Batches {idx_no_map} have no lanelet map. Returning zeros for wrong_way losses.")
                 innermost_simulator.warned_no_lanelet = True
-            return self.across_agent_types(lambda state, mask: lanelet_orientation_loss(
-                    innermost_simulator.lanelet_map, state, innermost_simulator.recenter_offset,
-                ) * mask, self.get_state(), self.get_present_mask())
+            return lanelet_orientation_loss(
+                innermost_simulator.lanelet_map, self.get_state(), innermost_simulator.recenter_offset
+            ) * self.get_present_mask()
         else:
             if not innermost_simulator.warned_no_lanelet:
                 logger.debug("No lanelet map is provided. Returning zeros for wrong_way losses.")
                 innermost_simulator.warned_no_lanelet = True
-            return self.across_agent_types(
-                lambda state: torch.zeros(state.shape[0], state.shape[1]).to(state.device), self.get_state())
+            return torch.zeros_like(self.get_state()[..., 0])
 
     def _compute_collision_of_multi_agents(self, mask=None):
-        batched_non_replay_mask = self.across_agent_types(
-            lambda k: ~k.expand(self.get_innermost_simulator().batch_size, -1), self.npc_mask
-        )
+        batched_non_replay_mask = ~self.npc_mask.expand(self.get_innermost_simulator().batch_size, -1)
         if mask is not None:
-            batched_non_replay_mask = self.across_agent_types(
-                lambda bnrm, m: bnrm * m, batched_non_replay_mask, mask
-            )
-        collision = self.across_agent_types(
-            lambda c, k: c[..., k.logical_not()],
-            self.inner_simulator._compute_collision_of_multi_agents(batched_non_replay_mask), self.npc_mask
-        )
+            batched_non_replay_mask = batched_non_replay_mask * mask
+        collision = self.inner_simulator._compute_collision_of_multi_agents(batched_non_replay_mask)[..., self.npc_mask.logical_not()]
         return collision
 
     @staticmethod
@@ -1672,10 +1500,7 @@ class SelectiveWrapper(SimulatorWrapper):
         There should always be E exposed agents, although some of them may be marked as absent.
         """
         device = self.get_world_center().device
-        self.exposed_agents = self.across_agent_types(
-            lambda n: torch.arange(n, dtype=torch.long, device=device).expand((self.batch_size, n)),
-            self.exposed_agent_limit
-        )
+        self.exposed_agents = torch.arange(self.exposed_agent_limit, dtype=torch.long, device=device).expand((self.batch_size, self.exposed_agent_limit))
 
     def get_exposed_agents(self) -> TensorPerAgentType:
         """
@@ -1689,30 +1514,22 @@ class SelectiveWrapper(SimulatorWrapper):
         Returns:
             a functor of BxA boolean tensors indicating which agents are exposed
         """
-        return self.across_agent_types(
-            lambda exposed, agent_count, m: torch.stack([isin(torch.arange(agent_count).to(exposed.device),
-                                                 exposed[b, m[b]]) for b in range(exposed.shape[0])]),
-            self.exposed_agents, self.inner_simulator.agent_count, self.get_present_mask()
-        )
+        exposed = torch.stack([isin(torch.arange(self.agent_count).to(self.exposed_agents.device), self.exposed_agents[b])
+                               for b in range(self.batch_size)])
+        return exposed
 
     def _restrict_tensor(self, tensor: TensorPerAgentType, agent_dim: int) -> TensorPerAgentType:
         """
         Selects exposed agents from a given tensor, along the supplied agent dimension.
         """
         if agent_dim == -1:
-            return self.across_agent_types(
-                lambda x, i: x.gather(index=i, dim=agent_dim), tensor, self.get_exposed_agents()
-            )
+            return tensor.gather(index=self.get_exposed_agents(), dim=agent_dim)
         elif agent_dim == -2:
-            return self.across_agent_types(
-                lambda x, i: x.gather(index=i.unsqueeze(-1).expand(i.shape + x.shape[-1:]), dim=agent_dim),
-                tensor, self.get_exposed_agents()
-            )
+            return tensor.gather(index=self.get_exposed_agents().unsqueeze(-1).expand(self.batch_size, self.exposed_agent_limit, tensor.shape[-1]),
+                                dim=agent_dim)
         elif agent_dim == -3:
-            return self.across_agent_types(
-                lambda x, i: x.gather(index=i[..., None, None].expand(i.shape + x.shape[-2:]), dim=agent_dim),
-                tensor, self.get_exposed_agents()
-            )
+            return tensor.gather(index=self.get_exposed_agents().unsqueeze(-1).unsqueeze(-1).expand(
+                self.batch_size, self.exposed_agent_limit, tensor.shape[-2], tensor.shape[-1]), dim=agent_dim)
         else:
             raise NotImplementedError
 
@@ -1721,14 +1538,11 @@ class SelectiveWrapper(SimulatorWrapper):
         Given a tensor of exposed agents, constructs a tensor of all agents, using supplied padding.
         Agent dimension should be the penultimate one.
         """
-
-        def extend(x, pad, selection):
-            extended = pad.clone()
-            batch_idx = torch.arange(extended.shape[0]).unsqueeze(-1).repeat(1, selection.shape[-1])
-            extended[batch_idx, selection] = x
-            return extended
-
-        return self.across_agent_types(extend, tensor, padding, self.get_exposed_agents())
+        selection = self.get_exposed_agents()
+        extended = padding.clone()
+        batch_idx = torch.arange(extended.shape[0]).unsqueeze(-1).repeat(1, selection.shape[-1])
+        extended[batch_idx, selection] = tensor
+        return extended
 
     def to(self, device) -> Self:
         self.default_action = self.agent_functor.to_device(self.default_action, device)
@@ -1746,24 +1560,22 @@ class SelectiveWrapper(SimulatorWrapper):
         extended = super().extend(n, in_place=in_place)
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
                                                                                          x.shape[1:])
-        extended.default_action = self.across_agent_types(enlarge, self.default_action)
-        self.exposed_agents = self.across_agent_types(enlarge, self.exposed_agents)
+        extended.default_action = enlarge(self.default_action)
+        extended.exposed_agents = enlarge(self.exposed_agents)
         return extended
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.default_action = other.across_agent_types(lambda x: x[idx], other.default_action)
+        other.default_action = other.default_action[idx]
         if other.exposed_agents is not None:
-            other.exposed_agents = other.across_agent_types(lambda x: x[idx], other.exposed_agents)
+            other.exposed_agents = other.exposed_agents[idx]
         return other
 
     def get_state(self):
         return self._restrict_tensor(self.inner_simulator.get_state(), agent_dim=-2)
 
     def get_present_mask(self):
-        return self.across_agent_types(
-            lambda x: torch.ones_like(x, dtype=torch.bool), self.get_exposed_agents()
-        )
+        return torch.ones_like(self.get_exposed_agents(), dtype=torch.bool)
 
     def get_agent_size(self):
         return self._restrict_tensor(self.inner_simulator.get_agent_size(), agent_dim=-2)
@@ -1817,11 +1629,9 @@ class SelectiveWrapper(SimulatorWrapper):
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
                waypoints_rendering_mask=None):
         if rendering_mask is not None:
-            def padding_rendering_mask(rd_mask, expose_mask):
-                rd_mask = rd_mask.permute(0, 2, 1)
-                pad_tensor = torch.zeros(rd_mask.shape[0], expose_mask.shape[1], rd_mask.shape[1], device=rd_mask.device)
-                return self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
-            rendering_mask = self.across_agent_types(padding_rendering_mask, rendering_mask, self.is_exposed())
+            rd_mask = rendering_mask.permute(0, 2, 1)
+            pad_tensor = torch.zeros(rd_mask.shape[0], self.is_exposed().shape[1], rd_mask.shape[1], device=rd_mask.device)
+            rendering_mask = self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
         return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
                                            waypoints_rendering_mask=waypoints_rendering_mask)
 
@@ -1834,12 +1644,9 @@ class SelectiveWrapper(SimulatorWrapper):
         raise NotImplementedError("Updating present mask for SelectiveWrapper")
 
     def _compute_collision_of_multi_agents(self, mask=None):
-        exposed_mask = self.across_agent_types(
-            lambda exposed: exposed.reshape(self.get_innermost_simulator().batch_size, exposed.shape[-1]),
-            self.is_exposed()
-        )
+        exposed_mask = self.is_exposed().reshape(self.get_innermost_simulator().batch_size, self.is_exposed().shape[-1])
         if mask is not None:
-            exposed_mask = self.across_agent_types(lambda em, m: em * m, exposed_mask, mask)
+            exposed_mask = exposed_mask * mask
         return self.inner_simulator._compute_collision_of_multi_agents(exposed_mask)
 
 
@@ -1866,10 +1673,9 @@ class BoundedRegionWrapper(SelectiveWrapper):
         # After how many steps the agents are warmed-up
         self.warmup_timesteps = warmup_timesteps
         # Track for how many timesteps each agent has been in range
-        self.proximal_timesteps = self.across_agent_types(
-            lambda x: torch.zeros_like(x, dtype=torch.long, device=simulator.get_world_center().device),  # BxA
-            self.inner_simulator.get_present_mask()
-        )
+        self.proximal_timesteps = torch.zeros_like(
+            self.inner_simulator.get_present_mask(), dtype=torch.long, device=simulator.get_world_center().device
+        )  # BxA
 
         self.update_exposed_agents()
 
@@ -1878,54 +1684,34 @@ class BoundedRegionWrapper(SelectiveWrapper):
             super().update_exposed_agents()
             return  # for first run only
 
-        def compute_proximal(state, proximal_timesteps, present, cutoff_boundary):
-            location = state[..., :2]
-            is_proximal = present
-            if cutoff_boundary.shape[-2] > 0:
-                is_proximal = is_proximal.logical_and(is_inside_polygon(location, cutoff_boundary))
-            proximal_timesteps = is_proximal * (is_proximal + proximal_timesteps)
-            return proximal_timesteps
+        location = self.inner_simulator.get_state()[..., :2]
+        is_proximal = self.inner_simulator.get_present_mask()
+        if self.cutoff_polygon_verts.shape[-2] > 0:
+            is_proximal = is_proximal.logical_and(is_inside_polygon(location, self.cutoff_polygon_verts))
+        self.proximal_timesteps = is_proximal * (is_proximal + self.proximal_timesteps)
 
-        self.proximal_timesteps = self.across_agent_types(
-            compute_proximal, self.inner_simulator.get_state(), self.proximal_timesteps,
-            self.inner_simulator.get_present_mask(), self.cutoff_polygon_verts
-        )
-
-        def compute_exposed(prev_exposed, prev_is_exposed, proximal_timesteps, slot_taken):
-            exposed = prev_exposed.clone()  # BxE
-            is_proximal = proximal_timesteps > 0  # BxA
-            is_to_expose = is_proximal.logical_and(prev_is_exposed.logical_not())  # BxA
-            for batch_idx in range(self.batch_size):
-                # I couldn't find a way to avoid iterating over the batch dimension
-                to_expose = is_to_expose[0].nonzero(as_tuple=False)
-                available_slots = slot_taken[0].logical_not().nonzero(as_tuple=False)
-                if to_expose.shape[0] > available_slots.shape[0]:
-                    logger.warning("More proximal agents than we can fit into exposed slots")
-                    to_expose = to_expose[:available_slots.shape[0]]
-                exposed[batch_idx, available_slots[:to_expose.shape[0]]] = to_expose
-            return exposed
-
-        self.exposed_agents = self.across_agent_types(
-            compute_exposed, self.exposed_agents, self.is_exposed(), self.proximal_timesteps, self.get_present_mask()
-        )
+        exposed = self.exposed_agents.clone()  # BxE
+        is_proximal = self.proximal_timesteps > 0  # BxA
+        is_to_expose = is_proximal.logical_and(self.is_exposed().logical_not())  # BxA
+        for batch_idx in range(self.batch_size):
+            # I couldn't find a way to avoid iterating over the batch dimension
+            to_expose = is_to_expose[0].nonzero(as_tuple=False)
+            available_slots = self.get_present_mask()[0].logical_not().nonzero(as_tuple=False)
+            if to_expose.shape[0] > available_slots.shape[0]:
+                logger.warning("More proximal agents than we can fit into exposed slots")
+                to_expose = to_expose[:available_slots.shape[0]]
+            exposed[batch_idx, available_slots[:to_expose.shape[0]]] = to_expose
+        self.exposed_agents = exposed
 
     def get_present_mask(self):
-        def is_present(exposed, proximal_timesteps):
-            return proximal_timesteps.gather(index=exposed, dim=-1) > 0
-
-        return self.across_agent_types(
-            is_present, self.exposed_agents, self.proximal_timesteps
-        )
+        return self.proximal_timesteps.gather(self.exposed_agents, dim=-1) > 0
 
     def is_warmed_up(self):
         """
         Returns:
             a functor of BxA boolean tensors indicating which agents are warmed-up
         """
-        return self.across_agent_types(
-            lambda x, t: x.logical_and(t > self.warmup_timesteps),
-            self.is_exposed(), self.proximal_timesteps
-        )
+        return self.is_exposed().logical_and(self.proximal_timesteps > self.warmup_timesteps)
 
     def to(self, device) -> Self:
         self.proximal_timesteps = self.agent_functor.to_device(self.proximal_timesteps, device)
@@ -1941,31 +1727,23 @@ class BoundedRegionWrapper(SelectiveWrapper):
         )
         other.exposed_agents = self.exposed_agents
         other.warmup_timesteps = self.warmup_timesteps
-        other.proximal_timesteps = self.across_agent_types(
-            lambda x: x.clone(), self.proximal_timesteps
-        )
+        other.proximal_timesteps = self.proximal_timesteps.clone()
         return other
 
     def extend(self, n, in_place=True):
         extended = super().extend(n, in_place=in_place)
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).\
             reshape((n * x.shape[0],) + x.shape[1:])
-        extended.proximal_timesteps = self.across_agent_types(
-            enlarge, self.proximal_timesteps
-        )
+        extended.proximal_timesteps = enlarge(self.proximal_timesteps)
         if extended.cutoff_polygon_verts is not None:
-            extended.cutoff_polygon_verts = self.across_agent_types(
-                enlarge, self.cutoff_polygon_verts
-            )
+            extended.cutoff_polygon_verts = enlarge(self.cutoff_polygon_verts)
         return extended
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.proximal_timesteps = other.across_agent_types(lambda x: x[idx], other.proximal_timesteps)
+        other.proximal_timesteps = other.proximal_timesteps[idx]
         if other.cutoff_polygon_verts is not None:
-            other.cutoff_polygon_verts = other.across_agent_types(
-                lambda x: x[idx], other.cutoff_polygon_verts
-            )
+            other.cutoff_polygon_verts = other.cutoff_polygon_verts[idx]
         return other
 
 
@@ -1993,23 +1771,19 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
         extended = super().extend(n, in_place=in_place)
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
                                                                                          x.shape[1:])
-        extended.previous_present_mask = self.across_agent_types(
-            enlarge, self.previous_present_mask
-        )
+        extended.previous_present_mask = enlarge(self.previous_present_mask)
         return extended
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.previous_present_mask = other.across_agent_types(lambda x: x[idx], other.previous_present_mask)
+        other.previous_present_mask = other.previous_present_mask[idx]
         return other
 
     def update_exposed_agents(self):
         super().update_exposed_agents()
         if self.proximal_timesteps is None:
             return  # for first run only
-        self.proximal_timesteps = self.across_agent_types(
-            lambda x, y: x.mul(y), self.proximal_timesteps, self.previous_present_mask
-        )
+        self.proximal_timesteps = self.proximal_timesteps.mul(self.previous_present_mask)
         present_mask = self.get_present_mask()
         self.inner_simulator.update_present_mask(present_mask)
         self.previous_present_mask = self.agent_functor(torch.logical_and, present_mask, self.previous_present_mask)
