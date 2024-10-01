@@ -3,7 +3,6 @@ import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from itertools import accumulate
 from typing import Optional, Union, Dict, List, Iterable, Callable, Any
 
 import imageio
@@ -12,7 +11,6 @@ from typing_extensions import Self
 import numpy as np
 import torch
 from torch import Tensor
-from torch.nn.functional import pad
 
 import torchdrivesim.rendering.pytorch3d
 from torchdrivesim.goals import WaypointGoal
@@ -55,54 +53,10 @@ class TorchDriveConfig:
     waypoint_removal_threshold: float = 2.0  #: how close the agent needs to get to the waypoint to consider it achieved
 
 
-# the type system in Python is not sufficiently expressive to parameterize those types,
-# so the following is a sensible compromise
-TensorPerAgentType = Tensor
-IntPerAgentType = int
-
-
-class AgentTypeFunctor(abc.ABC):
-    """
-    Lifts functions operating on individual agent type to functions operating across all agent types.
-    Children of this class specify how the collection of agents is represented.
-    """
-    @abc.abstractmethod
-    def fmap(self, f, *args):
-        """
-        Applies a given function of any number of arguments to all agent types.
-        """
-        pass
-
-    def to_device(self, tensor: TensorPerAgentType, device: torch.device) -> TensorPerAgentType:
-        """
-        Applies `.to` to each element.
-        """
-        return self.fmap(lambda x: x.to(device), tensor)
-
-    def __call__(self, f, *args):
-        return self.fmap(f, *args)
-
-
-class SingletonAgentTypeFunctor(AgentTypeFunctor):
-    """
-    Trivial functor where only one agent type is used.
-    No packaging is used for the arguments.
-    """
-    def fmap(self, f, *args):
-        return f(*args)
-
-
 class SimulatorInterface(metaclass=abc.ABCMeta):
     """
     Abstract interface for a 2D differentiable driving simulator.
     """
-    @property
-    @abc.abstractmethod
-    def agent_functor(self) -> AgentTypeFunctor:
-        """
-        Defines how to apply functions across agent types.
-        """
-        pass
 
     @property
     @abc.abstractmethod
@@ -112,18 +66,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         pass
 
-    def across_agent_types(self, f, *args):
-        """
-        Applies a given per-agent-type operation across all agent types.
-        Subsequent arguments should be given in the format of multiple agent
-        collection that this class uses, which is typically a dictionary
-        with keys being agent type names.
-        """
-        return self.agent_functor(f, *args)
-
     @property
     @abc.abstractmethod
-    def action_size(self) -> IntPerAgentType:
+    def action_size(self) -> int:
         """
         Defines the size of the action space for each agent type.
         """
@@ -174,7 +119,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         return self.select_batch_elements(item, in_place=False)
 
     @property
-    def agent_count(self) -> IntPerAgentType:
+    def agent_count(self) -> int:
         """
         How many agents of each type are there in the simulation.
         This counts the available slots, not taking present masks into consideration.
@@ -189,21 +134,21 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_state(self) -> TensorPerAgentType:
+    def get_state(self) -> Tensor:
         """
         Returns a functor of BxAxSt tensors representing current agent states.
         """
         pass
 
     @abc.abstractmethod
-    def get_agent_size(self) -> TensorPerAgentType:
+    def get_agent_size(self) -> Tensor:
         """
         Returns a functor of BxAx2 tensors representing agent length and width.
         """
         pass
 
     @abc.abstractmethod
-    def get_agent_type(self) -> TensorPerAgentType:
+    def get_agent_type(self) -> Tensor:
         """
         Returns a functor of BxA long tensors containing agent type indexes relative to the list containing all agent types
             as returned by `SimulatorInterface.agent_types`.
@@ -218,14 +163,14 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_present_mask(self) -> TensorPerAgentType:
+    def get_present_mask(self) -> Tensor:
         """
         Returns a functor of BxA boolean tensors indicating which agents are currently present in the simulation.
         """
         pass
 
     @abc.abstractmethod
-    def get_all_agents_absolute(self) -> TensorPerAgentType:
+    def get_all_agents_absolute(self) -> Tensor:
         """
         Returns a functor of BxAx6 tensors,
         where the last dimension contains the following information: x, y, psi, length, width, present.
@@ -234,7 +179,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_all_agents_relative(self, exclude_self: bool = True) -> TensorPerAgentType:
+    def get_all_agents_relative(self, exclude_self: bool = True) -> Tensor:
         """
         Returns a functor of BxAxAllx6 tensors, specifying for each of A agents the relative position about
         the other agents. 'All' is the number of all agents in the simulation, including hidden ones, across all
@@ -259,28 +204,28 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_waypoints(self) -> TensorPerAgentType:
+    def get_waypoints(self) -> Tensor:
         """
         Returns a functor of BxAxMx2 tensors representing current agent waypoints.
         """
         pass
 
     @abc.abstractmethod
-    def get_waypoints_state(self) -> TensorPerAgentType:
+    def get_waypoints_state(self) -> Tensor:
         """
         Returns a functor of BxAx1 tensors representing current agent waypoints state.
         """
         pass
 
     @abc.abstractmethod
-    def get_waypoints_mask(self) -> TensorPerAgentType:
+    def get_waypoints_mask(self) -> Tensor:
         """
         Returns a functor of BxAxM boolean tensors representing current agent waypoints present mask.
         """
         pass
 
     @abc.abstractmethod
-    def step(self, agent_action: TensorPerAgentType) -> None:
+    def step(self, agent_action: Tensor) -> None:
         """
         Runs the simulation for one step with given agent actions.
         Input is a functor of BxAxAc tensors, where Ac is determined by the kinematic model.
@@ -288,7 +233,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def set_state(self, agent_state: TensorPerAgentType, mask: Optional[TensorPerAgentType] = None) -> None:
+    def set_state(self, agent_state: Tensor, mask: Optional[Tensor] = None) -> None:
         """
         Arbitrarily set the state of the agents, without advancing the simulation.
         The change is effective immediately, without waiting for the next step.
@@ -300,7 +245,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def update_present_mask(self, present_mask: TensorPerAgentType) -> None:
+    def update_present_mask(self, present_mask: Tensor) -> None:
         """
         Sets the present mask of agents to the provided value.
 
@@ -310,8 +255,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def fit_action(self, future_state: TensorPerAgentType, current_state: Optional[TensorPerAgentType] = None)\
-            -> TensorPerAgentType:
+    def fit_action(self, future_state: Tensor, current_state: Optional[Tensor] = None)\
+            -> Tensor:
         """
         Computes an action that would (aproximately) produce the desired state.
 
@@ -325,7 +270,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def render(self, camera_xy: Tensor, camera_psi: Tensor, res: Optional[Resolution] = None,
-               rendering_mask: Optional[TensorPerAgentType] = None, fov: Optional[float] = None,
+               rendering_mask: Optional[Tensor] = None, fov: Optional[float] = None,
                waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None) -> Tensor:
         """
         Renders the world from bird's eye view using cameras in given positions.
@@ -345,7 +290,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None)\
-            -> TensorPerAgentType:
+            -> Tensor:
         """
         Renders the world using cameras placed on each agent.
 
@@ -376,7 +321,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         return bv
 
     @abc.abstractmethod
-    def compute_offroad(self) -> TensorPerAgentType:
+    def compute_offroad(self) -> Tensor:
         """
         Offroad metric for each agent, defined as the distance to the road mesh.
         See `torchdrivesim.infractions.offroad_infraction_loss` for details.
@@ -387,7 +332,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_wrong_way(self) -> TensorPerAgentType:
+    def compute_wrong_way(self) -> Tensor:
         """
         Wrong-way metric for each agent, based on the inner product between the agent and lane direction.
         See `torchdrivesim.infractions.lanelet_orientation_loss` for details.
@@ -397,7 +342,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         pass
 
-    def compute_traffic_lights_violations(self) -> TensorPerAgentType:
+    def compute_traffic_lights_violations(self) -> Tensor:
         """
         Boolean value indicating whether each agent is committing a traffic light violation.
         See `torchdrivesim.infractions.traffic_controls.TrafficLightControl.compute_violations` for details.
@@ -435,7 +380,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def _compute_collision_of_multi_agents(self, mask: Optional[Tensor] = None) -> TensorPerAgentType:
+    def _compute_collision_of_multi_agents(self, mask: Optional[Tensor] = None) -> Tensor:
         """
         Computes the collision metric for selected (default all) agents in the simulation.
         Includes collisions with all agents in the simulation,
@@ -450,7 +395,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         return
 
-    def compute_collision(self, agent_types: Optional[List[str]] = None) -> TensorPerAgentType:
+    def compute_collision(self, agent_types: Optional[List[str]] = None) -> Tensor:
         """
         Compute the collision metric for agents exposed through the interface of this class.
         Includes collisions with agents not exposed through the interface.
@@ -561,15 +506,11 @@ class Simulator(SimulatorInterface):
         self.internal_time = internal_time
 
     @property
-    def agent_functor(self) -> SingletonAgentTypeFunctor:
-        return SingletonAgentTypeFunctor()
-
-    @property
     def agent_types(self):
         return self._agent_types
 
     @property
-    def action_size(self) -> IntPerAgentType:
+    def action_size(self) -> int:
         return self.kinematic_model.action_size
 
     @property
@@ -579,11 +520,11 @@ class Simulator(SimulatorInterface):
     def to(self, device):
         self.road_mesh = self.road_mesh.to(device)
         self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
-        self.agent_size = self.agent_functor.to_device(self.agent_size, device)
-        self.agent_type = self.agent_functor.to_device(self.agent_type, device)
-        self.present_mask = self.agent_functor.to_device(self.present_mask, device)
+        self.agent_size = self.agent_size.to(device)
+        self.agent_type = self.agent_type.to(device)
+        self.present_mask = self.present_mask.to(device)
 
-        self.kinematic_model = self.agent_functor.to_device(self.kinematic_model, device)  # type: ignore
+        self.kinematic_model = self.kinematic_model.to(device)  # type: ignore
         self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()} if self.traffic_controls is not None else None
         self.waypoint_goals = self.waypoint_goals.to(device) if self.waypoint_goals is not None else None
         self.renderer = self.renderer.to(device)
@@ -922,15 +863,11 @@ class SimulatorWrapper(SimulatorInterface):
         self.cfg: TorchDriveConfig = self.get_innermost_simulator().cfg
 
     @property
-    def agent_functor(self) -> AgentTypeFunctor:
-        return self.inner_simulator.agent_functor
-
-    @property
     def agent_types(self):
         return self.inner_simulator.agent_types
 
     @property
-    def action_size(self) -> IntPerAgentType:
+    def action_size(self) -> int:
         return self.inner_simulator.action_size
 
     @property
@@ -1040,11 +977,11 @@ class NPCWrapper(SimulatorWrapper):
     Args:
         npc_mask: A functor of tensors with a single dimension of size A, indicating which agents to replay.
     """
-    def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType):
+    def __init__(self, simulator: SimulatorInterface, npc_mask: Tensor):
         super().__init__(simulator)
         self.npc_mask = npc_mask
 
-    def _update_npc_present_mask(self) -> TensorPerAgentType:
+    def _update_npc_present_mask(self) -> Tensor:
         """
         Computes updated present masks for NPCs, with arbitrary padding for the remaining agents.
         By default, leaves present masks unchanged.
@@ -1054,7 +991,7 @@ class NPCWrapper(SimulatorWrapper):
         """
         return self.inner_simulator.get_present_mask()
 
-    def _get_npc_action(self) -> TensorPerAgentType:
+    def _get_npc_action(self) -> Tensor:
         """
         Computes the actions for NPCs, with arbitrary padding for actions of the remaining agents.
         By default, the actions are all zeros, but subclasses can implement more intelligent behavior.
@@ -1065,7 +1002,7 @@ class NPCWrapper(SimulatorWrapper):
         state = self.inner_simulator.get_state()
         return torch.zeros(size=state.shape[:-1] + (self.action_size,), dtype=state.dtype, device=state.device)
 
-    def _npc_teleport_to(self) -> Optional[TensorPerAgentType]:
+    def _npc_teleport_to(self) -> Optional[Tensor]:
         """
         Provides the states to which the NPCs should be set after `step`,
         with arbitrary padding for the remaining agents.
@@ -1079,7 +1016,7 @@ class NPCWrapper(SimulatorWrapper):
         return None
 
     def to(self, device) -> Self:
-        self.npc_mask = self.agent_functor.to_device(self.npc_mask, device)
+        self.npc_mask = self.npc_mask.to(device)
         return super().to(device)
 
     def copy(self):
@@ -1340,13 +1277,8 @@ class BirdviewRecordingWrapper(RecordingWrapper):
         def record_birdview(simulator):
             s = simulator
             waypoints = s.get_waypoints()
-            singleton = isinstance(s.agent_functor, SingletonAgentTypeFunctor)
             if waypoints is not None:
                 waypoints_mask = s.get_waypoints_mask()
-                waypoints_dict = dict(agent=waypoints) if singleton else waypoints
-                waypoints_mask_dict = dict(agent=waypoints_mask) if singleton else waypoints_mask
-                waypoints = torch.cat(list(waypoints_dict.values()), dim=-3).flatten(1,2).unsqueeze(dim=1)
-                waypoints_mask = torch.cat(list(waypoints_mask_dict.values()), dim=-2).flatten(1,2).unsqueeze(dim=1)
             else:
                 waypoints, waypoints_mask = None, None
             bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov, waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
@@ -1488,11 +1420,11 @@ class SelectiveWrapper(SimulatorWrapper):
         default_action: a functor of BxAxAc tensors, defining the default action to use for non-exposed agents
     """
 
-    def __init__(self, simulator: SimulatorInterface, exposed_agent_limit: int, default_action: TensorPerAgentType):
+    def __init__(self, simulator: SimulatorInterface, exposed_agent_limit: int, default_action: Tensor):
         super().__init__(simulator)
         self.default_action = default_action
         self.exposed_agent_limit = exposed_agent_limit
-        self.exposed_agents: TensorPerAgentType = None  # functor of BxE int tensor of indices of exposed agents
+        self.exposed_agents: Tensor = None  # functor of BxE int tensor of indices of exposed agents
         self.update_exposed_agents()
 
     def update_exposed_agents(self) -> None:
@@ -1502,14 +1434,14 @@ class SelectiveWrapper(SimulatorWrapper):
         device = self.get_world_center().device
         self.exposed_agents = torch.arange(self.exposed_agent_limit, dtype=torch.long, device=device).expand((self.batch_size, self.exposed_agent_limit))
 
-    def get_exposed_agents(self) -> TensorPerAgentType:
+    def get_exposed_agents(self) -> Tensor:
         """
         Returns:
             a functor of BxE int tensors of indices of exposed agents
         """
         return self.exposed_agents
 
-    def is_exposed(self) -> TensorPerAgentType:
+    def is_exposed(self) -> Tensor:
         """
         Returns:
             a functor of BxA boolean tensors indicating which agents are exposed
@@ -1518,7 +1450,7 @@ class SelectiveWrapper(SimulatorWrapper):
                                for b in range(self.batch_size)])
         return exposed
 
-    def _restrict_tensor(self, tensor: TensorPerAgentType, agent_dim: int) -> TensorPerAgentType:
+    def _restrict_tensor(self, tensor: Tensor, agent_dim: int) -> Tensor:
         """
         Selects exposed agents from a given tensor, along the supplied agent dimension.
         """
@@ -1533,7 +1465,7 @@ class SelectiveWrapper(SimulatorWrapper):
         else:
             raise NotImplementedError
 
-    def _extend_tensor(self, tensor: TensorPerAgentType, padding: TensorPerAgentType) -> TensorPerAgentType:
+    def _extend_tensor(self, tensor: Tensor, padding: Tensor) -> Tensor:
         """
         Given a tensor of exposed agents, constructs a tensor of all agents, using supplied padding.
         Agent dimension should be the penultimate one.
@@ -1545,9 +1477,9 @@ class SelectiveWrapper(SimulatorWrapper):
         return extended
 
     def to(self, device) -> Self:
-        self.default_action = self.agent_functor.to_device(self.default_action, device)
+        self.default_action = self.default_action.to(device)
         if self.exposed_agents is not None:
-            self.exposed_agents = self.agent_functor.to_device(self.exposed_agents, device)
+            self.exposed_agents = self.exposed_agents.to(device)
         return super().to(device)
 
     def copy(self):
@@ -1663,8 +1595,8 @@ class BoundedRegionWrapper(SelectiveWrapper):
             order, provided as a functor of BxNx2 tensors, so that each agent type can use a different polygon
     """
 
-    def __init__(self, simulator: SimulatorInterface, exposed_agent_limit: int, default_action: TensorPerAgentType,
-                 warmup_timesteps: int, cutoff_polygon_verts: TensorPerAgentType):
+    def __init__(self, simulator: SimulatorInterface, exposed_agent_limit: int, default_action: Tensor,
+                 warmup_timesteps: int, cutoff_polygon_verts: Tensor):
         super().__init__(simulator, exposed_agent_limit, default_action)
         # Optional BxNx2 Tensor Collection for the polygon region to restrict agents,
         # the order can be either clockwise or anti-clockwise
@@ -1714,9 +1646,9 @@ class BoundedRegionWrapper(SelectiveWrapper):
         return self.is_exposed().logical_and(self.proximal_timesteps > self.warmup_timesteps)
 
     def to(self, device) -> Self:
-        self.proximal_timesteps = self.agent_functor.to_device(self.proximal_timesteps, device)
+        self.proximal_timesteps = self.proximal_timesteps.to(device)
         if self.cutoff_polygon_verts is not None:
-            self.cutoff_polygon_verts = self.agent_functor.to_device(self.cutoff_polygon_verts, device)
+            self.cutoff_polygon_verts = self.cutoff_polygon_verts.to(device)
         return super().to(device)
 
     def copy(self):
@@ -1762,9 +1694,9 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
                  warmup_timesteps, cutoff_polygon_verts,)
 
     def to(self, device) -> Self:
-        self.previous_present_mask = self.agent_functor.to_device(self.previous_present_mask, device)
+        self.previous_present_mask = self.previous_present_mask.to(device)
         if self.proximal_timesteps is not None:
-            self.proximal_timesteps = self.agent_functor.to_device(self.proximal_timesteps, device)
+            self.proximal_timesteps = self.proximal_timesteps.to(device)
         return super().to(device)
 
     def extend(self, n, in_place=True):
@@ -1786,7 +1718,7 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
         self.proximal_timesteps = self.proximal_timesteps.mul(self.previous_present_mask)
         present_mask = self.get_present_mask()
         self.inner_simulator.update_present_mask(present_mask)
-        self.previous_present_mask = self.agent_functor(torch.logical_and, present_mask, self.previous_present_mask)
+        self.previous_present_mask = present_mask.logical_and(self.previous_present_mask)
 
     def update_present_mask(self, present_mask):
         self.inner_simulator.update_present_mask(present_mask)
@@ -1795,4 +1727,4 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
     def get_present_mask(self):
         present_mask = super().get_present_mask()
 
-        return self.agent_functor(torch.logical_and, present_mask, self.previous_present_mask)
+        return present_mask.logical_and(self.previous_present_mask)
