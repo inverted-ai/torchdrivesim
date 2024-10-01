@@ -23,7 +23,7 @@ from torchdrivesim.behavior.replay import ReplayWrapper
 from torchdrivesim.kinematic import SimpleKinematicModel
 from torchdrivesim.mesh import BaseMesh, BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config
-from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.utils import Resolution
 
 
@@ -267,7 +267,6 @@ def ego_only_simulator(batch_data, simulator_cfg):
                           agent_size=agent_sizes, initial_present_mask=initial_present_mask, renderer=renderer)
     simulator = ReplayWrapper(simulator, npc_mask=replay_masks, agent_states=agent_states,
                               present_masks=present_masks)
-    simulator = HomogeneousWrapper(simulator)
     return simulator
 
 

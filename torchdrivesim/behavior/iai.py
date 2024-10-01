@@ -8,7 +8,7 @@ from typing_extensions import Self
 from invertedai.common import TrafficLightState, RecurrentState
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType, HomogeneousWrapper
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType
 from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
 
@@ -85,14 +85,14 @@ class IAIWrapper(NPCWrapper):
         assert (self._traffic_light_controller is None) == (self._traffic_light_ids is None), \
                 "Both _traffic_light_controller and _traffic_light_ids should be either None or not None"
 
-        lenwid = HomogeneousWrapper(self.inner_simulator).get_agent_size()[..., :2]
+        lenwid = self.inner_simulator.get_agent_size()[..., :2]
         if rear_axis_offset is None:
             rear_axis_offset = 1.4 * torch.ones_like(lenwid[..., :1])  # TODO: use value proportional to length
         self._agent_attributes = torch.cat([lenwid, rear_axis_offset], dim=-1)
 
     def _get_npc_predictions(self):
         states, recurrent = [], []
-        agent_states = HomogeneousWrapper(self.inner_simulator).get_state()
+        agent_states = self.inner_simulator.get_state()
         for i in range(self.batch_size):
             s, r = iai_drive(location=self._locations[i], agent_states=agent_states[i],
                              agent_attributes=self._agent_attributes[i], recurrent_states=self._recurrent_states[i],

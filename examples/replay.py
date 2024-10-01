@@ -18,7 +18,7 @@ from torchdrivesim.kinematic import KinematicBicycle, TeleportingKinematicModel
 from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config
-from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.utils import Resolution
 
 

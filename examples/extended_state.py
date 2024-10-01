@@ -20,7 +20,7 @@ from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map,
 from torchdrivesim.map import find_map_config
 from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
-from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.utils import Resolution
 
 
@@ -159,7 +159,6 @@ def visualize_map(cfg: InitializationVisualizationConfig):
         initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
         renderer=renderer,
     )
-    simulator = HomogeneousWrapper(simulator)
     npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
     simulator = IAIWrapper(
         simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],

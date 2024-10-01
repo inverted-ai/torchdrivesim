@@ -24,7 +24,7 @@ from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import RendererConfig, renderer_from_config
 from torchdrivesim.utils import Resolution
 from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
-    BirdviewRecordingWrapper, Simulator, HomogeneousWrapper
+    BirdviewRecordingWrapper, Simulator
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,6 @@ class IAIGymEnv(GymEnv):
             initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
             renderer=renderer,
         )
-        simulator = HomogeneousWrapper(simulator)
         npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
         npc_mask[0] = False
         simulator = IAIWrapper(
