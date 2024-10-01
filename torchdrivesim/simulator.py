@@ -57,8 +57,8 @@ class TorchDriveConfig:
 
 # the type system in Python is not sufficiently expressive to parameterize those types,
 # so the following is a sensible compromise
-TensorPerAgentType = Union[Tensor, Dict[str, Tensor]]
-IntPerAgentType = Union[int, Dict[str, int]]
+TensorPerAgentType = Tensor
+IntPerAgentType = int
 
 
 class AgentTypeFunctor(abc.ABC):
@@ -90,24 +90,6 @@ class SingletonAgentTypeFunctor(AgentTypeFunctor):
     """
     def fmap(self, f, *args):
         return f(*args)
-
-
-class DictAgentTypeFunctor(AgentTypeFunctor):
-    """
-    Arguments are packaged as dictionaries, with keys being agent type names.
-    """
-    def __init__(self, agent_types: List[str]):
-        super().__init__()
-        self.agent_types = agent_types
-
-    def fmap(self, f, *args):
-        result = dict()
-        for key in self.agent_types:
-            try:
-                result[key] = f(*[d[key] for d in args])
-            except KeyError:
-                logger.debug(f"Missing agent type {key} - ingored")
-        return result
 
 
 class SimulatorInterface(metaclass=abc.ABCMeta):
