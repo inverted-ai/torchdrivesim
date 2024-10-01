@@ -72,17 +72,17 @@ class TestBaseSimulator:
         projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
         lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)
         lanelet_map = [lanelet_map for _ in range(cls.data_batch_size)]
-        waypoint_goals = WaypointGoal(dict(vehicle=torch.zeros_like(cls.mock_agent_state[..., :2])[:, :, None, None, :]))
+        waypoint_goals = WaypointGoal(torch.zeros_like(cls.mock_agent_state[..., :2])[:, :, None, None, :])
         return Simulator(road_mesh, kinematic_model, agent_size,
                          initial_present_mask, cls.config, lanelet_map=lanelet_map, waypoint_goals=waypoint_goals).to(device)
 
     @staticmethod
     def get_tensor(item):
-        return item['vehicle']
+        return item
 
     @staticmethod
     def tensor_collection(tensor):
-        return {'vehicle': tensor}
+        return tensor
 
     def test_move_to_device(self):
         self.simulator.to('cpu').to(device)
@@ -90,7 +90,7 @@ class TestBaseSimulator:
     def test_copy(self):
         old_state = self.simulator.get_state()
         simulator_copy = self.simulator.copy()
-        new_state = self.simulator.across_agent_types(lambda st: st + 1, old_state)
+        new_state = old_state + 1
         simulator_copy.set_state(new_state)
         assert (self.get_tensor(self.simulator.get_state()) == self.get_tensor(old_state)).all()
 
@@ -152,7 +152,7 @@ class TestBaseSimulator:
         assert self.get_tensor(self.simulator.render_egocentric()).shape == self.birdview_shape
 
     def test_compute_collision(self, collision_metric_type=None):
-        self.simulator.set_state(dict(vehicle=torch.zeros_like(self.mock_agent_state)))
+        self.simulator.set_state(torch.zeros_like(self.mock_agent_state))
         collision_metrics = self.get_tensor(self.simulator.compute_collision())
         assert len(collision_metrics.shape) == 2 and torch.all(collision_metrics)
 

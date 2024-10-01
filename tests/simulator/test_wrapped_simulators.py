@@ -104,7 +104,7 @@ class TestSelectiveSimulator(TestBaseWrappedSimulator):
         assert pre_state[0, 0, 0] != curr_state[0, 0, 0]
 
     def test_compute_collision(self, collision_metric_type=None):
-        self.simulator.set_state(dict(vehicle=torch.zeros_like(self.mock_exposed_agent_state)))
+        self.simulator.set_state(torch.zeros_like(self.mock_exposed_agent_state))
         collision_metrics = self.get_tensor(self.simulator.compute_collision())
         assert len(collision_metrics.shape) == 2 and not torch.all(collision_metrics)
 

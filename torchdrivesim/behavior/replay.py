@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface
 from torchdrivesim.utils import assert_equal
 
 
@@ -78,7 +78,6 @@ class ReplayWrapper(NPCWrapper):
             # by default all replay agents are always present
             self.present_masks = torch.ones_like(self.replay_states[..., 0], dtype=torch.bool),
 
-        self.validate_agent_types()
         self.validate_tensor_shapes()
 
     def _npc_teleport_to(self):
@@ -101,8 +100,8 @@ class ReplayWrapper(NPCWrapper):
 
     def to(self, device) -> Self:
         super().to(device)
-        self.replay_states = self.agent_functor.to_device(self.replay_states, device)
-        self.present_masks = self.agent_functor.to_device(self.present_masks, device)
+        self.replay_states = self.replay_states.to(device)
+        self.present_masks = self.present_masks.to(device)
         return self
 
     def copy(self):
@@ -120,20 +119,16 @@ class ReplayWrapper(NPCWrapper):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         self.replay_states = enlarge(self.replay_states)
         self.present_masks = enlarge(self.present_masks)
+        self.replay_mask = enlarge(self.replay_mask)
         return self
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
         other.replay_states = other.replay_states[idx]
         other.present_masks = other.present_masks[idx]
+        other.replay_mask = other.replay_mask[idx]
         other._batch_size = len(idx)
         return other
-
-    def validate_agent_types(self):
-        return
-        assert list(self.npc_mask.keys()) == self.agent_types
-        assert list(self.replay_states.keys()) == self.agent_types
-        assert list(self.present_masks.keys()) == self.agent_types
 
     def validate_tensor_shapes(self):
         # check that tensors have the expected number of dimensions
@@ -143,11 +138,11 @@ class ReplayWrapper(NPCWrapper):
 
         # check that batch size is the same everywhere
         b = self.batch_size
-        assert_equal(self.npc_mask.shape[0], b)
+        assert_equal(self.replay_states.shape[0], b)
         assert_equal(self.present_masks.shape[0], b)
 
         # check that the number of agents in replay is the same as in underlying simulator
         check_counts = lambda i: lambda x, y: assert_equal(x.shape[i], y)
         assert_equal(self.npc_mask.shape[0], self.inner_simulator.agent_count)
-        assert_equal(self.replay_states.shape[-2], self.inner_simulator.agent_count)
-        assert_equal(self.present_masks.shape[-2], self.inner_simulator.agent_count)
+        assert_equal(self.replay_states.shape[1], self.inner_simulator.agent_count)
+        assert_equal(self.present_masks.shape[1], self.inner_simulator.agent_count)

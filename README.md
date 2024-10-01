@@ -32,7 +32,7 @@ to be installed. Their CUDA dependencies can be tricky to satisfy, so we provide
 The simulated world consists of the following elements:
 1. Static background, by default including road (drivable surface) and lane markings, represented as a triangular mesh.
 2. Control elements, represented by rectangles with internal state. The simulator does not enforce their semantics.
-3. A collection of agents grouped into arbitrary types. All agents are rigid rectangles.
+3. A collection of agents assigned arbitrary types. All agents are rigid rectangles.
 4. Per agent type kinematic models, defining the agents' action space and how actions translate into motion.
 5. A configurable renderer, displaying the world form bird's eye view (birdview), using a customizable color map.
 
@@ -40,12 +40,7 @@ Each agent is described by its static attributes (length, width, and others as n
 dynamic state (x, y, orientation, speed), and a flag (present mask) indicating whether a given agent is currently alive.
 At each time step, the agents perform actions, which in turn determine
 their next state. The simulator allows the agents to overlap, which is identified as a collision but not prohibited,
-and the states of different agents do not influence each other except through the agents' actions. The simulator can
-operate either in homogeneous mode (all agents are the same type and their states and actions are tensors), or in
-heterogeneous mode (there are multiple agent types and their states and actions are dictionaries mapping agent
-types to tensors). To support both modes, most operations are applied as functors, which lift a function acting on
-a single agent type into a function acting on all agent types. However, this behavior should be transparent to users
-who do not modify the simulator code.
+and the states of different agents do not influence each other except through the agents' actions.
 
 The base simulator requires actions for all agents and does not modify their presence masks. For convenience, we provide
 various wrappers modifying the simulator's behavior, such as by controlling a subset of agents (by replay or pre-defined

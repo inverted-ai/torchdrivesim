@@ -341,7 +341,7 @@ class BirdviewRenderer(abc.ABC):
         rendering_mask: Optional[Tensor] = None, res: Optional[Resolution] = None,
         traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None, fov: Optional[float] = None,
         waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
-        agent_types: Tensor = None, agent_type_names: List[str] = None,
+        agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None,
     ) -> Tensor:
         """
         Renders the agents and traffic controls on top of the static mesh.
@@ -364,6 +364,8 @@ class BirdviewRenderer(abc.ABC):
             waypoints: BxNcxMx2 tensor of `M` waypoints per camera (x,y)
             waypoints_rendering_mask: BxNcxM tensor of `M` waypoint masks per camera,
                 indicating which waypoints should be rendered
+            agent_types: a tensor of BxA long tensors indicating the agent type index for each agent
+            agent_type_names: a list of agent type names to index into
 
         Returns:
             tensor image of float RGB values in [0,255] range with shape shape (B*Nc)xAxCxHxW
@@ -371,6 +373,10 @@ class BirdviewRenderer(abc.ABC):
         batch_size =agent_state.shape[0]
         scale = (2.0 / fov) if fov is not None else self.scale
         agent_count = agent_state.shape[-2]
+        if agent_types is None:
+            agent_types = torch.zeros_like(agent_attributes[..., 0], dtype=torch.long)
+        if agent_type_names is None:
+            agent_type_names = ['vehicle']
         if camera_xy is None:
             xy = agent_state[..., :2]
             psi = agent_state[..., 2:3]

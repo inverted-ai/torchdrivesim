@@ -406,7 +406,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             agent_types: An optional list of specific agent types for computing collisions with. Not supported by
                 the collision metrics `nograd` and `nograd-pytorch3d`.
         Returns:
-            a functor of BxA tensors
+            a BxA tensor
         """
         innermost_simulator = self.get_innermost_simulator()
         if innermost_simulator.cfg.collision_metric in [CollisionMetric.nograd, CollisionMetric.nograd_pytorch3d]:
@@ -425,10 +425,6 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
                 collisions = []
                 for i in range(box.shape[-2]):
                     remove_self_overlap = None
-                    if agent_types is not None:
-                        remove_self_overlap = torch.tensor([innermost_simulator.get_agent_type()[a_type_idx] in agent_types
-                                                        for a_type_idx in box_type[..., i].flatten()], device=box_type.device)
-                        remove_self_overlap = remove_self_overlap.reshape(box_type[..., i].shape)
                     collision = innermost_simulator._compute_collision_of_single_agent(box[..., i, :],
                         remove_self_overlap=remove_self_overlap, agent_types=agent_types)
                     collisions.append(collision)
@@ -620,7 +616,7 @@ class Simulator(SimulatorInterface):
         # check that the number of agents is the same everywhere
         assert_equal(self.kinematic_model.get_state().shape[-2], self.agent_count)
         assert_equal(self.agent_size.shape[-2], self.agent_count)
-        assert_equal(lambda s: self.agent_type.shape[-1], self.agent_count)
+        assert_equal(self.agent_type.shape[-1], self.agent_count)
         assert_equal(self.present_mask.shape[-1], self.agent_count)
 
     def get_world_center(self):
@@ -731,9 +727,9 @@ class Simulator(SimulatorInterface):
         state_from_kinematic = self.kinematic_model.get_state()
         state_size, state_from_kinematic_size = agent_state.shape[-1], state_from_kinematic.shape[-1]
         assert state_size <= state_from_kinematic_size
-        state = state_from_kinematic
+        state = agent_state
         if state_size < state_from_kinematic_size:
-            state = torch.cat([agent_state, state_from_kinematic[..., (state_size-state_from_kinematic_size):]], dim=-1)
+            state = torch.cat([state, state_from_kinematic[..., (state_size-state_from_kinematic_size):]], dim=-1)
         new_state = state.where(mask.unsqueeze(-1).expand_as(agent_state), state_from_kinematic)
         self.kinematic_model.set_state(new_state)
 
@@ -775,23 +771,10 @@ class Simulator(SimulatorInterface):
         assert box.shape[0] == self.batch_size
         assert box.shape[-1] == 5
 
-        def f(x, agent_dim):
-            out = x
-            # TODO: replace
-            # if agent_types is not None:
-            #     out = flattened.agent_split(out, agent_dim=agent_dim)
-            #     out = {k: out[k] for k in agent_types if k in out}
-            #     if out:
-            #         out = flattened.agent_concat(out, agent_dim=agent_dim)
-            #     else:
-            #         new_shape = list(x.shape)
-            #         new_shape[agent_dim] = 0
-            #         out = torch.zeros(new_shape, dtype=x.dtype, device=x.device)
-            return out
-
         states = self.get_state()
         mask = self.get_present_mask()
         if agent_types is not None:
+            agent_types = [t for t in agent_types if t in self.agent_types]
             allowed_agent_type_indices = torch.tensor([self.agent_types.index(agent_type) for agent_type in agent_types], device=box.device)
             mask = mask.logical_and(torch.isin(self.get_agent_type(), allowed_agent_type_indices))
         if states.shape[-2] == 0:
@@ -1078,11 +1061,10 @@ class NPCWrapper(SimulatorWrapper):
         assert_equal(mask.shape[-1], self.agent_count)
 
         old_state = self.inner_simulator.get_state()
-        mask = self.npc_mask
         new_state = agent_state
         with_padding = torch.zeros_like(old_state)
-        with_padding[..., torch.logical_not(mask), :] = new_state  # I *think* autodiff handles this correctly
-        selection_mask = self.extend_tensor(mask, old_state.shape[:-2]).unsqueeze(-1).expand_as(old_state)
+        with_padding[..., torch.logical_not(self.npc_mask), :] = new_state  # I *think* autodiff handles this correctly
+        selection_mask = self.extend_tensor(self.npc_mask, old_state.shape[:-2]).unsqueeze(-1).expand_as(old_state)
         updated_state = old_state.where(selection_mask, with_padding)
         states = updated_state
 
@@ -1276,7 +1258,8 @@ class BirdviewRecordingWrapper(RecordingWrapper):
 
         def record_birdview(simulator):
             s = simulator
-            waypoints = s.get_waypoints()
+            # TODO: figure out how to handle waypoints here
+            waypoints = None # s.get_waypoints()
             if waypoints is not None:
                 waypoints_mask = s.get_waypoints_mask()
             else:
@@ -1446,7 +1429,7 @@ class SelectiveWrapper(SimulatorWrapper):
         Returns:
             a functor of BxA boolean tensors indicating which agents are exposed
         """
-        exposed = torch.stack([isin(torch.arange(self.agent_count).to(self.exposed_agents.device), self.exposed_agents[b])
+        exposed = torch.stack([isin(torch.arange(self.inner_simulator.agent_count).to(self.exposed_agents.device), self.exposed_agents[b])
                                for b in range(self.batch_size)])
         return exposed
 
@@ -1636,7 +1619,7 @@ class BoundedRegionWrapper(SelectiveWrapper):
         self.exposed_agents = exposed
 
     def get_present_mask(self):
-        return self.proximal_timesteps.gather(self.exposed_agents, dim=-1) > 0
+        return self.proximal_timesteps.gather(dim=-1, index=self.exposed_agents) > 0
 
     def is_warmed_up(self):
         """
