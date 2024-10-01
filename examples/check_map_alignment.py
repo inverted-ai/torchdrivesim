@@ -80,8 +80,8 @@ def visualize_maps(cfg: AlignmentCheckConfig):
     renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-        kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-        initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
+        kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
+        initial_present_mask=torch.ones_like(agent_states[..., 0], dtype=torch.bool),
         renderer=renderer,
     )
     print(f'Local map center: {simulator.get_world_center().cpu().squeeze(0).numpy().tolist()}')

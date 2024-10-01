@@ -57,6 +57,7 @@ class ReplayWrapper(NPCWrapper):
             which should be padded with arbitrary values for non-replay agents
         present_masks: indicates when replay agents appear and disappear; by default they're all present at all times
         time: initial index into the time dimension for replay, incremented at every step
+        replay_mask: A tensor of shape BxA indicating which agents are replayed, i.e. their actions are ignored
     """
     def __init__(self, simulator: SimulatorInterface, npc_mask: torch.Tensor,
                  agent_states: torch.Tensor, present_masks: Optional[torch.Tensor] = None, time: int = 0,

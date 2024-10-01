@@ -66,9 +66,8 @@ class TestBaseSimulator:
         kinematic_model = KinematicBicycle()
         kinematic_model.set_params(lr=cls.mock_agent_attributes[..., 2])
         kinematic_model.set_state(cls.mock_agent_state)
-        kinematic_model = dict(vehicle=kinematic_model)
-        agent_size = dict(vehicle=cls.mock_agent_attributes[..., :2])
-        initial_present_mask = dict(vehicle=torch.ones_like(cls.mock_agent_state[..., 0], dtype=torch.bool))
+        agent_size = cls.mock_agent_attributes[..., :2]
+        initial_present_mask = torch.ones_like(cls.mock_agent_state[..., 0], dtype=torch.bool)
         origin = (0, 0)
         projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
         lanelet_map = lanelet2.io.load(cls.lanelet_map_path, projector)

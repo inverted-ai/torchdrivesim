@@ -167,8 +167,8 @@ class IAIGymEnv(GymEnv):
 
         simulator = Simulator(
             cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-            kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-            initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
+            kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
+            initial_present_mask=torch.ones_like(agent_states[..., 0], dtype=torch.bool),
             renderer=renderer,
         )
         npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)

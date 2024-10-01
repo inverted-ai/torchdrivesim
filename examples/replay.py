@@ -60,8 +60,8 @@ def visualize_map(cfg: InitializationVisualizationConfig):
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=road_mesh,
-        kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-        initial_present_mask=dict(vehicle=present_mask[..., 0]), renderer=renderer,
+        kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
+        initial_present_mask=present_mask[..., 0], renderer=renderer,
     )
     simulator = ReplayWrapper(
         simulator, npc_mask=dict(vehicle=replay_mask),
