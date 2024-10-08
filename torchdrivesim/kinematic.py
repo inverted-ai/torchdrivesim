@@ -5,7 +5,7 @@ We currently provide the kinematic bicycle model and an unconstrained kinematic 
 both with various parameterizations of the action space.
 """
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple
 import logging
 
 import numpy as np
@@ -33,6 +33,10 @@ class KinematicModel(ABC):
         self.dt = dt
         self.state = None
 
+    @property
+    def batch_size(self) -> int:
+        return len(self.get_state())
+
     @abstractmethod
     def step(self, action: Tensor, dt: Optional[float] = None) -> None:
         """
@@ -41,8 +45,6 @@ class KinematicModel(ABC):
         Args:
             action: BxAc tensor
             dt: time delta, if not specified use object default
-        Returns:
-            BxSt tensor representing the new state at time t+dt
         """
         raise NotImplementedError
 
@@ -147,14 +149,114 @@ class KinematicModel(ABC):
 
 
 class CompoundKinematicModel(KinematicModel):
-    def __init__(self, models: Dict[str, KinematicModel], dt: float = 0.1):
+    """
+    A class that allows combining multiple kinematic models by splitting the batch,
+    applying the models, then reassembling the tensor before returning.
+    It does not allow duplicate parameter names across models.
+
+    Args:
+        models: kinematic models to combine
+        batch_assignments: tensor of integers assigning each element of the batch to a model in the list above
+    """
+    def __init__(self, models: List[KinematicModel], batch_assignments: Tensor, dt: float = 0.1):
         super().__init__(dt=dt)
         self.models = models
+        self.batch_assignments = batch_assignments
 
-        # TODO: check batch size of all models
-        # TODO: check for conflicts in parameter names
+        self.state_size = max([model.state_size for model in self.models])
+        self.action_size = max([model.action_size for model in self.models])
 
-    #  TODO: implement methods
+        batch_sizes = [m.batch_size for m in self.models]
+        batch_selections = [(batch_assignments == i).sum().item() for i in range(len(self.models))]
+        if batch_sizes != batch_selections:
+            raise ValueError(f"Batch sizes of models do not match how many elements are assigned to them: {batch_sizes} vs {batch_selections}")
+        
+        _ = self.get_params()  # Check for duplicate parameter names
+
+    @property
+    def batch_size(self) -> int:
+        return len(self.batch_assignments)
+
+    def step(self, action: Tensor, dt: Optional[float] = None) -> None:
+        action_splits = [action[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
+        for model, action_split in zip(self.models, action_splits):
+            model.step(action_split, dt=dt)
+
+    def fit_action(self, future_state: Tensor, current_state: Optional[Tensor] = None,
+                   dt: Optional[float] = None) -> Tensor:
+        if current_state is None:
+            current_state = self.get_state()
+        future_state_splits = [future_state[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
+        current_state_splits = [current_state[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
+        action_splits = [model.fit_action(f, c, dt=dt) for model, f, c in zip(self.models, future_state_splits, current_state_splits)]
+        padded_action_splits = [torch.nn.functional.pad(a, (0, self.action_size - a.shape[-1])) for a in action_splits]
+        action = torch.cat(padded_action_splits, dim=0)
+        return action
+
+    def copy(self, other=None):
+        if other is None:
+            other = self.__class__(models=[m.copy() for m in self.models], batch_assignments=self.batch_assignments, dt=self.dt)
+        other.set_params(**self.get_params())
+        other.set_state(self.get_state())
+        return other
+
+    def set_state(self, state: Tensor) -> None:
+        state_splits = [state[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
+        for model, state_split in zip(self.models, state_splits):
+            model.set_state(state_split)
+
+    def get_state(self) -> Tensor:
+        state_splits = [model.get_state() for model in self.models]
+        padded_state_splits = [torch.nn.functional.pad(s, (0, self.state_size - s.shape[-1])) for s in state_splits]
+        state = torch.cat(padded_state_splits, dim=0)
+        return state
+
+    def get_params(self) -> Dict[str, Tensor]:
+        params_splits = [model.get_params() for model in self.models]
+        if len(set(params.keys() for params in params_splits)) != sum(len(params) for params in params_splits):
+            all_names = [p for params in params_splits for p in params.keys()]
+            duplicate_names = set([name for name in all_names if all_names.count(name) > 1])
+            raise ValueError(f"Duplicate parameter names in CompoundKinematicModel: {duplicate_names}")
+        padded_param_splits = [{k: torch.zeros((self.batch_size,) + v.shape[1:], dtype=v.dtype, device=v.device) for k, v in params.items()}
+                               for params in params_splits]
+        for i, (padding, params) in enumerate(zip(padded_param_splits, params_splits)):
+            for name, value in params.items():
+                padding[name][self.batch_assignments == i] = value
+        params = {name: value for params in padded_param_splits for name, value in params.items()}
+        return params
+
+
+    def set_params(self, **kwargs) -> None:
+        for i, model in enumerate(self.models):
+            model_params = model.get_params()
+            matching_kwargs = {k: v[self.batch_assignments == i] for k, v in kwargs.items() if k in model_params}
+            model.set_params(**matching_kwargs)
+
+    def flattening(self, batch_shape) -> None:
+        for model in self.models:
+            model.flattening(batch_shape)
+
+    def unflattening(self, batch_shape) -> None:
+        for model in self.models:
+            model.unflattening(batch_shape)
+
+    def map_param(self, f) -> None:
+        for model in self.models:
+            model.map_param(f)
+
+    def normalize_action(self, action: Tensor) -> Tensor:
+        action_splits = [action[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
+        normalized_action_splits = [model.normalize_action(a) for model, a in zip(self.models, action_splits)]
+        padded_normalized_action_splits = [torch.nn.functional.pad(a, (0, self.action_size - a.shape[-1])) for a in normalized_action_splits]
+        normalized_action = torch.cat(padded_normalized_action_splits, dim=0)
+        return normalized_action
+
+    def denormalize_action(self, action: Tensor) -> Tensor:
+        action_splits = [action[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
+        denormalized_action_splits = [model.denormalize_action(a) for model, a in zip(self.models, action_splits)]
+        padded_denormalized_action_splits = [torch.nn.functional.pad(a, (0, self.action_size - a.shape[-1])) for a in denormalized_action_splits]
+        denormalized_action = torch.cat(padded_denormalized_action_splits, dim=0)
+        return denormalized_action
 
 
 class TeleportingKinematicModel(KinematicModel):
