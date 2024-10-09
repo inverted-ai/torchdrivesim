@@ -35,7 +35,7 @@ class KinematicModel(ABC):
 
     @property
     def batch_size(self) -> int:
-        return len(self.get_state())
+        return len(self.get_state()[..., 0].flatten())
 
     @abstractmethod
     def step(self, action: Tensor, dt: Optional[float] = None) -> None:
@@ -146,6 +146,15 @@ class KinematicModel(ABC):
         Reverse of `pack_state`.
         """
         return state[..., 0], state[..., 1], state[..., 2], state[..., 3]
+    
+    def extend(self, n: int):
+        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
+        self.map_param(enlarge)
+        self.set_state(enlarge(self.get_state()))
+
+    def select_batch_elements(self, idx):
+        self.map_param(lambda x: x[idx])
+        self.set_state(self.get_state()[idx])
 
 
 class CompoundKinematicModel(KinematicModel):
@@ -158,27 +167,36 @@ class CompoundKinematicModel(KinematicModel):
         models: kinematic models to combine
         batch_assignments: tensor of integers assigning each element of the batch to a model in the list above
     """
-    def __init__(self, models: List[KinematicModel], batch_assignments: Tensor, dt: float = 0.1):
+    def __init__(self, models: List[KinematicModel], model_assignments: Tensor, dt: float = 0.1):
         super().__init__(dt=dt)
         self.models = models
-        self.batch_assignments = batch_assignments
+        self.model_assignments = model_assignments
 
         self.state_size = max([model.state_size for model in self.models])
         self.action_size = max([model.action_size for model in self.models])
 
         batch_sizes = [m.batch_size for m in self.models]
-        batch_selections = [(batch_assignments == i).sum().item() for i in range(len(self.models))]
+        batch_selections = [(self.batch_assignments == i).sum().item() for i in range(len(self.models))]
         if batch_sizes != batch_selections:
             raise ValueError(f"Batch sizes of models do not match how many elements are assigned to them: {batch_sizes} vs {batch_selections}")
         
         _ = self.get_params()  # Check for duplicate parameter names
 
     @property
+    def batch_assignments(self) -> Tensor:
+        return self.model_assignments.flatten()
+
+    @property
     def batch_size(self) -> int:
         return len(self.batch_assignments)
+    
+    @property
+    def batch_shape(self) -> torch.Size:
+        return self.model_assignments.shape
 
     def step(self, action: Tensor, dt: Optional[float] = None) -> None:
-        action_splits = [action[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
+        action_flattened = action.flatten(0, -2)
+        action_splits = [action_flattened[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
         for model, action_split in zip(self.models, action_splits):
             model.step(action_split, dt=dt)
 
@@ -186,11 +204,16 @@ class CompoundKinematicModel(KinematicModel):
                    dt: Optional[float] = None) -> Tensor:
         if current_state is None:
             current_state = self.get_state()
-        future_state_splits = [future_state[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
-        current_state_splits = [current_state[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
+        future_state_flattened = future_state.flatten(0, -2)
+        current_state_flattened = current_state.flatten(0, -2)
+        future_state_splits = [future_state_flattened[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
+        current_state_splits = [current_state_flattened[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
         action_splits = [model.fit_action(f, c, dt=dt) for model, f, c in zip(self.models, future_state_splits, current_state_splits)]
         padded_action_splits = [torch.nn.functional.pad(a, (0, self.action_size - a.shape[-1])) for a in action_splits]
-        action = torch.cat(padded_action_splits, dim=0)
+        action_flattened = torch.zeros_like(torch.cat(padded_action_splits, dim=0))
+        for i, action_split in enumerate(padded_action_splits):
+            action_flattened[self.batch_assignments == i] = action_split
+        action = action_flattened.reshape(future_state.shape[:-1] + (self.action_size,))
         return action
 
     def copy(self, other=None):
@@ -199,21 +222,37 @@ class CompoundKinematicModel(KinematicModel):
         other.set_params(**self.get_params())
         other.set_state(self.get_state())
         return other
+    
+    def extend(self, n: int):
+        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
+        self.model_assignments = enlarge(self.model_assignments)
+        self.map_param(enlarge)
+        self.set_state(enlarge(self.get_state()))
+
+    def select_batch_elements(self, idx):
+        self.model_assignments = self.model_assignments[idx]
+        # raise NotImplementedError()  # TODO
+        # self.map_param(lambda x: x[idx])
+        # self.set_state(self.get_state()[idx])
 
     def set_state(self, state: Tensor) -> None:
-        state_splits = [state[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
+        state_flattened = state.flatten(0, -2)
+        state_splits = [state_flattened[self.batch_assignments == i, :model.state_size] for (i, model) in enumerate(self.models)]
         for model, state_split in zip(self.models, state_splits):
             model.set_state(state_split)
 
     def get_state(self) -> Tensor:
         state_splits = [model.get_state() for model in self.models]
         padded_state_splits = [torch.nn.functional.pad(s, (0, self.state_size - s.shape[-1])) for s in state_splits]
-        state = torch.cat(padded_state_splits, dim=0)
+        state_flattened = torch.zeros_like(torch.cat(padded_state_splits, dim=0))
+        for i, state_split in enumerate(padded_state_splits):
+            state_flattened[self.batch_assignments == i] = state_split
+        state = state_flattened.reshape(self.batch_shape + (self.state_size,))
         return state
 
     def get_params(self) -> Dict[str, Tensor]:
         params_splits = [model.get_params() for model in self.models]
-        if len(set(params.keys() for params in params_splits)) != sum(len(params) for params in params_splits):
+        if len(set(key for params in params_splits for key in params.keys())) != sum(len(params) for params in params_splits):
             all_names = [p for params in params_splits for p in params.keys()]
             duplicate_names = set([name for name in all_names if all_names.count(name) > 1])
             raise ValueError(f"Duplicate parameter names in CompoundKinematicModel: {duplicate_names}")
@@ -222,14 +261,14 @@ class CompoundKinematicModel(KinematicModel):
         for i, (padding, params) in enumerate(zip(padded_param_splits, params_splits)):
             for name, value in params.items():
                 padding[name][self.batch_assignments == i] = value
-        params = {name: value for params in padded_param_splits for name, value in params.items()}
+        params = {name: value.reshape(self.batch_shape) for params in padded_param_splits for name, value in params.items()}
         return params
 
 
     def set_params(self, **kwargs) -> None:
         for i, model in enumerate(self.models):
             model_params = model.get_params()
-            matching_kwargs = {k: v[self.batch_assignments == i] for k, v in kwargs.items() if k in model_params}
+            matching_kwargs = {k: v.flatten()[self.batch_assignments == i] for k, v in kwargs.items() if k in model_params}
             model.set_params(**matching_kwargs)
 
     def flattening(self, batch_shape) -> None:
@@ -245,17 +284,25 @@ class CompoundKinematicModel(KinematicModel):
             model.map_param(f)
 
     def normalize_action(self, action: Tensor) -> Tensor:
-        action_splits = [action[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
+        action_flattened = action.flatten(0, -2)
+        action_splits = [action_flattened[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
         normalized_action_splits = [model.normalize_action(a) for model, a in zip(self.models, action_splits)]
         padded_normalized_action_splits = [torch.nn.functional.pad(a, (0, self.action_size - a.shape[-1])) for a in normalized_action_splits]
-        normalized_action = torch.cat(padded_normalized_action_splits, dim=0)
+        normalized_action_flattened = torch.zeros_like(torch.cat(padded_normalized_action_splits, dim=0))
+        for i, normalized_action_split in enumerate(padded_normalized_action_splits):
+            normalized_action_flattened[self.batch_assignments == i] = normalized_action_split
+        normalized_action = normalized_action_flattened.reshape(action.shape)
         return normalized_action
 
     def denormalize_action(self, action: Tensor) -> Tensor:
-        action_splits = [action[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
+        action_flattened = action.flatten(0, -2)
+        action_splits = [action_flattened[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
         denormalized_action_splits = [model.denormalize_action(a) for model, a in zip(self.models, action_splits)]
         padded_denormalized_action_splits = [torch.nn.functional.pad(a, (0, self.action_size - a.shape[-1])) for a in denormalized_action_splits]
-        denormalized_action = torch.cat(padded_denormalized_action_splits, dim=0)
+        denormalized_action_flattened = torch.zeros_like(torch.cat(padded_denormalized_action_splits, dim=0))
+        for i, denormalized_action_split in enumerate(padded_denormalized_action_splits):
+            denormalized_action_flattened[self.batch_assignments == i] = denormalized_action_split
+        denormalized_action = denormalized_action_flattened.reshape(action.shape)
         return denormalized_action
 
 

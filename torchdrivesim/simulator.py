@@ -553,8 +553,7 @@ class Simulator(SimulatorInterface):
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
         # kinematic models are modified in place
-        self.kinematic_model.map_param(enlarge)
-        self.kinematic_model.set_state(enlarge(self.kinematic_model.get_state()))
+        self.kinematic_model.extend(n)
         self._batch_size *= n
         self.renderer = self.renderer.expand(n)
         if self.traffic_controls is not None:
@@ -579,8 +578,7 @@ class Simulator(SimulatorInterface):
         self.present_mask = self.present_mask[idx]
 
         # kinematic models are modified in place
-        self.kinematic_model.map_param(lambda x: x[idx])
-        self.kinematic_model.set_state(self.kinematic_model.get_state()[idx])
+        self.kinematic_model.select_batch_elements(idx)
 
         self._batch_size = len(idx)
         self.renderer = self.renderer.select_batch_elements(idx)
