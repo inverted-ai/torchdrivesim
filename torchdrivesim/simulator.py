@@ -289,7 +289,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         pass
 
-    def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None)\
+    def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None,
+                          visibility_matrix: Optional[Tensor] = None)\
             -> Tensor:
         """
         Renders the world using cameras placed on each agent.
@@ -298,6 +299,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             ego_rotate: whether to orient the cameras such that the ego agent faces up in the image
             res: desired image resolution (only square resolutions are supported; by default use value from config)
             fov: the field of view of the resulting image in meters (by default use value from config)
+            visibility_matrix: a BxAxA boolean tensor indicating which agents can see each other
         Returns:
              a functor of BxAxCxHxW tensors of resulting RGB images for each agent.
         """
@@ -311,6 +313,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         if not ego_rotate:
             camera_psi = torch.ones_like(camera_psi) * (np.pi / 2)
         rendering_mask = None
+        if visibility_matrix is not None:
+            rendering_mask = visibility_matrix.flatten(0, 1)
         if self.get_innermost_simulator().cfg.single_agent_rendering:
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
@@ -1112,14 +1116,16 @@ class NPCWrapper(SimulatorWrapper):
         new_present_mask[..., torch.logical_not(self.npc_mask)] = present_mask
         self.inner_simulator.update_present_mask(new_present_mask)
 
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
-               waypoints_rendering_mask=None):
-        if rendering_mask is not None:
-            new_mask = torch.zeros(rendering_mask.shape[0], rendering_mask.shape[1], self.npc_mask.shape[0], device=rendering_mask.device)
-            new_mask[..., torch.logical_not(self.npc_mask)] = rendering_mask
-            rendering_mask = new_mask
-        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
-                                           waypoints_rendering_mask=waypoints_rendering_mask)
+    # The commented out implementation is probably not useful, as it makes the NPC disappear from the rendering.
+    # It seems more useful to specify the full visibility mask for all agents.
+    # def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
+    #            waypoints_rendering_mask=None):
+    #     if rendering_mask is not None:
+    #         new_mask = torch.zeros(rendering_mask.shape[0], rendering_mask.shape[1], self.npc_mask.shape[0], device=rendering_mask.device)
+    #         new_mask[..., torch.logical_not(self.npc_mask)] = rendering_mask
+    #         rendering_mask = new_mask
+    #     return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
+    #                                        waypoints_rendering_mask=waypoints_rendering_mask)
 
     def fit_action(self, future_state, current_state=None):
         full_state = self.inner_simulator.get_state()
