@@ -271,7 +271,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def render(self, camera_xy: Tensor, camera_psi: Tensor, res: Optional[Resolution] = None,
                rendering_mask: Optional[Tensor] = None, fov: Optional[float] = None,
-               waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None) -> Tensor:
+               waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
+               custom_agent_colors: Optional[Tensor] = None) -> Tensor:
         """
         Renders the world from bird's eye view using cameras in given positions.
 
@@ -284,13 +285,14 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             waypoints: BxNxMx2 tensor of `M` waypoints per camera (x,y)
             waypoints_rendering_mask: BxNxM tensor of `M` waypoint masks per camera,
                 indicating which waypoints should be rendered
+            custom_agent_colors: BxNxAx3 RGB tensor defining the color of each agent to each camera
         Returns:
              BxNxCxHxW tensor of resulting RGB images for each camera
         """
         pass
 
     def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None,
-                          visibility_matrix: Optional[Tensor] = None)\
+                          visibility_matrix: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None)\
             -> Tensor:
         """
         Renders the world using cameras placed on each agent.
@@ -300,6 +302,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             res: desired image resolution (only square resolutions are supported; by default use value from config)
             fov: the field of view of the resulting image in meters (by default use value from config)
             visibility_matrix: a BxAxA boolean tensor indicating which agents can see each other
+            custom_agent_colors: a BxAxAx3 RGB tensor specifying what colors agent see each other as
         Returns:
              a functor of BxAxCxHxW tensors of resulting RGB images for each agent.
         """
@@ -315,11 +318,13 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         rendering_mask = None
         if visibility_matrix is not None:
             rendering_mask = visibility_matrix.flatten(0, 1)
+        if custom_agent_colors is not None:
+            custom_agent_colors = custom_agent_colors.flatten(0, 1)
         if self.get_innermost_simulator().cfg.single_agent_rendering:
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
-                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
+                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask, custom_agent_colors=custom_agent_colors)
         total_agents = self.agent_count
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
         return bv
@@ -746,7 +751,7 @@ class Simulator(SimulatorInterface):
         return self.kinematic_model.fit_action(future_state=future_state, current_state=current_state)
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None,
-               waypoints=None, waypoints_rendering_mask=None):
+               waypoints=None, waypoints_rendering_mask=None, custom_agent_colors=None):
         camera_sc = torch.cat([torch.sin(camera_psi), torch.cos(camera_psi)], dim=-1)
         if len(camera_xy.shape) == 2:
             # Reshape from Bx2 to Bx1x2
@@ -761,7 +766,8 @@ class Simulator(SimulatorInterface):
             waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()}
                 if self.traffic_controls is not None else None,
-            agent_types=self.agent_type, agent_type_names=self.agent_types
+            agent_types=self.agent_type, agent_type_names=self.agent_types,
+            custom_agent_colors=custom_agent_colors,
         )
 
     def compute_offroad(self):
@@ -946,9 +952,9 @@ class SimulatorWrapper(SimulatorInterface):
         return self.inner_simulator.compute_wrong_way()
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
-               waypoints_rendering_mask=None):
+               waypoints_rendering_mask=None, custom_agent_colors=None):
         return self.inner_simulator.render(camera_xy, camera_psi, res=res, rendering_mask=rendering_mask, fov=fov,
-                                           waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask)
+                                           waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask, custom_agent_colors=custom_agent_colors)
 
 
 class NPCWrapper(SimulatorWrapper):
@@ -1546,13 +1552,13 @@ class SelectiveWrapper(SimulatorWrapper):
         return action
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
-               waypoints_rendering_mask=None):
+               waypoints_rendering_mask=None, custom_agent_colors=None):
         if rendering_mask is not None:
             rd_mask = rendering_mask.permute(0, 2, 1)
             pad_tensor = torch.zeros(rd_mask.shape[0], self.is_exposed().shape[1], rd_mask.shape[1], device=rd_mask.device)
             rendering_mask = self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
         return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
-                                           waypoints_rendering_mask=waypoints_rendering_mask)
+                                           waypoints_rendering_mask=waypoints_rendering_mask, custom_agent_colors=custom_agent_colors)
 
     def step(self, action):
         extended_action = self._extend_tensor(action, padding=self.default_action)

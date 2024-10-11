@@ -755,6 +755,17 @@ def rendering_mesh(mesh: BaseMesh, category: str) -> BirdviewMesh:
     )
 
 
+def set_colors_with_defaults(mesh: BirdviewMesh, color_map: Dict[str, Tensor], rendering_levels: Dict[str, float]) -> RGBMesh:
+    for k in mesh.categories:
+        if k not in mesh.colors:
+            mesh.colors[k] = tensor_color(color_map[k])
+        if k not in mesh.zs:
+            mesh.zs[k] = rendering_levels[k]
+    # if self.cfg.highlight_ego_vehicle:
+    #     mesh.colors["ego"] = tensor_color((color_map["ego"]))
+    return mesh.fill_attr()
+
+
 def generate_trajectory_mesh(points: Tensor, category: Optional[str] = None, edge_length: float = 1) -> BaseMesh:
     """
     Create a triangle mesh used to visualize a given trajectory.

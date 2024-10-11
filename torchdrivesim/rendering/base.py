@@ -13,7 +13,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
-from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rendering_mesh, generate_disc_mesh
+from torchdrivesim.mesh import BirdviewMesh, RGBMesh, BaseMesh, rendering_mesh, generate_disc_mesh, tensor_color, set_colors_with_defaults
 from torchdrivesim.traffic_controls import BaseTrafficControl
 from torchdrivesim.utils import Resolution, rotate
 
@@ -342,6 +342,7 @@ class BirdviewRenderer(abc.ABC):
         traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None, fov: Optional[float] = None,
         waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
         agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None,
+        custom_agent_colors: Optional[Tensor] = None,
     ) -> Tensor:
         """
         Renders the agents and traffic controls on top of the static mesh.
@@ -366,6 +367,7 @@ class BirdviewRenderer(abc.ABC):
                 indicating which waypoints should be rendered
             agent_types: a tensor of BxA long tensors indicating the agent type index for each agent
             agent_type_names: a list of agent type names to index into
+            custom_agent_colors: a BxNcxAx3 tensor of specifying what color each agent is to what camera
 
         Returns:
             tensor image of float RGB values in [0,255] range with shape shape (B*Nc)xAxCxHxW
@@ -413,6 +415,15 @@ class BirdviewRenderer(abc.ABC):
                 actor_mesh, faces=mask_agents(actor_mesh.faces)
             )
 
+        if custom_agent_colors is not None:
+            static_mesh = set_colors_with_defaults(static_mesh, self.color_map, self.rendering_levels)
+            actor_mesh = set_colors_with_defaults(actor_mesh, self.color_map, self.rendering_levels)
+            av = 4
+            dv = 3 if self.cfg.render_agent_direction else 0
+            step = av + dv
+            for i in range(av):
+                actor_mesh.attrs[:,i::step] = custom_agent_colors
+
         meshes = [
             static_mesh,
             actor_mesh,
@@ -421,6 +432,8 @@ class BirdviewRenderer(abc.ABC):
         if traffic_controls is not None:
             traffic_controls = {k: v.extend(n_cameras_per_batch) for k, v in traffic_controls.items()}
             controls_mesh = self.make_traffic_controls_mesh(traffic_controls).to(self.device)
+            if custom_agent_colors is not None:
+                controls_mesh = set_colors_with_defaults(controls_mesh, self.color_map, self.rendering_levels)
             meshes.append(controls_mesh)
 
         if waypoints is not None:
@@ -436,6 +449,8 @@ class BirdviewRenderer(abc.ABC):
                 waypoints_mesh = dataclasses.replace(
                     waypoints_mesh, faces=waypoints_faces
                 )
+            if custom_agent_colors is not None:
+                waypoints_mesh = set_colors_with_defaults(waypoints_mesh, self.color_map, self.rendering_levels)
             meshes.append(waypoints_mesh)
 
         mesh = static_mesh.concat(meshes)
@@ -444,7 +459,10 @@ class BirdviewRenderer(abc.ABC):
             res = self.res
 
         try:
-            image = self.render_mesh(mesh, res, cameras)
+            if custom_agent_colors is None:
+                image = self.render_mesh(mesh, res, cameras)
+            else:
+                image = self.render_rgb_mesh(mesh, res, cameras)
         except RuntimeError as e:
             logger.exception(e)
             image = torch.zeros((batch_size * n_cameras_per_batch, res.height, res.width, 3), device=mesh.verts.device)
@@ -467,8 +485,16 @@ class BirdviewRenderer(abc.ABC):
             image = image.reshape((batch_size, *image.shape[1:]))
         return image
 
+
+    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+        """
+        Renders a given mesh, producing BxHxWxC tensor image of float RGB values in [0,255] range.
+        """
+        mesh = set_colors_with_defaults(mesh, self.color_map, self.rendering_levels)
+        return self.render_rgb_mesh(mesh, res, cameras)
+
     @abc.abstractmethod
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras)\
+    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras)\
             -> Tensor:
         """
         Renders a given mesh, producing BxHxWxC tensor image of float RGB values in [0,255] range.
