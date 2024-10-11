@@ -15,7 +15,7 @@ except ImportError:
 import torch
 from torch.nn import functional as F
 
-from torchdrivesim.mesh import BirdviewMesh, tensor_color
+from torchdrivesim.mesh import RGBMesh
 from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
 from torchdrivesim.utils import Resolution
 
@@ -86,14 +86,7 @@ class Pytorch3DRenderer(BirdviewRenderer):
             background_color=tuple([x / 255.0 for x in self.get_color('background')])
         )
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
-        for k in mesh.categories:
-            if k not in mesh.colors:
-                mesh.colors[k] = tensor_color(self.color_map[k])
-            if k not in mesh.zs:
-                mesh.zs[k] = self.rendering_levels[k]
-        if self.cfg.highlight_ego_vehicle:
-            mesh.colors["ego"] = tensor_color((self.color_map["ego"]))
+    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
         if self.cfg.shift_mesh_by_camera_before_rendering:
             mesh = mesh.translate(-cameras.xy)
             cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
