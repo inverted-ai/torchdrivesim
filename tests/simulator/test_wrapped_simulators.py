@@ -6,7 +6,7 @@ import torch
 from tests.simulator.test_simulator import TestBaseSimulator
 from torchdrivesim.simulator import CollisionMetric, SimulatorWrapper, RecordingWrapper, \
     BirdviewRecordingWrapper, \
-    SelectiveWrapper, BoundedRegionWrapper, HomogeneousWrapper
+    SelectiveWrapper, BoundedRegionWrapper
 from torchdrivesim.utils import Resolution
 from tests import device
 
@@ -28,39 +28,6 @@ class TestBaseWrappedSimulator(TestBaseSimulator):
     def test_render_egocentric(self):
         res = self.simulator.get_innermost_simulator().renderer.res
         assert self.get_tensor(self.simulator.render_egocentric()).shape == self.birdview_shape
-
-
-class TestHomogenousSimulator(TestBaseWrappedSimulator):
-
-    @classmethod
-    def setup_method(cls):
-        super().setup_method()
-
-    @staticmethod
-    def get_tensor(item):
-        return item
-
-    @staticmethod
-    def tensor_collection(tensor):
-        return tensor
-
-    @classmethod
-    def get_simulator(cls):
-        return HomogeneousWrapper(super().get_simulator())
-
-    @pytest.mark.parametrize('collision_metric_type', [cm for cm in (CollisionMetric.nograd,
-                                                                     CollisionMetric.iou, CollisionMetric.discs)])
-    def test_compute_collision(self, collision_metric_type):
-
-        self.simulator.cfg.collision_metric = collision_metric_type
-        collision_metrics = self.simulator.compute_collision()
-        assert len(collision_metrics.shape) == 2 and not torch.all(collision_metrics)
-
-    @pytest.mark.depends_on_pytorch3d
-    def test_compute_collision_pytorch3d(self):
-        self.simulator.cfg.collision_metric = CollisionMetric.nograd_pytorch3d
-        collision_metrics = self.simulator.compute_collision()
-        assert len(collision_metrics.shape) == 2 and not torch.all(collision_metrics)
 
 
 class TestRecordingSimulator(TestBaseWrappedSimulator):
@@ -137,7 +104,7 @@ class TestSelectiveSimulator(TestBaseWrappedSimulator):
         assert pre_state[0, 0, 0] != curr_state[0, 0, 0]
 
     def test_compute_collision(self, collision_metric_type=None):
-        self.simulator.set_state(dict(vehicle=torch.zeros_like(self.mock_exposed_agent_state)))
+        self.simulator.set_state(torch.zeros_like(self.mock_exposed_agent_state))
         collision_metrics = self.get_tensor(self.simulator.compute_collision())
         assert len(collision_metrics.shape) == 2 and not torch.all(collision_metrics)
 

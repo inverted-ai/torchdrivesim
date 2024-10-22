@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 
-from torchdrivesim.mesh import BirdviewMesh, tensor_color
+from torchdrivesim.mesh import BirdviewMesh, RGBMesh, tensor_color
 from torchdrivesim.rendering import BirdviewRenderer, RendererConfig
 from torchdrivesim.rendering.base import Cameras
 from torchdrivesim.utils import Resolution
@@ -70,3 +70,6 @@ class CV2Renderer(BirdviewRenderer):
             image_batch.append(image)
         images = torch.stack(image_batch, dim=0).to(mesh.device)
         return images
+
+    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+        raise NotImplementedError("Rendering custom RGB meshes is not supported by CV2Renderer")
