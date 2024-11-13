@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 import random
 import torch
@@ -33,20 +33,30 @@ def iai_initialize(location, agent_count, center=(0, 0), traffic_light_state_his
     return agent_attributes, agent_states, response.recurrent_states
 
 
-def iai_drive(location: str, agent_states: Tensor, agent_attributes: Tensor, recurrent_states: List[RecurrentState], traffic_lights_states: Optional[Dict[int, TrafficLightState]] = None) -> (Tensor, List[RecurrentState]):
+def iai_drive(location: str,
+               agent_states: Tensor,
+               agent_attributes: Tensor,
+               recurrent_states: List[RecurrentState],
+               traffic_lights_states: Optional[Dict[int, TrafficLightState]] = None,
+               waypoint_for_ego: Tuple=None) -> (Tensor, List[RecurrentState]):
     import invertedai
     from invertedai.common import AgentState, AgentAttributes, Point
     agent_attributes = [AgentAttributes(length=at[0], width=at[1], rear_axis_offset=at[2]) for at in agent_attributes]
+#    print("agent_states")
+#    print(agent_states)
     agent_states = [AgentState(center=Point(x=st[0], y=st[1]), orientation=st[2], speed=st[3]) for st in agent_states]
+    if waypoint_for_ego is not None:
+        agent_attributes[0].waypoint = Point(x=waypoint_for_ego[0], y=waypoint_for_ego[1])
     seed = random.randint(1, 10000)
     response = invertedai.api.drive(
-        location=location, agent_states=agent_states, agent_attributes=agent_attributes,
-        recurrent_states=recurrent_states,
-        traffic_lights_states=traffic_lights_states,
-        random_seed=seed
+         location=location, agent_states=agent_states, agent_attributes=agent_attributes,
+         recurrent_states=recurrent_states,
+         traffic_lights_states=traffic_lights_states,
+         random_seed=seed,
+
     )
     agent_states = torch.stack(
-        [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
+         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
     )
     return agent_states, response.recurrent_states
 
