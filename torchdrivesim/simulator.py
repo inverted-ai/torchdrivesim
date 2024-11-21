@@ -1393,6 +1393,8 @@ class NPCWrapper(SimulatorWrapper):
                 innermost_simulator.warned_no_lanelet = True
             return self.across_agent_types(lambda state, mask: lanelet_orientation_loss(
                     innermost_simulator.lanelet_map, state, innermost_simulator.recenter_offset,
+                    direction_angle_threshold=self.cfg.wrong_way_angle_threshold,
+                    lanelet_dist_tolerance=self.cfg.lanelet_inclusion_tolerance,
                 ) * mask, self.get_state(), self.get_present_mask())
         else:
             if not innermost_simulator.warned_no_lanelet:
