@@ -18,12 +18,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from tests.test_benchmarks import data_batch
 from torchdrivesim.lanelet2 import road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.behavior.replay import ReplayWrapper
 from torchdrivesim.kinematic import SimpleKinematicModel
 from torchdrivesim.mesh import BaseMesh, BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config
-from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.utils import Resolution
 
 
@@ -241,33 +242,22 @@ def ego_only_simulator(batch_data, simulator_cfg):
     replay_mask[0] = False  # Ego agent is assumed to be first
     initial_state = batch_data['agent_states'][..., 0, :]
 
-    agent_type_masks = {
-        agent_type: batch_data['agent_types'] == i for (i, agent_type) \
-                                    in enumerate(INTERACTIONDataset.agent_type_names)
-    }
 
-    kinematic_models = {}
-    agent_sizes = {}
-    agent_states = {}
-    present_masks = {}
-    initial_present_mask = {}
-    replay_masks = {}
-    for (agent_type, mask) in agent_type_masks.items():
-        kinematic_models[agent_type] = SimpleKinematicModel()
-        kinematic_models[agent_type].set_state(initial_state[:, mask])
+    kinematic_model = SimpleKinematicModel()
+    kinematic_model.set_state(initial_state)
 
-        agent_sizes[agent_type] = agent_attributes[..., :2][:, mask]
-        agent_states[agent_type] = batch_data['agent_states'][:, mask]
-        present_masks[agent_type] = present_mask[:, mask]
-        initial_present_mask[agent_type] = present_mask[:, mask][..., 0]
-        replay_masks[agent_type] = replay_mask[mask]
+    agent_size = agent_attributes[..., :2]
+    agent_state = batch_data['agent_states']
+    present_mask = present_mask
+    initial_present_mask = present_mask[..., 0]
+    replay_mask = replay_mask
 
     renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]))
-    simulator = Simulator(cfg=simulator_cfg, road_mesh=road_mesh, kinematic_model=kinematic_models,
-                          agent_size=agent_sizes, initial_present_mask=initial_present_mask, renderer=renderer)
-    simulator = ReplayWrapper(simulator, npc_mask=replay_masks, agent_states=agent_states,
-                              present_masks=present_masks)
-    simulator = HomogeneousWrapper(simulator)
+    simulator = Simulator(cfg=simulator_cfg, road_mesh=road_mesh, kinematic_model=kinematic_model,
+                          agent_size=agent_size, initial_present_mask=initial_present_mask, renderer=renderer,
+                          agent_type_names=batch_data['agent_type_names'], agent_types=batch_data['agent_types'])
+    simulator = ReplayWrapper(simulator, npc_mask=replay_mask, agent_states=agent_state,
+                              present_masks=present_mask)
     return simulator
 
 

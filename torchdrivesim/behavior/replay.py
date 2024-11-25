@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from typing_extensions import Self
 
 import numpy as np
@@ -6,7 +7,7 @@ import pandas as pd
 import torch
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface
 from torchdrivesim.utils import assert_equal
 
 
@@ -56,33 +57,35 @@ class ReplayWrapper(NPCWrapper):
             which should be padded with arbitrary values for non-replay agents
         present_masks: indicates when replay agents appear and disappear; by default they're all present at all times
         time: initial index into the time dimension for replay, incremented at every step
+        replay_mask: A tensor of shape BxA indicating which agents are replayed, i.e. their actions are ignored
     """
-    def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
-                 agent_states: TensorPerAgentType, present_masks: TensorPerAgentType = None, time: int = 0):
+    def __init__(self, simulator: SimulatorInterface, npc_mask: torch.Tensor,
+                 agent_states: torch.Tensor, present_masks: Optional[torch.Tensor] = None, time: int = 0,
+                 replay_mask: Optional[torch.Tensor] = None):
         super().__init__(simulator=simulator, npc_mask=npc_mask)
+
+        # TODO: add time dimension to replay mask
+        if replay_mask is None:
+            replay_mask = npc_mask.unsqueeze(0).expand((self.batch_size,) + npc_mask.shape)
 
         self.replay_states = agent_states
         self.present_masks = present_masks
+        self.replay_mask = replay_mask
         self.time = time
-        self.max_time_step = max(self.across_agent_types(lambda x: x.shape[-2], agent_states).values())
+        self.max_time_step = agent_states.shape[-2]
 
         if self.present_masks is None:
             # by default all replay agents are always present
-            self.present_masks = self.across_agent_types(
-                lambda states: torch.ones_like(states[..., 0], dtype=torch.bool), self.replay_states
-            )
+            self.present_masks = torch.ones_like(self.replay_states[..., 0], dtype=torch.bool),
 
-        self.validate_agent_types()
         self.validate_tensor_shapes()
 
     def _npc_teleport_to(self):
-        current_replay_state = self.across_agent_types(
-            lambda states: states[..., self.time, :], self.replay_states
-        )
+        current_replay_state = self.replay_states[..., self.time, :]
         return current_replay_state
 
     def _update_npc_present_mask(self):
-        return self.across_agent_types(lambda pm: pm[..., self.time], self.present_masks)
+        return self.present_masks[..., self.time]
 
     def step(self, action):
         self.time += 1
@@ -90,11 +93,15 @@ class ReplayWrapper(NPCWrapper):
         if self.time == self.max_time_step:
             self.time = 0
         super().step(action)
+        updated_state = self.replay_states[..., self.time, :].where(self.replay_mask.unsqueeze(-1), self.inner_simulator.get_state())
+        self.inner_simulator.set_state(updated_state)
+        updated_present_mask = self.present_masks[..., self.time].where(self.replay_mask, self.inner_simulator.get_present_mask())
+        self.inner_simulator.update_present_mask(updated_present_mask)
 
     def to(self, device) -> Self:
         super().to(device)
-        self.replay_states = self.agent_functor.to_device(self.replay_states, device)
-        self.present_masks = self.agent_functor.to_device(self.present_masks, device)
+        self.replay_states = self.replay_states.to(device)
+        self.present_masks = self.present_masks.to(device)
         return self
 
     def copy(self):
@@ -110,35 +117,32 @@ class ReplayWrapper(NPCWrapper):
         self.inner_simulator.extend(n)
 
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
-        self.replay_states = self.across_agent_types(enlarge, self.replay_states)
-        self.present_masks = self.across_agent_types(enlarge, self.present_masks)
+        self.replay_states = enlarge(self.replay_states)
+        self.present_masks = enlarge(self.present_masks)
+        self.replay_mask = enlarge(self.replay_mask)
         return self
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.replay_states = other.across_agent_types(lambda x: x[idx], other.replay_states)
-        other.present_masks = other.across_agent_types(lambda x: x[idx], other.present_masks)
+        other.replay_states = other.replay_states[idx]
+        other.present_masks = other.present_masks[idx]
+        other.replay_mask = other.replay_mask[idx]
         other._batch_size = len(idx)
         return other
 
-    def validate_agent_types(self):
-        assert list(self.npc_mask.keys()) == self.agent_types
-        assert list(self.replay_states.keys()) == self.agent_types
-        assert list(self.present_masks.keys()) == self.agent_types
-
     def validate_tensor_shapes(self):
         # check that tensors have the expected number of dimensions
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 1), self.npc_mask)
-        self.across_agent_types(lambda s: assert_equal(len(s.shape), 4), self.replay_states)
-        self.across_agent_types(lambda m: assert_equal(len(m.shape), 3), self.present_masks)
+        assert_equal(len(self.npc_mask.shape), 1)
+        assert_equal(len(self.replay_states.shape), 4)
+        assert_equal(len(self.present_masks.shape), 3)
 
         # check that batch size is the same everywhere
         b = self.batch_size
-        self.across_agent_types(lambda s: assert_equal(s.shape[0], b), self.replay_states)
-        self.across_agent_types(lambda m: assert_equal(m.shape[0], b), self.present_masks)
+        assert_equal(self.replay_states.shape[0], b)
+        assert_equal(self.present_masks.shape[0], b)
 
         # check that the number of agents in replay is the same as in underlying simulator
         check_counts = lambda i: lambda x, y: assert_equal(x.shape[i], y)
-        self.across_agent_types(check_counts(0), self.npc_mask, self.inner_simulator.agent_count)
-        self.across_agent_types(check_counts(-3), self.replay_states, self.inner_simulator.agent_count)
-        self.across_agent_types(check_counts(-2), self.present_masks, self.inner_simulator.agent_count)
+        assert_equal(self.npc_mask.shape[0], self.inner_simulator.agent_count)
+        assert_equal(self.replay_states.shape[1], self.inner_simulator.agent_count)
+        assert_equal(self.present_masks.shape[1], self.inner_simulator.agent_count)
