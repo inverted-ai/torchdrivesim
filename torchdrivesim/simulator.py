@@ -543,7 +543,9 @@ class Simulator(SimulatorInterface):
             cfg=self.cfg, renderer=self.renderer.copy(), lanelet_map=self.lanelet_map,
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
-            waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None
+            waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None,
+            agent_types=self.agent_type if self.agent_type is not None else None, 
+            agent_type_names=self.agent_types if self.agent_types is not None else None
         )
         return other
 
