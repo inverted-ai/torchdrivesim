@@ -126,3 +126,53 @@ class NvdiffrastRenderer(BirdviewRenderer):
             image = image.flip(dims=(-2,))  # flip horizontally
 
         return image
+
+    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras = None,
+                        world_to_view_transform: torch.Tensor = None) -> torch.Tensor:
+        if not hasattr(self.glctx, 'initial_dummy_frame_rendered') and \
+                self.cfg.max_minibatch_size is not None:
+            maximum_min_batch_size = self.cfg.max_minibatch_size
+            dummy_verts = torch.Tensor([[0, 0, 0, 1], [1, 0, 0, 1], [0, 1, 0, 1]]).to(self.device)
+            dummy_faces = torch.IntTensor([[0, 1, 2]]).to(self.device)
+            dummy_ranges = torch.IntTensor([[0, 1]]).expand(maximum_min_batch_size, -1).contiguous()
+            _, _ = dr.rasterize(self.glctx, dummy_verts, dummy_faces, resolution=[self.res.height, self.res.width],
+                                ranges=dummy_ranges)
+            self.glctx.initial_dummy_frame_rendered = True
+
+        if world_to_view_transform is not None:
+            transform_matrix = world_to_view_transform @ self.view_to_proj_transform
+            verts_clip = F.pad(mesh.verts, (0, 1), value=1.0) @ transform_matrix
+        elif cameras is not None:
+            if self.cfg.shift_mesh_by_camera_before_rendering:
+                mesh = mesh.translate(-cameras.xy)
+                cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
+            verts_clip = cameras.project_world_to_clip_space(mesh.verts)
+        else:
+            raise ValueError('Either `camerars` or `world_to_view_transform` need to be passed.')
+        verts_clip = verts_clip.reshape(-1, 4)
+        tris_first_idx = torch.arange(mesh.batch_size, device='cpu', dtype=torch.int32) * mesh.faces_count
+        tris_count = torch.ones_like(tris_first_idx, device='cpu') * mesh.faces_count
+        ranges = torch.stack([tris_first_idx, tris_count], dim=-1)
+        faces_offset = torch.arange(mesh.batch_size, device=mesh.faces.device, dtype=torch.int32) * mesh.verts_count
+        faces = (mesh.faces + faces_offset[:, None, None]).reshape(-1, 3).to(torch.int32)
+        vertices_attributes = mesh.attrs.reshape(-1, 3)
+        rast, _ = dr.rasterize(
+            self.glctx, verts_clip, faces, resolution=[res.height, res.width],
+            ranges=ranges
+            )
+        image, _ = dr.interpolate(vertices_attributes, rast, faces)
+        # Change background color in case it's not black
+        if sum(self.get_color('background')) != 0:
+            image = torch.where(rast[..., 3:4] > 0, image,
+                                torch.tensor([x / 255.0 for x in self.get_color('background')],
+                                             device=image.device))
+        if self.cfg.antialias:
+            image = dr.antialias(image, rast, verts_clip, faces)
+
+        image = image[..., :3] * 255
+
+        image = image.transpose(-2, -3)  # point x upwards, flip to right-handed coordinate frame
+        if self.cfg.left_handed_coordinates:
+            image = image.flip(dims=(-2,))  # flip horizontally
+
+        return image

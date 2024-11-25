@@ -149,7 +149,7 @@ class BaseMesh:
         """
         f = lambda x: x[idx]
         return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces))
-    
+
     def translate(self, xy: torch.Tensor, inplace: bool = True) -> Self:
         """
         Shifts the mesh by the given coordinate so that it is at the origin (0,0).
@@ -743,6 +743,11 @@ class BirdviewMesh(BaseMesh):
             )
             meshes[category] = BaseMesh(verts=verts, faces=faces)
         return meshes
+
+
+class MeshGenerator:
+    def __init__(self, static_mesh):
+        pass
 
 
 def rendering_mesh(mesh: BaseMesh, category: str) -> BirdviewMesh:
