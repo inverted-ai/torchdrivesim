@@ -20,7 +20,7 @@ from torch.nn.utils.rnn import pad_sequence
 import torch.nn.functional as F
 
 from torchdrivesim import assert_pytorch3d_available
-from torchdrivesim.traffic_controls import BaseTrafficControl
+from torchdrivesim.traffic_controls import BaseTrafficControl, TrafficLightControl
 from torchdrivesim.utils import is_inside_polygon, merge_dicts, rotate, transform
 
 logger = logging.getLogger(__name__)
@@ -747,17 +747,50 @@ class BirdviewMesh(BaseMesh):
         return meshes
 
 
-class MeshGenerator:
-    def __init__(self, static_mesh: BirdviewMesh, waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10):
-        self.waypoint_radius = waypoint_radius
-        self.waypoint_num_triangles = waypoint_num_triangles
-        self.static_mesh = static_mesh.clone()
-        self.waypoint_mesh = self._make_waypoint_mesh(self.static_mesh.batch_size, radius=self.waypoint_radius,
-                                                      num_triangles=self.waypoint_num_triangles,
-                                                      device=self.static_mesh.device)
+class BirdviewRGBMeshGenerator:
+    def __init__(self, background_mesh: BirdviewMesh, agent_attributes: Optional[Tensor] = None,
+                 agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None,
+                 render_agent_direction: bool = True, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
+                 waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10,
+                 color_map: Optional[Dict[str, Tuple[int, int, int]]] = None,
+                 rendering_levels: Optional[Dict[str, float]] = None):
+
+        from torchdrivesim.rendering.base import get_default_color_map, get_default_rendering_levels
+        self.color_map = color_map
+        if self.color_map is None:
+            self.color_map = get_default_color_map()
+
+        self.rendering_levels = rendering_levels
+        if self.rendering_levels is None:
+            self.rendering_levels = get_default_rendering_levels()
+
+        self.initialize_background_mesh(background_mesh)
+        self.initialize_waypoint_mesh(waypoint_radius, waypoint_num_triangles)
+
         self.actor_mesh = None
+        if agent_attributes is not None:
+            assert agent_types is not None
+            assert agent_type_names is not None
+            self.initialize_actors_mesh(agent_attributes, agent_types, agent_type_names, render_agent_direction)
+
         self.static_traffic_controls_mesh = None
         self.traffic_lights_mesh = None
+        self.traffic_light_colors = None
+        if traffic_controls is not None:
+            self.initialize_traffic_controls_mesh(traffic_controls)
+
+    def initialize_background_mesh(self, background_mesh: BirdviewMesh):
+        self.background_mesh = set_colors_with_defaults(background_mesh.clone(), color_map=self.color_map,
+                                                        rendering_levels=self.rendering_levels)
+
+    def initialize_waypoint_mesh(self, waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10):
+        self.waypoint_radius = waypoint_radius
+        self.waypoint_num_triangles = waypoint_num_triangles
+        waypoint_mesh = self._make_waypoint_mesh(self.background_mesh.batch_size, radius=self.waypoint_radius,
+                                                 num_triangles=self.waypoint_num_triangles,
+                                                 device=self.background_mesh.device)
+        self.waypoint_mesh = set_colors_with_defaults(waypoint_mesh, color_map=self.color_map,
+                                                      rendering_levels=self.rendering_levels)
 
     @classmethod
     def _make_waypoint_mesh(cls, batch_size: int, radius: float = 2.0, num_triangles: int = 10,
@@ -865,8 +898,11 @@ class MeshGenerator:
 
     def initialize_actors_mesh(self, agent_attributes: Tensor, agent_types: Tensor, agent_type_names: List[str],
                                render_agent_direction: bool = True):
-        self.actor_mesh = self._make_actors_mesh(agent_attributes, agent_types, agent_type_names,
-                                                 render_agent_direction, self.static_mesh.device)
+        self.render_agent_direction = render_agent_direction
+        actor_mesh = self._make_actors_mesh(agent_attributes, agent_types, agent_type_names,
+                                            render_agent_direction, self.background_mesh.device)
+        self.actor_mesh = set_colors_with_defaults(actor_mesh, color_map=self.color_map,
+                                                   rendering_levels=self.rendering_levels)
 
     @classmethod
     def _create_traffic_controls_mesh(cls, traffic_controls: Dict[str, BaseTrafficControl],
@@ -902,58 +938,102 @@ class MeshGenerator:
             return BirdviewMesh.empty(dim=2, batch_size=batch_size)
 
     def initialize_traffic_controls_mesh(self, traffic_controls: Dict[str, BaseTrafficControl]):
-        self.static_traffic_controls_mesh = self._create_traffic_controls_mesh(traffic_controls, ['stop_sign', 'yield_sign'])
-        self.traffic_lights_mesh = self._create_traffic_controls_mesh(traffic_controls, ['traffic_light'])
+        static_traffic_controls_mesh = self._create_traffic_controls_mesh(traffic_controls, ['stop_sign', 'yield_sign'])
+        self.static_traffic_controls_mesh = set_colors_with_defaults(static_traffic_controls_mesh, color_map=self.color_map,
+                                                                     rendering_levels=self.rendering_levels)
+        traffic_lights_mesh = self._create_traffic_controls_mesh(traffic_controls, ['traffic_light'])
+        self.traffic_lights_mesh = set_colors_with_defaults(traffic_lights_mesh, color_map=self.color_map,
+                                                            rendering_levels=self.rendering_levels)
+        if 'traffic_light' in traffic_controls:
+            self.traffic_light_colors = torch.stack([
+                tensor_color(self.color_map[f'traffic_light_{tls}'], device=self.traffic_lights_mesh.device)
+                    for tls in traffic_controls['traffic_light'].allowed_states
+            ], dim=0).reshape(1, 1, -1, 3).expand(self.traffic_lights_mesh.batch_size,
+                                                  traffic_controls['traffic_light'].state.shape[1], -1, -1)
 
-    def generate(self, num_cameras: int, agent_state: Optional[Tensor] = None, present_mask: Optional[Tensor] = None,
-                 traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
-                 waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None) -> BirdviewMesh:
+    def generate(self, num_cameras: int, agent_state: Optional[Tensor] = None,
+                 present_mask: Optional[Tensor] = None,
+                 traffic_lights: Optional[TrafficLightControl] = None,
+                 waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
+                 custom_agent_colors: Optional[Tensor] = None) -> RGBMesh:
+        """
+        Create an RGB mesh updates given the provided states.
+
+        Args:
+            num_cameras: int the number of cameras
+            agent_state: BxNcxAx4 tensor specifying
+            present_mask: BxNcxA tensor specifying
+            traffic_lights: TrafficLightControl object extended for each camera
+            waypoints: BxNcxMx2 tensor of `M` waypoints per camera (x,y)
+            waypoints_rendering_mask: BxNcxM tensor of `M` waypoint masks per camera,
+                indicating which waypoints should be rendered
+            custom_agent_colors: a BxNcxAx3 tensor of specifying what color each agent is to what camera
+        """
         actor_mesh = None
         if agent_state is not None and self.actor_mesh is not None:
-            actor_mesh = self.actor_mesh.clone()
-            batch_size, n_actors, _ = agent_state.shape
-            agent_verts = transform(actor_mesh.verts[..., :2].reshape(batch_size*n_actors, -1, 2),
-                                    agent_state[..., :3].reshape(batch_size*n_actors, 3))
-            agent_verts = agent_verts.reshape(batch_size, -1, 2)
+            assert agent_state.shape[1] == num_cameras
+            actor_mesh = self.actor_mesh.expand(num_cameras)
+            agent_state = agent_state.flatten(0, 1)
+            effective_batch_size, n_actors, _ = agent_state.shape
+            agent_verts = transform(actor_mesh.verts[..., :2].reshape(effective_batch_size*n_actors, -1, 2),
+                                    agent_state[..., :3].reshape(effective_batch_size*n_actors, 3))
+            agent_verts = F.pad(agent_verts.reshape(effective_batch_size, -1, 2), (0,1), value=0.0)
+            agent_verts[..., 2:3] = actor_mesh.verts[..., 2:3]
 
             actor_faces = actor_mesh.faces
             if present_mask is not None:
+                assert present_mask.shape[1] == num_cameras
+                present_mask = present_mask.flatten(0, 1)
                 faces_per_agent = actor_faces.shape[1] // present_mask.shape[1]
                 faces_mask = present_mask[..., None].broadcast_to(present_mask.shape + \
                              (faces_per_agent,)).flatten(1, 2)[..., None]
                 actor_faces = actor_faces * faces_mask
 
+            actor_attrs = actor_mesh.attrs
+            if custom_agent_colors is not None:
+                av = 4
+                dv = 3 if self.render_agent_direction else 0
+                step = av + dv
+                custom_agent_colors = custom_agent_colors.flatten(0, 1)
+                for i in range(av):
+                    actor_attrs[:,i::step] = custom_agent_colors
+
             actor_mesh = dataclasses.replace(
-                actor_mesh, verts=agent_verts, faces=actor_faces
+                actor_mesh, verts=agent_verts, faces=actor_faces, attrs=actor_attrs
             )
 
         traffic_lights_mesh = None
-        if traffic_controls is not None and \
+        if traffic_lights is not None and \
            (self.traffic_lights_mesh is not None and self.traffic_lights_mesh.faces_count > 0):
-            traffic_lights_mesh = self.traffic_lights_mesh.clone()
-            categories = [f'traffic_light_{state}' for state in traffic_controls['traffic_light'].allowed_states]
-            vert_category = traffic_controls['traffic_light'].state.unsqueeze(-1)\
-                            .expand(traffic_controls['traffic_light'].state.shape + (4,)).flatten(-2, -1)
+            assert traffic_lights.state.shape[0] == self.traffic_lights_mesh.batch_size*num_cameras
+            traffic_lights_mesh = self.traffic_lights_mesh.expand(num_cameras)
+            # set traffic light state
+            traffic_light_colors = self.traffic_light_colors[:, None].repeat_interleave(num_cameras, dim=1).flatten(0, 1)
+            current_colors = torch.gather(traffic_light_colors, dim=2,
+                index=traffic_lights.state[..., None, None].expand(-1, -1, -1, 3))
+            # A traffic light contains 4 vertices
+            current_colors = current_colors.expand(-1, -1, 4, -1).reshape(traffic_lights_mesh.batch_size, -1, 3)
             traffic_lights_mesh = dataclasses.replace(
-                traffic_lights_mesh, categories=categories, vert_category=vert_category
+                traffic_lights_mesh, attrs=current_colors
             )
 
         waypoints_mesh = None
         if waypoints is not None:
             waypoints_mesh = self.waypoint_mesh.clone()
-            b_size, n_cameras_waypoints, n_waypoints = waypoints_mesh.batch_size, waypoints.shape[1], waypoints.shape[2]
-            assert n_cameras_waypoints == num_cameras
+            assert waypoints.shape[1] == num_cameras
+            b_size, n_waypoints = waypoints_mesh.batch_size, waypoints.shape[2]
             waypoints_mesh = waypoints_mesh.expand(num_cameras*n_waypoints)
-            waypoints_verts = waypoints_mesh.verts
+            waypoints_verts = waypoints_mesh.verts[..., :2]
             n_verts = waypoints_verts.shape[-2]
             waypoints_verts = transform(waypoints_verts, F.pad(waypoints, (0,1), value=0).reshape(-1, 3))
             waypoints_verts = waypoints_verts.reshape(b_size*num_cameras, n_waypoints*waypoints_verts.shape[1], 2)
+            waypoints_verts = F.pad(waypoints_verts, (0,1), value=0.0)
+            waypoints_verts[..., 2:3] = waypoints_mesh.verts[..., 2:3]
 
             waypoints_faces = waypoints_mesh.faces.reshape(b_size*num_cameras, n_waypoints, -1, 3)
             waypoints_faces = waypoints_faces + n_verts*torch.arange(n_waypoints,
                                                                      device=waypoints_faces.device)[None, :, None, None]
             waypoints_faces = waypoints_faces.flatten(1, 2)
-            waypoints_mesh.faces = waypoints_faces
             if waypoints_rendering_mask is not None:
                 waypoints_mask = waypoints_rendering_mask.reshape(-1, n_waypoints, 1, 1)\
                                  .expand(-1, -1, self.waypoint_num_triangles, 3)
@@ -962,17 +1042,17 @@ class MeshGenerator:
                 waypoints_mesh, verts=waypoints_verts, faces=waypoints_faces
             )
 
-        meshes = [self.static_mesh.expand(num_cameras)]
+        meshes = [self.background_mesh.expand(num_cameras)]
         if actor_mesh is not None:
-            meshes.append(actor_mesh.expand(num_cameras))
+            meshes.append(actor_mesh)
         if self.static_traffic_controls_mesh is not None:
             meshes.append(self.static_traffic_controls_mesh.expand(num_cameras))
         if traffic_lights_mesh is not None:
-            meshes.append(traffic_lights_mesh.expand(num_cameras))
+            meshes.append(traffic_lights_mesh)
         if waypoints_mesh is not None:
             meshes.append(waypoints_mesh)
-        bv_mesh = BirdviewMesh.concat(meshes)
-        return bv_mesh
+        rgb_mesh = RGBMesh.concat(meshes)
+        return rgb_mesh
 
 
 def rendering_mesh(mesh: BaseMesh, category: str) -> BirdviewMesh:
