@@ -748,21 +748,14 @@ class BirdviewMesh(BaseMesh):
 
 
 class BirdviewRGBMeshGenerator:
-    def __init__(self, background_mesh: BirdviewMesh, agent_attributes: Optional[Tensor] = None,
+    def __init__(self, background_mesh: BirdviewMesh, color_map: Dict[str, Tuple[int, int, int]],
+                 rendering_levels: Dict[str, float], agent_attributes: Optional[Tensor] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None,
                  render_agent_direction: bool = True, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
-                 waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10,
-                 color_map: Optional[Dict[str, Tuple[int, int, int]]] = None,
-                 rendering_levels: Optional[Dict[str, float]] = None):
+                 waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10):
 
-        from torchdrivesim.rendering.base import get_default_color_map, get_default_rendering_levels
         self.color_map = color_map
-        if self.color_map is None:
-            self.color_map = get_default_color_map()
-
         self.rendering_levels = rendering_levels
-        if self.rendering_levels is None:
-            self.rendering_levels = get_default_rendering_levels()
 
         self.initialize_background_mesh(background_mesh)
         self.initialize_waypoint_mesh(waypoint_radius, waypoint_num_triangles)
