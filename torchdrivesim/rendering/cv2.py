@@ -64,4 +64,6 @@ class CV2Renderer(BirdviewRenderer):
 
             image_batch.append(image)
         images = torch.stack(image_batch, dim=0).to(mesh.device)
+        if self.cfg.left_handed_coordinates:
+            images = images.flip(dims=(-2,))  # flip horizontally
         return images

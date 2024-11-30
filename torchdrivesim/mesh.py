@@ -749,15 +749,16 @@ class BirdviewMesh(BaseMesh):
 
 class BirdviewRGBMeshGenerator:
     def __init__(self, background_mesh: BirdviewMesh, color_map: Dict[str, Tuple[int, int, int]],
-                 rendering_levels: Dict[str, float], agent_attributes: Optional[Tensor] = None,
-                 agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None,
-                 render_agent_direction: bool = True, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
+                 rendering_levels: Dict[str, float], world_center: Optional[Tensor] = None,
+                 agent_attributes: Optional[Tensor] = None, agent_types: Optional[Tensor] = None,
+                 agent_type_names: Optional[List[str]] = None, render_agent_direction: bool = True,
+                 traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10):
 
         self.color_map = color_map
         self.rendering_levels = rendering_levels
 
-        self.initialize_background_mesh(background_mesh)
+        self.initialize_background_mesh(background_mesh, world_center)
         self.initialize_waypoint_mesh(waypoint_radius, waypoint_num_triangles)
 
         self.actor_mesh = None
@@ -772,7 +773,80 @@ class BirdviewRGBMeshGenerator:
         if traffic_controls is not None:
             self.initialize_traffic_controls_mesh(traffic_controls)
 
-    def initialize_background_mesh(self, background_mesh: BirdviewMesh):
+    def to(self, device: torch.device):
+        """
+        Moves the renderer to another device in place.
+        """
+        self.background_mesh = self.background_mesh.to(device)
+        self.world_center = self.world_center.to(device)
+        self.waypoint_mesh = self.waypoint_mesh.to(device)
+        if self.actor_mesh is not None:
+            self.actor_mesh = self.actor_mesh.to(device)
+        if self.static_traffic_controls_mesh is not None:
+            self.static_traffic_controls_mesh = self.static_traffic_controls_mesh.to(device)
+        if self.traffic_lights_mesh is not None:
+            self.traffic_lights_mesh = self.traffic_lights_mesh.to(device)
+        if self.traffic_light_colors is not None:
+            self.traffic_light_colors = self.traffic_light_colors.to(device)
+        return self
+
+    def copy(self):
+        return self.expand(1)
+
+    def expand(self, n: int):
+        """
+        Adds another dimension with size n on the right of the batch dimension and flattens them.
+        Returns a new renderer, without modifying the current one.
+        """
+        expand = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])\
+            if x is not None else None
+        other = self.__class__(background_mesh=self.background_mesh.expand(n), color_map=self.color_map.copy(),
+                               rendering_levels=self.rendering_levels.copy())
+        other.waypoint_mesh = self.waypoint_mesh.expand(n)
+        other.world_center = expand(self.world_center)
+        if self.actor_mesh is not None:
+            other.actor_mesh = self.actor_mesh.expand(n)
+        if self.static_traffic_controls_mesh is not None:
+            other.static_traffic_controls_mesh = self.static_traffic_controls_mesh.expand(n)
+        if self.traffic_lights_mesh is not None:
+            other.traffic_lights_mesh = self.traffic_lights_mesh.expand(n)
+        if self.traffic_light_colors is not None:
+            other.traffic_light_colors = expand(self.traffic_light_colors)
+        other.waypoint_radius = self.waypoint_radius
+        other.waypoint_num_triangles = self.waypoint_num_triangles
+        if hasattr(self, 'render_agent_direction'):
+            other.render_agent_direction = self.render_agent_direction
+        return other
+
+    def select_batch_elements(self, idx: Tensor):
+        """
+        Selects given elements from the batch, potentially with repetitions.
+        Returns a new renderer, without modifying the current one.
+
+        Args:
+            idx: one-dimensional integer tensor
+        """
+        other = self.copy()
+        other.background_mesh = other.background_mesh[idx]
+        other.world_center = other.world_center[idx]
+        other.waypoint_mesh = other.waypoint_mesh[idx]
+        if other.actor_mesh is not None:
+            other.actor_mesh = other.actor_mesh[idx]
+        if other.static_traffic_controls_mesh is not None:
+            other.static_traffic_controls_mesh = other.static_traffic_controls_mesh[idx]
+        if other.traffic_lights_mesh is not None:
+            other.traffic_lights_mesh = other.traffic_lights_mesh[idx]
+        if other.traffic_light_colors is not None:
+            other.traffic_light_colors = other.traffic_light_colors[idx]
+        return other
+
+    def initialize_background_mesh(self, background_mesh: BirdviewMesh, world_center: Optional[Tensor] = None):
+        if world_center is None:
+            if hasattr(background_mesh, 'categories') and 'road' in background_mesh.categories:
+                world_center = background_mesh.separate_by_category()['road'].center
+            else:
+                world_center = background_mesh.center
+        self.world_center = world_center.to(background_mesh.device)
         self.background_mesh = set_colors_with_defaults(background_mesh.clone(), color_map=self.color_map,
                                                         rendering_levels=self.rendering_levels)
 
