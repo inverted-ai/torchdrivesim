@@ -157,6 +157,7 @@ def build_vertices(corners1: torch.Tensor, corners2: torch.Tensor, c1_in_2: torc
     return vertices, mask
 
 
+@torch.no_grad()
 def sort_indices(vertices: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     """
 
@@ -174,31 +175,55 @@ def sort_indices(vertices: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         and X indicates the index of arbitary elements in the last 16 (intersections not corners) with
         value 0 and mask False. (cause they have zero value and zero gradient)
     """
-    with torch.no_grad():
-        B, N = vertices.shape[:2]
+    B, N = vertices.shape[:2]
+    num_valid = torch.sum(mask.int(), dim=2).int()      # (B, N)
+    center = torch.sum(vertices * mask.float().unsqueeze(-1), dim=2, keepdim=True) / num_valid.unsqueeze(-1).unsqueeze(-1)
+    r = torch.sqrt((vertices - center).pow(2).sum(dim=-1))
+    angles = torch.where((vertices[...,1] - center[...,1])>0,
+                        torch.arccos((vertices[...,0] - center[...,0])/r),
+                        2*np.pi-torch.arccos((vertices[...,0] - center[...,0])/r))
+    angles[~mask] = float('inf')
+    inds_sorted = torch.argsort(angles, descending=False)
+    num_valid = num_valid.view(-1)
+    mask_orig_shape = mask.shape
+    mask = mask.view(-1, 24)
+    inds_sorted = inds_sorted.view(-1, 24)
+    while (num_valid > 8).any():
+        # Handle an ANNOYING bug from vertices being too close to each other!
+        invalid_mask = num_valid > 8
+        vertices_flat = vertices.view(-1, 24, 2)
+        inds_expanded = inds_sorted.unsqueeze(-1).expand(*inds_sorted.shape, 2)
+        sorted_vertices = torch.gather(vertices_flat, dim=1, index=inds_expanded)
+        sorted_mask = torch.gather(mask, dim=1, index=inds_sorted)
+        dist = (sorted_vertices[:, :-1] - sorted_vertices[:, 1:]).norm(dim=-1)
+        local_mask = torch.arange(dist.shape[1], device=mask.device).unsqueeze(0).expand(*dist.shape) >= (num_valid-1).unsqueeze(1)
+        dist[local_mask] = float('inf')
+        to_remove_indices = torch.gather(inds_sorted, dim=1, index=dist.argmin(dim=-1).unsqueeze(1))
+        to_remove_indices = to_remove_indices.squeeze(-1) # Shape: B
+        for i in range(len(to_remove_indices)):
+            if invalid_mask[i]:
+                j = to_remove_indices[i]
+                assert mask[i, j]
+                mask[i, j] = False
+        mask = mask.view(*mask_orig_shape)
         num_valid = torch.sum(mask.int(), dim=2).int()      # (B, N)
-        center = torch.sum(vertices * mask.float().unsqueeze(-1), dim=2, keepdim=True) / num_valid.unsqueeze(-1).unsqueeze(-1)
-        r = torch.sqrt((vertices - center).pow(2).sum(dim=-1))
-        angles = torch.where((vertices[...,1] - center[...,1])>0,
-                         torch.arccos((vertices[...,0] - center[...,0])/r),
-                         2*np.pi-torch.arccos((vertices[...,0] - center[...,0])/r))
+        angles[~mask] = float('inf')
         inds_sorted = torch.argsort(angles, descending=False)
-        inds_sorted = torch.masked_select(inds_sorted, torch.gather(mask, 2, inds_sorted))
         num_valid = num_valid.view(-1)
         mask = mask.view(-1, 24)
-        index = torch.ones(B*N, 9, dtype=torch.long, device=inds_sorted.device)*8
-        curr_ind = 0
-        pad_values = torch.argmin(mask[:, 8:].float(), dim=-1) + 8
-        for b in range(B*N):
-            b_num_valid = num_valid[b].item()
-            if b_num_valid < 3:
-                index[b] = pad_values[b].item()
-            elif b_num_valid > 0:
-                index[b, :b_num_valid] = inds_sorted[curr_ind:curr_ind+b_num_valid]
-                index[b, b_num_valid] = inds_sorted[curr_ind]
-                index[b, b_num_valid+1:] = pad_values[b].item()
-            curr_ind += b_num_valid
-        index = index.view(B,N,9)
+        inds_sorted = inds_sorted.view(-1, 24)
+    index = inds_sorted[:, :9]
+    pad_values = torch.argmin(mask[:, 8:].float(), dim=-1) + 8
+    all_pads_mask = num_valid < 3
+    if all_pads_mask.sum() > 0:
+        index[all_pads_mask] = pad_values[all_pads_mask].unsqueeze(-1)
+    trailing_mask = (torch.arange(9, device=mask.device) >= num_valid.unsqueeze(-1))
+    if trailing_mask.sum() > 0:
+        index[trailing_mask] = pad_values.unsqueeze(-1).expand_as(index)[trailing_mask]
+    # Repeat the first index after enumerating all indices
+    first_elements = index[:, 0].clone()
+    index[torch.arange(len(index)), num_valid.long()] = first_elements
+    index = index.view(B,N,9)
     return index
 
 
