@@ -800,8 +800,9 @@ class BirdviewRGBMeshGenerator:
         """
         expand = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])\
             if x is not None else None
-        other = self.__class__(background_mesh=self.background_mesh.expand(n), color_map=self.color_map.copy(),
-                               rendering_levels=self.rendering_levels.copy())
+        other = self.__class__(background_mesh=BirdviewMesh.empty(self.background_mesh.batch_size*n),
+                               color_map=self.color_map.copy(), rendering_levels=self.rendering_levels.copy())
+        other.background_mesh = self.background_mesh.expand(n)
         other.waypoint_mesh = self.waypoint_mesh.expand(n)
         other.world_center = expand(self.world_center)
         if self.actor_mesh is not None:

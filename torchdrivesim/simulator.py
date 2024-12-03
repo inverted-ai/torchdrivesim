@@ -467,6 +467,7 @@ class Simulator(SimulatorInterface):
                  agent_size: Tensor, initial_present_mask: Tensor,
                  cfg: TorchDriveConfig, renderer: Optional[BirdviewRenderer] = None,
                  lanelet_map: Optional[List[Optional[LaneletMap]]] = None, recenter_offset: Optional[Tensor] = None,
+                 birdview_mesh_generator: Optional[BirdviewRGBMeshGenerator] = None,
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None):
@@ -507,12 +508,15 @@ class Simulator(SimulatorInterface):
         self.warned_no_lanelet = False
         self.internal_time = internal_time
 
-        self._birdview_mesh_generator = BirdviewRGBMeshGenerator(background_mesh=self.road_mesh,
-                                                                 color_map=self.renderer.color_map,
-                                                                 rendering_levels=self.renderer.rendering_levels)
-        self._birdview_mesh_generator.initialize_actors_mesh(self.agent_size, self.agent_type, self._agent_types)
-        if self.traffic_controls is not None:
-            self._birdview_mesh_generator.initialize_traffic_controls_mesh(self.traffic_controls)
+        if birdview_mesh_generator is None:
+            self.birdview_mesh_generator = BirdviewRGBMeshGenerator(background_mesh=self.road_mesh,
+                                                                    color_map=self.renderer.color_map,
+                                                                    rendering_levels=self.renderer.rendering_levels)
+            self.birdview_mesh_generator.initialize_actors_mesh(self.agent_size, self.agent_type, self._agent_types)
+            if self.traffic_controls is not None:
+                self.birdview_mesh_generator.initialize_traffic_controls_mesh(self.traffic_controls)
+        else:
+            self.birdview_mesh_generator = birdview_mesh_generator
 
     @property
     def agent_types(self):
@@ -536,7 +540,7 @@ class Simulator(SimulatorInterface):
         self.kinematic_model = self.kinematic_model.to(device)  # type: ignore
         self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()} if self.traffic_controls is not None else None
         self.waypoint_goals = self.waypoint_goals.to(device) if self.waypoint_goals is not None else None
-        self._birdview_mesh_generator = self._birdview_mesh_generator.to(device)
+        self.birdview_mesh_generator = self.birdview_mesh_generator.to(device)
 
         return self
 
@@ -545,11 +549,12 @@ class Simulator(SimulatorInterface):
             road_mesh=self.road_mesh, kinematic_model=self.kinematic_model.copy(),
             agent_size=self.agent_size, initial_present_mask=self.present_mask,
             cfg=self.cfg, renderer=copy.deepcopy(self.renderer), lanelet_map=self.lanelet_map,
+            birdview_mesh_generator=self.birdview_mesh_generator.copy(),
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
             waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None,
             agent_types=self.agent_type if self.agent_type is not None else None,
-            agent_type_names=self.agent_types if self.agent_types is not None else None
+            agent_type_names=self.agent_types if self.agent_types is not None else None,
         )
         return other
 
@@ -570,7 +575,7 @@ class Simulator(SimulatorInterface):
         # kinematic models are modified in place
         self.kinematic_model.extend(n)
         self._batch_size *= n
-        self._birdview_mesh_generator = self._birdview_mesh_generator.expand(n)
+        self.birdview_mesh_generator = self.birdview_mesh_generator.expand(n)
         if self.traffic_controls is not None:
             self.traffic_controls={k: v.extend(n) for k, v in self.traffic_controls.items()}
 
@@ -596,7 +601,7 @@ class Simulator(SimulatorInterface):
         self.kinematic_model.select_batch_elements(idx)
 
         self._batch_size = len(idx)
-        self._birdview_mesh_generator = self._birdview_mesh_generator.select_batch_elements(idx)
+        self.birdview_mesh_generator = self.birdview_mesh_generator.select_batch_elements(idx)
         if self.traffic_controls is not None:
             self.traffic_controls={k: v.select_batch_elements(idx) for k, v in self.traffic_controls.items()}
         if self.waypoint_goals is not None:
@@ -633,7 +638,7 @@ class Simulator(SimulatorInterface):
         assert_equal(self.present_mask.shape[-1], self.agent_count)
 
     def get_world_center(self):
-        return self._birdview_mesh_generator.world_center
+        return self.birdview_mesh_generator.world_center
 
     def get_state(self):
         return self.kinematic_model.get_state()
@@ -770,7 +775,7 @@ class Simulator(SimulatorInterface):
 
         # TODO: we assume the same agent states for all cameras but we can give the option
         #       to pass different states for each camera.
-        rbg_mesh = self._birdview_mesh_generator.generate(n_cameras,
+        rbg_mesh = self.birdview_mesh_generator.generate(n_cameras,
             agent_state=self.get_state()[:, None].expand(-1, n_cameras, -1, -1), present_mask=rendering_mask,
             traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
                 if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,

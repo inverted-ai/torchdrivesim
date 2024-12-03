@@ -54,7 +54,7 @@ class CV2Renderer(BirdviewRenderer):
             faces = mesh_faces[batch_idx]
             for face_idx in range(faces.shape[0]):
                 polygon = pixel_verts[batch_idx, faces[face_idx]].numpy()
-                color = color_attrs[batch_idx, face_idx].numpy().tolist()
+                color = color_attrs[batch_idx, faces[face_idx][0]].numpy().tolist()
                 image = cv2.fillConvexPoly(img=image, points=polygon, color=color, shift=0, lineType=cv2.LINE_AA)
             image = torch.from_numpy(image)
             image = image.transpose(-2, -3)  # point x upwards, flip to right-handed coordinate frame

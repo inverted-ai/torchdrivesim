@@ -211,7 +211,6 @@ class BirdviewRenderer(abc.ABC):
         if res is None:
             res = self.res
 
-        image = self.render_rgb_mesh(rgb_mesh, res, cameras)
         try:
             image = self.render_rgb_mesh(rgb_mesh, res, cameras)
         except RuntimeError as e:
