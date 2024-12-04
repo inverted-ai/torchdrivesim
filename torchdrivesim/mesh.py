@@ -851,6 +851,21 @@ class BirdviewRGBMeshGenerator:
         self.background_mesh = set_colors_with_defaults(background_mesh.clone(), color_map=self.color_map,
                                                         rendering_levels=self.rendering_levels)
 
+    def add_static_meshes(self, meshes: List[BirdviewMesh]) -> None:
+        """
+        Includes additional static elements to background mesh.
+        """
+        self.add_static_rgb_meshes([set_colors_with_defaults(m.clone(), color_map=self.color_map,
+                                                             rendering_levels=self.rendering_levels) for m in meshes])
+
+    def add_static_rgb_meshes(self, meshes: List[RGBMesh]) -> None:
+        """
+        Includes additional static rgb elements to background mesh.
+        """
+        self.background_mesh = self.background_mesh.concat(
+            [self.background_mesh] + meshes
+        )
+
     def initialize_waypoint_mesh(self, waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10):
         self.waypoint_radius = waypoint_radius
         self.waypoint_num_triangles = waypoint_num_triangles

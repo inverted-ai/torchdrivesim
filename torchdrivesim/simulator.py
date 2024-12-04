@@ -1410,7 +1410,7 @@ class TrajectoryVisualizationWrapper(BirdviewRecordingWrapper):
             prediction_meshes.append(prediction_mesh)
         ground_truth_mesh = generate_trajectory_mesh(ground_truth, category='ground_truth')
         trajectory_meshes = [ground_truth_mesh, *prediction_meshes]
-        innermost_simulator.renderer.add_static_meshes(trajectory_meshes)
+        innermost_simulator.birdview_mesh_generator.add_static_meshes(trajectory_meshes)
 
 
 class SelectiveWrapper(SimulatorWrapper):
