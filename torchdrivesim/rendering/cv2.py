@@ -24,7 +24,7 @@ class CV2Renderer(BirdviewRenderer):
         super().__init__(cfg, *args, **kwargs)
         self.cfg: CV2RendererConfig = cfg
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
         if self.cfg.shift_mesh_by_camera_before_rendering:
             mesh = mesh.translate(-cameras.xy)
             cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
@@ -33,34 +33,29 @@ class CV2Renderer(BirdviewRenderer):
             viewing_polygon = cameras.reverse_transform_points_screen(
                 torch.tensor([
                     [0, 0], [0, res.height], [res.width, res.height], [res.width, 0]
-                ], device=mesh.device), res=res
+                ], device=mesh.device)[None].repeat_interleave(cameras.xy.shape[0], dim=0), res=res
             )
-            viewing_polygon_center = viewing_polygon.mean(dim=-2)
+            viewing_polygon_center = viewing_polygon.mean(dim=1, keepdim=True)
             viewing_polygon = viewing_polygon_center + (viewing_polygon - viewing_polygon_center) * 1.05  # safety margin
             mesh = mesh.trim(viewing_polygon)
 
+        #  We assume all vertices of the same face are on the same plane
+        rendering_order = mesh.verts[:, None, :, 2].expand(-1, mesh.faces.shape[1], -1).flatten(0,1)
+        rendering_order = torch.gather(rendering_order, dim=1,
+            index=mesh.faces.flatten(0,1))[..., 0].reshape(*mesh.faces.shape[:2])
+        rendering_order = rendering_order.argsort(dim=1, descending=True).unsqueeze(-1).cpu()
+        pixel_verts = cameras.transform_points_screen(mesh.verts[..., :2], res=res).cpu().to(torch.int32)
+        mesh_faces = mesh.faces.cpu().gather(dim=1, index=rendering_order.expand_as(mesh.faces))
+        color_attrs = (mesh.attrs * (1.0 - 1e-3) * 256).floor().to(torch.uint8).cpu()
+
         image_batch = []
-        pixel_verts = cameras.transform_points_screen(mesh.verts, res=res).cpu().to(torch.int32)
-
-        for k in mesh.categories:
-            if k not in mesh.colors:
-                mesh.colors[k] = tensor_color(self.color_map[k])
-            if k not in mesh.zs:
-                mesh.zs[k] = self.rendering_levels[k]
-        rendering_order = sorted(range(len(mesh.categories)), key=lambda i: mesh.zs[mesh.categories[i]], reverse=True)
-        category_colors = (
-                torch.stack([mesh.colors[cat] for cat in mesh.categories], dim=0) * (1.0 - 1e-3) * 256
-        ).floor().to(torch.uint8).cpu()
-
         for batch_idx in range(mesh.batch_size):
             image = np.zeros((res.height, res.width, 3), dtype=np.float32)
-            for cat_idx in rendering_order:
-                color = category_colors[cat_idx].numpy().tolist()
-                face_category = mesh.vert_category[batch_idx, mesh.faces[batch_idx, :, 0]]
-                faces = mesh.faces[batch_idx][face_category == cat_idx].cpu()
-                for face in faces:
-                    polygon = pixel_verts[batch_idx, face].numpy()
-                    image = cv2.fillConvexPoly(img=image, points=polygon, color=color, shift=0, lineType=cv2.LINE_AA)
+            faces = mesh_faces[batch_idx]
+            for face_idx in range(faces.shape[0]):
+                polygon = pixel_verts[batch_idx, faces[face_idx]].numpy()
+                color = color_attrs[batch_idx, faces[face_idx][0]].numpy().tolist()
+                image = cv2.fillConvexPoly(img=image, points=polygon, color=color, shift=0, lineType=cv2.LINE_AA)
             image = torch.from_numpy(image)
             image = image.transpose(-2, -3)  # point x upwards, flip to right-handed coordinate frame
 
@@ -69,7 +64,6 @@ class CV2Renderer(BirdviewRenderer):
 
             image_batch.append(image)
         images = torch.stack(image_batch, dim=0).to(mesh.device)
+        if self.cfg.left_handed_coordinates:
+            images = images.flip(dims=(-2,))  # flip horizontally
         return images
-
-    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
-        raise NotImplementedError("Rendering custom RGB meshes is not supported by CV2Renderer")
