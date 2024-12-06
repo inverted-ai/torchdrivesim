@@ -1,13 +1,14 @@
 import os
-from typing import Optional
+from typing import Optional, List
 from typing_extensions import Self
 
 import numpy as np
 import pandas as pd
 import torch
+from torch import Tensor
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, NPCController
 from torchdrivesim.utils import assert_equal
 
 
@@ -146,3 +147,62 @@ class ReplayWrapper(NPCWrapper):
         assert_equal(self.npc_mask.shape[0], self.inner_simulator.agent_count)
         assert_equal(self.replay_states.shape[1], self.inner_simulator.agent_count)
         assert_equal(self.present_masks.shape[1], self.inner_simulator.agent_count)
+
+
+class ReplayController(NPCController):
+    def __init__(self, npc_size, npc_states, npc_present_masks: Optional[torch.Tensor] = None, time: int = 0,
+                 npc_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None):
+        self.time = time
+        self.npc_states = npc_states
+        self.npc_present_masks = npc_present_masks
+        if self.npc_present_masks is None:
+            self.npc_present_masks = torch.ones_like(self.npc_states[..., 0], dtype=torch.bool)
+        super().__init__(npc_size, self.npc_states[..., self.time, :], self.npc_present_masks[..., self.time], npc_types, agent_type_names)
+
+    def advance_npcs(self, agent_size: Tensor, agent_state: Tensor, agent_present_mask: Optional[Tensor],
+                     agent_types: Optional[Tensor]) -> None:
+        self.time += 1
+        if self.time == self.npc_states.shape[-2]:
+            self.time = 0
+        self.npc_state = self.npc_states[..., self.time, :]
+        self.npc_present_mask = self.npc_present_masks[..., self.time]
+        return None
+
+    def to(self, device):
+        self.npc_size = self.npc_size.to(device)
+        self.npc_state = self.npc_state.to(device)
+        self.npc_present_mask = self.npc_present_mask.to(device)
+        self.npc_types = self.npc_types.to(device)
+        self.npc_states = self.npc_states.to(device)
+        self.npc_present_masks = self.npc_present_masks.to(device)
+        return self
+    
+    def copy(self):
+        return self.__class__(self.npc_size, self.npc_states, self.npc_present_masks, self.time, self.npc_types, self.agent_type_names)
+    
+    def extend(self, n, in_place=True):
+        if not in_place:
+            other = self.copy()
+            other.extend(n, in_place=True)
+            return other
+
+        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
+        self.npc_size = enlarge(self.npc_size)
+        self.npc_state = enlarge(self.npc_state)
+        self.npc_present_mask = enlarge(self.npc_present_mask)
+        self.npc_types = enlarge(self.npc_types)
+        self.npc_states = enlarge(self.npc_states)
+        self.npc_present_masks = enlarge(self.npc_present_masks)
+        return self
+    
+    def select_batch_elements(self, idx, in_place=True):
+        if not in_place:
+            return self.copy().select_batch_elements(idx, in_place=True)
+        
+        self.npc_size = self.npc_size[idx]
+        self.npc_state = self.npc_state[idx]
+        self.npc_present_mask = self.npc_present_mask[idx]
+        self.npc_types = self.npc_types[idx]
+        self.npc_states = self.npc_states[idx]
+        self.npc_present_masks = self.npc_present_masks[idx]
+        return self
