@@ -422,7 +422,7 @@ class BirdviewRenderer(abc.ABC):
             dv = 3 if self.cfg.render_agent_direction else 0
             step = av + dv
             for i in range(av):
-                actor_mesh.attrs[:,i::step] = custom_agent_colors
+                actor_mesh.attrs[:,i::step] = custom_agent_colors.flatten(0, 1)
 
         meshes = [
             static_mesh,
