@@ -373,9 +373,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             camera_psi = torch.ones_like(camera_psi) * (np.pi / 2)
         rendering_mask = None
         if visibility_matrix is not None:
-            rendering_mask = visibility_matrix.flatten(0, 1)
+            rendering_mask = visibility_matrix
         if custom_agent_colors is not None:
-            custom_agent_colors = custom_agent_colors.flatten(0, 1)
+            custom_agent_colors = custom_agent_colors
         if self.get_innermost_simulator().cfg.single_agent_rendering:
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
