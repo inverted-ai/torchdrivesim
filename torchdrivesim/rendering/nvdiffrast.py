@@ -75,7 +75,7 @@ class NvdiffrastRenderer(BirdviewRenderer):
             raise NvdiffrastNotFound()
         super().__init__(cfg, *args, **kwargs)
         self.cfg: NvdiffrastRendererConfig = cfg
-        self.glctx = get_glctx_session(self.device, opengl=self.cfg.opengl)
+        self.glctx = get_glctx_session('cuda', opengl=self.cfg.opengl)  # nvdiffrast is only available for cuda
         if self.glctx is None:
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 

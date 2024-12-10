@@ -1,6 +1,7 @@
 import abc
 import logging
 import os
+import copy
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Union, Dict, List, Iterable, Callable, Any
@@ -16,7 +17,7 @@ import torchdrivesim.rendering.pytorch3d
 from torchdrivesim.goals import WaypointGoal
 from torchdrivesim.kinematic import KinematicModel
 from torchdrivesim.lanelet2 import LaneletMap
-from torchdrivesim.mesh import generate_trajectory_mesh, BirdviewMesh
+from torchdrivesim.mesh import generate_trajectory_mesh, BirdviewMesh, BirdviewRGBMeshGenerator
 from torchdrivesim.rendering import BirdviewRenderer, RendererConfig, renderer_from_config
 from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
     compute_agent_collisions_metric_pytorch3d, compute_agent_collisions_metric, collision_detection_with_discs
@@ -193,7 +194,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         Returns a functor of BxNpc boolean tensors indicating which non-playable characters are currently present in the simulation.
         """
         return self.get_innermost_simulator().npc_controller.get_npc_present_mask()
-    
+
     def get_npc_types(self) -> Tensor:
         """
         Returns a functor of BxNpc long tensors containing non-playable character type indexes relative to the list containing all agent types
@@ -206,19 +207,19 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         Returns a functor of Bx(A+Npc)x4 tensors, where the last dimension contains the following information: x, y, psi, v.
         """
         return torch.cat([self.get_state(), self.get_npc_state()], dim=-2)
-    
+
     def get_all_agent_size(self) -> Tensor:
         """
         Returns a functor of Bx(A+Npc)x2 tensors, where the last dimension contains the following information: length, width.
         """
         return torch.cat([self.get_agent_size(), self.get_npc_size()], dim=-2)
-    
+
     def get_all_agent_present_mask(self) -> Tensor:
         """
         Returns a functor of Bx(A+Npc) boolean tensors, indicating which agents are currently present in the simulation.
         """
         return torch.cat([self.get_present_mask(), self.get_npc_present_mask()], dim=-1)
-    
+
     def get_all_agent_type(self) -> Tensor:
         """
         Returns a functor of Bx(A+Npc) long tensors, indicating the agent type index for each agent.
@@ -496,7 +497,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
                 agent_collisions = torch.stack(collisions, dim=-1)
 
         return agent_collisions
-    
+
 
 class NPCController:
     """
@@ -518,16 +519,16 @@ class NPCController:
 
     def get_npc_state(self):
         return self.npc_state
-    
+
     def get_npc_size(self):
         return self.npc_size
-    
+
     def get_npc_types(self):
         return self.npc_types
-    
+
     def get_npc_present_mask(self):
         return self.npc_present_mask
-    
+
     def advance_npcs(self, agent_size: Tensor, agent_state: Tensor, agent_present_mask: Optional[Tensor],
                      agent_types: Optional[Tensor]) -> None:
         return None
@@ -538,10 +539,10 @@ class NPCController:
         self.npc_present_mask = self.npc_present_mask.to(device)
         self.npc_types = self.npc_types.to(device)
         return self
-    
+
     def copy(self):
         return self.__class__(self.npc_size, self.npc_state, self.npc_present_mask, self.npc_types, self.agent_type_names)
-    
+
     def extend(self, n, in_place=True):
         if not in_place:
             other = self.copy()
@@ -554,11 +555,11 @@ class NPCController:
         self.npc_present_mask = enlarge(self.npc_present_mask)
         self.npc_types = enlarge(self.npc_types)
         return self
-    
+
     def select_batch_elements(self, idx, in_place=True):
         if not in_place:
             return self.copy().select_batch_elements(idx, in_place=True)
-        
+
         self.npc_size = self.npc_size[idx]
         self.npc_state = self.npc_state[idx]
         self.npc_present_mask = self.npc_present_mask[idx]
@@ -590,6 +591,7 @@ class Simulator(SimulatorInterface):
                  agent_size: Tensor, initial_present_mask: Tensor,
                  cfg: TorchDriveConfig, renderer: Optional[BirdviewRenderer] = None,
                  lanelet_map: Optional[List[Optional[LaneletMap]]] = None, recenter_offset: Optional[Tensor] = None,
+                 birdview_mesh_generator: Optional[BirdviewRGBMeshGenerator] = None,
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
@@ -629,12 +631,8 @@ class Simulator(SimulatorInterface):
         self.cfg: TorchDriveConfig = cfg
         if renderer is None:
             cfg.renderer.left_handed_coordinates = cfg.left_handed_coordinates
-            self.renderer: BirdviewRenderer = renderer_from_config(
-                cfg=cfg.renderer, static_mesh=self.road_mesh
-            )
+            self.renderer: BirdviewRenderer = renderer_from_config(cfg=cfg.renderer)
         else:
-            #  We assume the provided renderer has all static meshes already added to avoid increasing the size of the
-            #  static mesh with duplicate additional static meshes (e.g. lane markings).
             self.renderer = renderer
 
         self.traffic_controls = traffic_controls
@@ -645,6 +643,17 @@ class Simulator(SimulatorInterface):
 
         self.warned_no_lanelet = False
         self.internal_time = internal_time
+
+        if birdview_mesh_generator is None:
+            self.birdview_mesh_generator = BirdviewRGBMeshGenerator(background_mesh=self.road_mesh,
+                                                                    color_map=self.renderer.color_map,
+                                                                    rendering_levels=self.renderer.rendering_levels)
+            self.birdview_mesh_generator.initialize_actors_mesh(self.get_all_agent_size(), self.get_all_agent_type(),
+                                                                self.agent_types)
+            if self.traffic_controls is not None:
+                self.birdview_mesh_generator.initialize_traffic_controls_mesh(self.traffic_controls)
+        else:
+            self.birdview_mesh_generator = birdview_mesh_generator
 
     @property
     def agent_types(self):
@@ -668,7 +677,7 @@ class Simulator(SimulatorInterface):
         self.kinematic_model = self.kinematic_model.to(device)  # type: ignore
         self.traffic_controls = {k: v.to(device) for (k, v) in self.traffic_controls.items()} if self.traffic_controls is not None else None
         self.waypoint_goals = self.waypoint_goals.to(device) if self.waypoint_goals is not None else None
-        self.renderer = self.renderer.to(device)
+        self.birdview_mesh_generator = self.birdview_mesh_generator.to(device)
         self.npc_controller = self.npc_controller.to(device)
 
         return self
@@ -677,11 +686,12 @@ class Simulator(SimulatorInterface):
         other = self.__class__(
             road_mesh=self.road_mesh, kinematic_model=self.kinematic_model.copy(),
             agent_size=self.agent_size, initial_present_mask=self.present_mask,
-            cfg=self.cfg, renderer=self.renderer.copy(), lanelet_map=self.lanelet_map,
+            cfg=self.cfg, renderer=copy.deepcopy(self.renderer), lanelet_map=self.lanelet_map,
+            birdview_mesh_generator=self.birdview_mesh_generator.copy(),
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
             waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None,
-            agent_types=self.agent_type if self.agent_type is not None else None, 
+            agent_types=self.agent_type if self.agent_type is not None else None,
             agent_type_names=self.agent_types if self.agent_types is not None else None,
             npc_controller=self.npc_controller.copy(),
         )
@@ -704,13 +714,13 @@ class Simulator(SimulatorInterface):
         # kinematic models are modified in place
         self.kinematic_model.extend(n)
         self._batch_size *= n
-        self.renderer = self.renderer.expand(n)
+        self.birdview_mesh_generator = self.birdview_mesh_generator.expand(n)
         if self.traffic_controls is not None:
             self.traffic_controls={k: v.extend(n) for k, v in self.traffic_controls.items()}
 
         if self.waypoint_goals is not None:
             self.waypoint_goals = self.waypoint_goals.extend(n)
-        
+
         self.npc_controller = self.npc_controller.extend(n)
 
         return self
@@ -732,7 +742,7 @@ class Simulator(SimulatorInterface):
         self.kinematic_model.select_batch_elements(idx)
 
         self._batch_size = len(idx)
-        self.renderer = self.renderer.select_batch_elements(idx)
+        self.birdview_mesh_generator = self.birdview_mesh_generator.select_batch_elements(idx)
         if self.traffic_controls is not None:
             self.traffic_controls={k: v.select_batch_elements(idx) for k, v in self.traffic_controls.items()}
         if self.waypoint_goals is not None:
@@ -771,7 +781,7 @@ class Simulator(SimulatorInterface):
         assert_equal(self.present_mask.shape[-1], self.agent_count)
 
     def get_world_center(self):
-        return self.renderer.world_center
+        return self.birdview_mesh_generator.world_center
 
     def get_state(self):
         return self.kinematic_model.get_state()
@@ -808,7 +818,7 @@ class Simulator(SimulatorInterface):
 
     def get_agent_type(self):
         return self.agent_type
-    
+
     def get_agent_type_names(self) -> List[str]:
         return self._agent_types
 
@@ -817,13 +827,13 @@ class Simulator(SimulatorInterface):
 
     def get_npc_state(self):
         return self.npc_controller.get_npc_state()
-    
+
     def get_npc_size(self):
         return self.npc_controller.get_npc_size()
-    
+
     def get_npc_present_mask(self):
         return self.npc_controller.get_npc_present_mask()
-    
+
     def get_npc_types(self):
         return self.npc_controller.get_npc_types()
 
@@ -920,15 +930,17 @@ class Simulator(SimulatorInterface):
         target_shape = self.get_all_agent_present_mask().shape
         present_mask = self.get_all_agent_present_mask().unsqueeze(-2).expand(target_shape[:-1] + (n_cameras,) + target_shape[-1:])
         rendering_mask = present_mask if rendering_mask is None else present_mask.logical_and(rendering_mask)
-        return self.renderer.render_frame(
-            self.get_all_agent_state(), self.get_all_agent_size(),
-            camera_xy, camera_sc, rendering_mask, res=res, fov=fov,
+
+        # TODO: we assume the same agent states for all cameras but we can give the option
+        #       to pass different states for each camera.
+        rbg_mesh = self.birdview_mesh_generator.generate(n_cameras,
+            agent_state=self.get_all_agent_state()[:, None].expand(-1, n_cameras, -1, -1), present_mask=rendering_mask,
+            traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
+                if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,
             waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
-            traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()}
-                if self.traffic_controls is not None else None,
-            agent_types=self.get_all_agent_type(), agent_type_names=self.agent_types,
             custom_agent_colors=custom_agent_colors,
         )
+        return self.renderer.render_frame(rbg_mesh, camera_xy, camera_sc, res=res, fov=fov)
 
     def compute_offroad(self):
         return offroad_infraction_loss(self.get_state(), self.get_agent_size(),
@@ -1063,7 +1075,7 @@ class SimulatorWrapper(SimulatorInterface):
 
     def get_agent_type(self):
         return self.inner_simulator.get_agent_type()
-    
+
     def get_agent_type_names(self) -> List[str]:
         return self.inner_simulator.get_agent_type_names()
 
@@ -1178,7 +1190,7 @@ class NPCWrapper(SimulatorWrapper):
 
     def get_state(self):
         return self.inner_simulator.get_state()[..., self.npc_mask.logical_not(), :]
-    
+
     def get_waypoints(self):
         waypoints = self.inner_simulator.get_waypoints()
         if waypoints is not None:
@@ -1324,7 +1336,9 @@ class NPCWrapper(SimulatorWrapper):
                 logger.debug(f"Batches {idx_no_map} have no lanelet map. Returning zeros for wrong_way losses.")
                 innermost_simulator.warned_no_lanelet = True
             return lanelet_orientation_loss(
-                innermost_simulator.lanelet_map, self.get_state(), innermost_simulator.recenter_offset
+                innermost_simulator.lanelet_map, self.get_state(), innermost_simulator.recenter_offset,
+                direction_angle_threshold=self.cfg.wrong_way_angle_threshold,
+                lanelet_dist_tolerance=self.cfg.lanelet_inclusion_tolerance,
             ) * self.get_present_mask()
         else:
             if not innermost_simulator.warned_no_lanelet:
@@ -1555,7 +1569,7 @@ class TrajectoryVisualizationWrapper(BirdviewRecordingWrapper):
             prediction_meshes.append(prediction_mesh)
         ground_truth_mesh = generate_trajectory_mesh(ground_truth, category='ground_truth')
         trajectory_meshes = [ground_truth_mesh, *prediction_meshes]
-        innermost_simulator.renderer.add_static_meshes(trajectory_meshes)
+        innermost_simulator.birdview_mesh_generator.add_static_meshes(trajectory_meshes)
 
 
 class SelectiveWrapper(SimulatorWrapper):
