@@ -748,6 +748,11 @@ class BirdviewMesh(BaseMesh):
 
 
 class BirdviewRGBMeshGenerator:
+    """
+    A generator for constructing simulation birdview representations. All meshes (backround mesh, agent mesh and
+    traffic control mesh) are constructed as templates once at the creation of the generator. Calling the generate
+    function will transform each mesh to a new position/state and return a single RGB mesh per camera for rendering.
+    """
     def __init__(self, background_mesh: BirdviewMesh, color_map: Dict[str, Tuple[int, int, int]],
                  rendering_levels: Dict[str, float], world_center: Optional[Tensor] = None,
                  agent_attributes: Optional[Tensor] = None, agent_types: Optional[Tensor] = None,
