@@ -648,7 +648,8 @@ class Simulator(SimulatorInterface):
             self.birdview_mesh_generator = BirdviewRGBMeshGenerator(background_mesh=self.road_mesh,
                                                                     color_map=self.renderer.color_map,
                                                                     rendering_levels=self.renderer.rendering_levels)
-            self.birdview_mesh_generator.initialize_actors_mesh(self.agent_size, self.agent_type, self._agent_types)
+            self.birdview_mesh_generator.initialize_actors_mesh(self.get_all_agent_size(), self.get_all_agent_type(),
+                                                                self.agent_types)
             if self.traffic_controls is not None:
                 self.birdview_mesh_generator.initialize_traffic_controls_mesh(self.traffic_controls)
         else:
