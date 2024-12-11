@@ -1079,6 +1079,7 @@ class BirdviewRGBMeshGenerator:
 
             actor_attrs = actor_mesh.attrs
             if custom_agent_colors is not None:
+                actor_attrs = actor_attrs.clone()
                 av = 4
                 dv = 3 if self.render_agent_direction else 0
                 step = av + dv
