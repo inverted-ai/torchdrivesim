@@ -181,7 +181,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         """
         Returns a functor of BxNpcxSt tensors representing current non-playable character states.
         """
-        self.get_innermost_simulator().npc_controller.get_npc_state()
+        return self.get_innermost_simulator().npc_controller.get_npc_state()
 
     def get_npc_size(self) -> Tensor:
         """
