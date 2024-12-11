@@ -1,7 +1,6 @@
 import abc
 import logging
 import os
-import copy
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Union, Dict, List, Iterable, Callable, Any
@@ -686,7 +685,7 @@ class Simulator(SimulatorInterface):
         other = self.__class__(
             road_mesh=self.road_mesh, kinematic_model=self.kinematic_model.copy(),
             agent_size=self.agent_size, initial_present_mask=self.present_mask,
-            cfg=self.cfg, renderer=copy.deepcopy(self.renderer), lanelet_map=self.lanelet_map,
+            cfg=self.cfg, renderer=self.renderer.copy(), lanelet_map=self.lanelet_map,
             birdview_mesh_generator=self.birdview_mesh_generator.copy(),
             recenter_offset=self.recenter_offset, internal_time=self.internal_time,
             traffic_controls={k: v.copy() for k, v in self.traffic_controls.items()} if self.traffic_controls is not None else None,
