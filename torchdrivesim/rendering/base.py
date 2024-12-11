@@ -154,6 +154,12 @@ class BirdviewRenderer(abc.ABC):
         if self.rendering_levels is None:
             self.rendering_levels = get_default_rendering_levels()
 
+    def copy(self):
+        other = self.__class__(cfg=self.cfg, color_map=self.color_map.copy(), rendering_levels=self.rendering_levels.copy(),
+                               res=self.res)
+        other.scale = self.scale
+        return other
+
     def get_color(self, element_type: str) -> Tuple[int, int, int]:
         return self.color_map[element_type]
 
