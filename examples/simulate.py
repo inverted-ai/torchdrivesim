@@ -16,7 +16,7 @@ from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
 from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.map import find_map_config, traffic_controls_from_map_config
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
-from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.traffic_lights import current_light_state_tensor_from_controller
 from torchdrivesim.utils import Resolution
 
@@ -61,11 +61,10 @@ def simulate(cfg: SimulationConfig):
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-        kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-        initial_present_mask=dict(vehicle=torch.ones_like(agent_states[..., 0], dtype=torch.bool)),
+        kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
+        initial_present_mask=torch.ones_like(agent_states[..., 0], dtype=torch.bool),
         renderer=renderer, traffic_controls=traffic_controls,
     )
-    simulator = HomogeneousWrapper(simulator)
     npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
     npc_mask[0] = False
     simulator = IAIWrapper(

@@ -16,7 +16,7 @@ except ImportError:
     dr = None
     is_available = False
 
-from torchdrivesim.mesh import BirdviewMesh, tensor_color
+from torchdrivesim.mesh import RGBMesh
 from torchdrivesim.rendering.base import RendererConfig, BirdviewRenderer, Cameras
 from torchdrivesim.utils import Resolution
 
@@ -75,22 +75,14 @@ class NvdiffrastRenderer(BirdviewRenderer):
             raise NvdiffrastNotFound()
         super().__init__(cfg, *args, **kwargs)
         self.cfg: NvdiffrastRendererConfig = cfg
-        self.glctx = get_glctx_session(self.device, opengl=self.cfg.opengl)
+        self.glctx = get_glctx_session('cuda', opengl=self.cfg.opengl)  # nvdiffrast is only available for cuda
         if self.glctx is None:
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 
-    def render_mesh(self, mesh: BirdviewMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+    def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
         if self.cfg.shift_mesh_by_camera_before_rendering:
             mesh = mesh.translate(-cameras.xy)
             cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
-        for k in mesh.categories:
-            if k not in mesh.colors:
-                mesh.colors[k] = tensor_color(self.color_map[k])
-            if k not in mesh.zs:
-                mesh.zs[k] = self.rendering_levels[k]
-        if self.cfg.highlight_ego_vehicle:
-            mesh.colors["ego"] = tensor_color((self.color_map["ego"]))
-        mesh = mesh.fill_attr()
         if not hasattr(self.glctx, 'initial_dummy_frame_rendered') and \
                 self.cfg.max_minibatch_size is not None:
             maximum_min_batch_size = self.cfg.max_minibatch_size
