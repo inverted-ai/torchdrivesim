@@ -1470,15 +1470,17 @@ class BirdviewRecordingWrapper(RecordingWrapper):
 
     def extend(self, n, in_place=True):
         other = super().extend(n, in_place=in_place)
-        f = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
-        other.camera_xy = f(other.camera_xy)
-        other.camera_psi = f(other.camera_psi)
+        if in_place:
+            f = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
+            other.camera_xy = f(other.camera_xy)
+            other.camera_psi = f(other.camera_psi)
         return other
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.camera_xy = other.camera_xy[idx]
-        other.camera_psi = other.camera_psi[idx]
+        if in_place:
+            other.camera_xy = other.camera_xy[idx]
+            other.camera_psi = other.camera_psi[idx]
         return other
 
     def get_birdviews(self, stack: bool = False) -> Union[Tensor, List[Tensor]]:
@@ -1657,17 +1659,19 @@ class SelectiveWrapper(SimulatorWrapper):
 
     def extend(self, n, in_place=True):
         extended = super().extend(n, in_place=in_place)
-        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
-                                                                                         x.shape[1:])
-        extended.default_action = enlarge(self.default_action)
-        extended.exposed_agents = enlarge(self.exposed_agents)
+        if in_place:
+            enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
+                                                                                            x.shape[1:])
+            extended.default_action = enlarge(self.default_action)
+            extended.exposed_agents = enlarge(self.exposed_agents)
         return extended
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.default_action = other.default_action[idx]
-        if other.exposed_agents is not None:
-            other.exposed_agents = other.exposed_agents[idx]
+        if in_place:
+            other.default_action = other.default_action[idx]
+            if other.exposed_agents is not None:
+                other.exposed_agents = other.exposed_agents[idx]
         return other
 
     def get_state(self):
@@ -1831,18 +1835,20 @@ class BoundedRegionWrapper(SelectiveWrapper):
 
     def extend(self, n, in_place=True):
         extended = super().extend(n, in_place=in_place)
-        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).\
-            reshape((n * x.shape[0],) + x.shape[1:])
-        extended.proximal_timesteps = enlarge(self.proximal_timesteps)
-        if extended.cutoff_polygon_verts is not None:
-            extended.cutoff_polygon_verts = enlarge(self.cutoff_polygon_verts)
+        if in_place:
+            enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).\
+                reshape((n * x.shape[0],) + x.shape[1:])
+            extended.proximal_timesteps = enlarge(self.proximal_timesteps)
+            if extended.cutoff_polygon_verts is not None:
+                extended.cutoff_polygon_verts = enlarge(self.cutoff_polygon_verts)
         return extended
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.proximal_timesteps = other.proximal_timesteps[idx]
-        if other.cutoff_polygon_verts is not None:
-            other.cutoff_polygon_verts = other.cutoff_polygon_verts[idx]
+        if in_place:
+            other.proximal_timesteps = other.proximal_timesteps[idx]
+            if other.cutoff_polygon_verts is not None:
+                other.cutoff_polygon_verts = other.cutoff_polygon_verts[idx]
         return other
 
 
@@ -1868,14 +1874,16 @@ class NoReentryBoundedRegionWrapper(BoundedRegionWrapper):
 
     def extend(self, n, in_place=True):
         extended = super().extend(n, in_place=in_place)
-        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
-                                                                                         x.shape[1:])
-        extended.previous_present_mask = enlarge(self.previous_present_mask)
+        if in_place:
+            enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
+                                                                                             x.shape[1:])
+            extended.previous_present_mask = enlarge(self.previous_present_mask)
         return extended
 
     def select_batch_elements(self, idx, in_place=True):
         other = super().select_batch_elements(idx, in_place=in_place)
-        other.previous_present_mask = other.previous_present_mask[idx]
+        if in_place:
+            other.previous_present_mask = other.previous_present_mask[idx]
         return other
 
     def update_exposed_agents(self):
