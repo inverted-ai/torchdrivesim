@@ -4,6 +4,7 @@ Base class for renderers producing rasterized birdview images from given backgro
 import abc
 import dataclasses
 import pickle
+import colorsys
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 import logging
@@ -598,6 +599,8 @@ def get_default_rendering_levels() -> Dict[str, float]:
         right_lane=14,
         road=15,
     )
+    for i in range(200):
+        levels[f"step_{i}"] = i / 200.0
     return levels
 
 
@@ -629,4 +632,11 @@ def get_default_color_map() -> Dict[str, Tuple[int, int, int]]:
         stop_sign=(72, 60, 50),
         goal_waypoint=(139, 64, 0),
     )
+    for i in range(200):
+        hue = i / 255.0
+        saturation = 1.0
+        value = 1.0
+        r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+#        color_map[f"step_{i}"] = (255, 255 - 255 * i / 200, 0)
+        color_map[f"step_{i}"] = (int(r * 255), int(g * 255), int(b * 255))
     return color_map
