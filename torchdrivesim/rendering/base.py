@@ -225,7 +225,7 @@ class DummyRenderer(BirdviewRenderer):
     def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> Tensor:
         camera_batch_size = cameras.get_camera_center().shape[0]
         shape = (camera_batch_size, res.height, res.width, 3)
-        image = torch.zeros(shape, device=self.device, dtype=torch.float32)
+        image = torch.zeros(shape, device=mesh.device, dtype=torch.float32)
         return image
 
 
