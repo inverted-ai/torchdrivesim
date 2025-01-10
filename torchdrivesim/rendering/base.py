@@ -190,11 +190,12 @@ class BirdviewRenderer(abc.ABC):
             image = self.render_rgb_mesh(rgb_mesh, res, cameras)
         except RuntimeError as e:
             logger.exception(e)
-            image = torch.zeros((batch_size * n_cameras_per_batch, res.height, res.width, 3), device=mesh.verts.device)
+            batch_size = camera_xy.shape[0]
+            image = torch.zeros((batch_size * n_cameras_per_batch, res.height, res.width, 3), device=camera_xy.device)
             try:
                 # save the problematic mesh for debugging purposes
                 with open('bad-mesh.pkl', 'wb') as f:
-                    pickle.dump((mesh.verts.detach().cpu(), mesh.faces.detach().cpu()), f)
+                    pickle.dump((rgb_mesh.verts.detach().cpu(), rgb_mesh.faces.detach().cpu()), f)
             except RuntimeError:
                 pass
         image = image.reshape(-1, res.height, res.width, 3)
