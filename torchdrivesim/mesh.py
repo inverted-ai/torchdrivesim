@@ -1117,18 +1117,20 @@ class BirdviewRGBMeshGenerator:
             waypoints_verts = transform(waypoints_verts, F.pad(waypoints, (0,1), value=0).reshape(-1, 3))
             waypoints_verts = waypoints_verts.reshape(b_size*num_cameras, n_waypoints*waypoints_verts.shape[1], 2)
             waypoints_verts = F.pad(waypoints_verts, (0,1), value=0.0)
-            waypoints_verts[..., 2:3] = waypoints_mesh.verts[..., 2:3]
+            waypoints_verts[..., 2:3] = waypoints_mesh.verts[..., 2:3].reshape(b_size*num_cameras, -1, 1)
 
             waypoints_faces = waypoints_mesh.faces.reshape(b_size*num_cameras, n_waypoints, -1, 3)
             waypoints_faces = waypoints_faces + n_verts*torch.arange(n_waypoints,
                                                                      device=waypoints_faces.device)[None, :, None, None]
             waypoints_faces = waypoints_faces.flatten(1, 2)
+
+            waypoints_attrs = waypoints_mesh.attrs.reshape(b_size*num_cameras, -1, 3)
             if waypoints_rendering_mask is not None:
                 waypoints_mask = waypoints_rendering_mask.reshape(-1, n_waypoints, 1, 1)\
                                  .expand(-1, -1, self.waypoint_num_triangles, 3)
                 waypoints_faces = waypoints_faces * waypoints_mask.reshape(-1, n_waypoints*self.waypoint_num_triangles, 3)
             waypoints_mesh = dataclasses.replace(
-                waypoints_mesh, verts=waypoints_verts, faces=waypoints_faces
+                waypoints_mesh, verts=waypoints_verts, faces=waypoints_faces, attrs=waypoints_attrs
             )
 
         meshes = [self.background_mesh.expand(num_cameras)]
