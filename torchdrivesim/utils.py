@@ -79,6 +79,23 @@ def relative(origin_xy: Tensor, origin_psi: Tensor, target_xy: Tensor, target_ps
     return rel_xy, rel_psi
 
 
+def transform(points: Tensor, pose: Tensor) -> Tensor:
+    """
+    Given points relative to a pose, produce absolute positions of the points.
+    There can be zero or more batch dimensions.
+
+    Args:
+        points: BxNx2 tensor
+        pose: Bx3 tensor of position (x,y) and orientation (yaw angle in radians)
+
+    Returns:
+        Bx2 tensor of absolute positions
+    """
+    xy = pose[..., :2].unsqueeze(-2).expand_as(points)
+    psi = pose[..., 2:3].unsqueeze(-2).expand_as(points[..., :1])
+    return rotate(points, psi) + xy
+
+
 def is_inside_polygon(point: Tensor, polygon: Tensor) -> Tensor:
     """
     Checks whether a given point is inside a given convex polygon.

@@ -18,7 +18,7 @@ from torchdrivesim.kinematic import KinematicBicycle, TeleportingKinematicModel
 from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config
-from torchdrivesim.simulator import TorchDriveConfig, Simulator, HomogeneousWrapper
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 from torchdrivesim.utils import Resolution
 
 
@@ -60,8 +60,8 @@ def visualize_map(cfg: InitializationVisualizationConfig):
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=road_mesh,
-        kinematic_model=dict(vehicle=kinematic_model), agent_size=dict(vehicle=agent_attributes[..., :2]),
-        initial_present_mask=dict(vehicle=present_mask[..., 0]), renderer=renderer,
+        kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
+        initial_present_mask=present_mask[..., 0], renderer=renderer,
     )
     simulator = ReplayWrapper(
         simulator, npc_mask=dict(vehicle=replay_mask),
