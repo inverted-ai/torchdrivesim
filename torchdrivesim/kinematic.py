@@ -218,16 +218,17 @@ class CompoundKinematicModel(KinematicModel):
 
     def copy(self, other=None):
         if other is None:
-            other = self.__class__(models=[m.copy() for m in self.models], batch_assignments=self.batch_assignments, dt=self.dt)
+            other = self.__class__(models=[m.copy() for m in self.models], model_assignments=self.model_assignments, dt=self.dt)
         other.set_params(**self.get_params())
         other.set_state(self.get_state())
         return other
     
     def extend(self, n: int):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
+        state = self.get_state()
         self.model_assignments = enlarge(self.model_assignments)
         self.map_param(enlarge)
-        self.set_state(enlarge(self.get_state()))
+        self.set_state(enlarge(state))
 
     def select_batch_elements(self, idx):
         self.model_assignments = self.model_assignments[idx]
