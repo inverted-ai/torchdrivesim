@@ -25,6 +25,7 @@ class CV2Renderer(BirdviewRenderer):
         self.cfg: CV2RendererConfig = cfg
 
     def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+        import cv2
         if self.cfg.shift_mesh_by_camera_before_rendering:
             mesh = mesh.translate(-cameras.xy)
             cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
