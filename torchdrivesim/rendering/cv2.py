@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-import cv2
 import numpy as np
 import torch
 
@@ -21,6 +20,7 @@ class CV2Renderer(BirdviewRenderer):
     Renderer based on OpenCV. Slow, but easy to install. Renders on CPU.
     """
     def __init__(self, cfg: CV2RendererConfig, *args, **kwargs):
+        import cv2
         super().__init__(cfg, *args, **kwargs)
         self.cfg: CV2RendererConfig = cfg
 
