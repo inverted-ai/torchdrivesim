@@ -1733,7 +1733,7 @@ class SelectiveWrapper(SimulatorWrapper):
                waypoints_rendering_mask=None, custom_agent_colors=None):
         if rendering_mask is not None:
             rd_mask = rendering_mask.permute(0, 2, 1)
-            pad_tensor = torch.zeros(rd_mask.shape[0], self.is_exposed().shape[1], rd_mask.shape[1], device=rd_mask.device)
+            pad_tensor = torch.zeros(rd_mask.shape[0], self.is_exposed().shape[1], rd_mask.shape[1], device=rd_mask.device, dtype=rd_mask.dtype)
             rendering_mask = self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
         return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
                                            waypoints_rendering_mask=waypoints_rendering_mask, custom_agent_colors=custom_agent_colors)
