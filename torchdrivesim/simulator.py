@@ -281,6 +281,13 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_waypoints_directional_mask(self) -> Tensor:
+        """
+        Returns a functor of BxAxM boolean tensors representing waypoints directional mask.
+        """
+        pass
+
+    @abc.abstractmethod
     def step(self, agent_action: Tensor) -> None:
         """
         Runs the simulation for one step with given agent actions.
@@ -328,7 +335,7 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
     def render(self, camera_xy: Tensor, camera_psi: Tensor, res: Optional[Resolution] = None,
                rendering_mask: Optional[Tensor] = None, fov: Optional[float] = None,
                waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
-               custom_agent_colors: Optional[Tensor] = None) -> Tensor:
+               waypoints_directional_mask: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None) -> Tensor:
         """
         Renders the world from bird's eye view using cameras in given positions.
 
@@ -341,6 +348,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             waypoints: BxNxMx2 tensor of `M` waypoints per camera (x,y)
             waypoints_rendering_mask: BxNxM tensor of `M` waypoint masks per camera,
                 indicating which waypoints should be rendered
+            waypoints_directional_mask: BxNxM tensor of `M` waypoint directional masks per camera,
+                indicating which waypoints should be directional
             custom_agent_colors: BxNxAx3 RGB tensor defining the color of each agent to each camera
         Returns:
              BxNxCxHxW tensor of resulting RGB images for each camera
@@ -367,8 +376,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         waypoints = self.get_waypoints()
         if waypoints is not None:
             waypoints_mask = self.get_waypoints_mask()
+            waypoints_directional_mask = self.get_waypoints_directional_mask()
         else:
-            waypoints, waypoints_mask = None, None
+            waypoints, waypoints_mask, waypoints_directional_mask = None, None, None
         if not ego_rotate:
             camera_psi = torch.ones_like(camera_psi) * (np.pi / 2)
         rendering_mask = None
@@ -380,7 +390,9 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
-                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask, custom_agent_colors=custom_agent_colors)
+                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask,
+                         waypoints_directional_mask=waypoints_directional_mask,
+                         custom_agent_colors=custom_agent_colors)
         total_agents = self.agent_count
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
         return bv
@@ -794,6 +806,9 @@ class Simulator(SimulatorInterface):
     def get_waypoints_mask(self):
         return self.waypoint_goals.get_masks() if self.waypoint_goals is not None else None
 
+    def get_waypoints_directional_mask(self):
+        return self.waypoint_goals.get_directional_masks() if self.waypoint_goals is not None else None
+
     def compute_wrong_way(self):
         if self.lanelet_map is not None:
             if isinstance(self.lanelet_map, Iterable) and None in self.lanelet_map and not self.warned_no_lanelet:
@@ -919,7 +934,8 @@ class Simulator(SimulatorInterface):
         return self.kinematic_model.fit_action(future_state=future_state, current_state=current_state)
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None,
-               waypoints=None, waypoints_rendering_mask=None, custom_agent_colors=None):
+               waypoints=None, waypoints_rendering_mask=None, waypoints_directional_mask=None,
+               custom_agent_colors=None):
         camera_sc = torch.cat([torch.sin(camera_psi), torch.cos(camera_psi)], dim=-1)
         if len(camera_xy.shape) == 2:
             # Reshape from Bx2 to Bx1x2
@@ -937,7 +953,7 @@ class Simulator(SimulatorInterface):
             traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
                 if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,
             waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
-            custom_agent_colors=custom_agent_colors,
+            waypoints_directional_mask=waypoints_directional_mask, custom_agent_colors=custom_agent_colors,
         )
         return self.renderer.render_frame(rbg_mesh, camera_xy, camera_sc, res=res, fov=fov)
 
@@ -1090,6 +1106,9 @@ class SimulatorWrapper(SimulatorInterface):
     def get_waypoints_mask(self):
         return self.inner_simulator.get_waypoints_mask()
 
+    def get_waypoints_directional_mask(self):
+        return self.inner_simulator.get_waypoints_directional_mask()
+
     def get_all_agents_absolute(self):
         return self.inner_simulator.get_all_agents_absolute()
 
@@ -1124,9 +1143,11 @@ class SimulatorWrapper(SimulatorInterface):
         return self.inner_simulator.compute_wrong_way()
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
-               waypoints_rendering_mask=None, custom_agent_colors=None):
+               waypoints_rendering_mask=None, waypoints_directional_mask=None, custom_agent_colors=None):
         return self.inner_simulator.render(camera_xy, camera_psi, res=res, rendering_mask=rendering_mask, fov=fov,
-                                           waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask, custom_agent_colors=custom_agent_colors)
+                                           waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
+                                           waypoints_directional_mask=waypoints_directional_mask,
+                                           custom_agent_colors=custom_agent_colors)
 
 
 class NPCWrapper(SimulatorWrapper):
@@ -1204,6 +1225,12 @@ class NPCWrapper(SimulatorWrapper):
 
     def get_waypoints_mask(self):
         masks = self.inner_simulator.get_waypoints_mask()
+        if masks is not None:
+            masks = masks[..., self.npc_mask.logical_not(), :]
+        return masks
+
+    def get_waypoints_directional_mask(self):
+        masks = self.inner_simulator.get_waypoints_directional_mask()
         if masks is not None:
             masks = masks[..., self.npc_mask.logical_not(), :]
         return masks
@@ -1446,9 +1473,12 @@ class BirdviewRecordingWrapper(RecordingWrapper):
             waypoints = None # s.get_waypoints()
             if waypoints is not None:
                 waypoints_mask = s.get_waypoints_mask()
+                waypoints_directional_mask = s.get_waypoints_directional_mask()
             else:
-                waypoints, waypoints_mask = None, None
-            bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov, waypoints=waypoints, waypoints_rendering_mask=waypoints_mask)
+                waypoints, waypoints_mask, waypoints_directional_mask = None, None, None
+            bv = s.render(s.camera_xy, s.camera_psi, res=self.res, fov=self.fov,
+                          waypoints=waypoints, waypoints_rendering_mask=waypoints_mask,
+                          waypoints_directional_mask=waypoints_directional_mask)
             if self.to_cpu:
                 bv = bv.cpu()
             return bv
@@ -1704,6 +1734,12 @@ class SelectiveWrapper(SimulatorWrapper):
             masks = self._restrict_tensor(masks, agent_dim=-2)
         return masks
 
+    def get_waypoints_directional_mask(self):
+        masks = self.inner_simulator.get_waypoints_directional_mask()
+        if masks is not None:
+            masks = self._restrict_tensor(masks, agent_dim=-2)
+        return masks
+
     def get_all_agents_absolute(self):
         return self._restrict_tensor(self.inner_simulator.get_all_agents_absolute(), agent_dim=-2)
 
@@ -1730,13 +1766,15 @@ class SelectiveWrapper(SimulatorWrapper):
         return action
 
     def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
-               waypoints_rendering_mask=None, custom_agent_colors=None):
+               waypoints_rendering_mask=None, waypoints_directional_mask=None, custom_agent_colors=None):
         if rendering_mask is not None:
             rd_mask = rendering_mask.permute(0, 2, 1)
             pad_tensor = torch.zeros(rd_mask.shape[0], self.is_exposed().shape[1], rd_mask.shape[1], device=rd_mask.device, dtype=rd_mask.dtype)
             rendering_mask = self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
         return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
-                                           waypoints_rendering_mask=waypoints_rendering_mask, custom_agent_colors=custom_agent_colors)
+                                           waypoints_rendering_mask=waypoints_rendering_mask,
+                                           waypoints_directional_mask=waypoints_directional_mask,
+                                           custom_agent_colors=custom_agent_colors)
 
     def step(self, action):
         extended_action = self._extend_tensor(action, padding=self.default_action)

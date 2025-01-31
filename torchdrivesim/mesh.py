@@ -758,13 +758,17 @@ class BirdviewRGBMeshGenerator:
                  agent_attributes: Optional[Tensor] = None, agent_types: Optional[Tensor] = None,
                  agent_type_names: Optional[List[str]] = None, render_agent_direction: bool = True,
                  traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
-                 waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10):
+                 waypoint_radius: float = 2.0, waypoint_num_triangles: int = 10,
+                 directional_waypoint_shaft_length: float = 2.0, directional_waypoint_shaft_width: float = 1.0,
+                 directional_waypoint_head_length: float = 3.0, directional_waypoint_head_width: float = 4.0):
 
         self.color_map = color_map
         self.rendering_levels = rendering_levels
 
         self.initialize_background_mesh(background_mesh, world_center)
         self.initialize_waypoint_mesh(waypoint_radius, waypoint_num_triangles)
+        self.initialize_directional_waypoint_mesh(directional_waypoint_shaft_length, directional_waypoint_shaft_width,
+                                                  directional_waypoint_head_length, directional_waypoint_head_width)
 
         self.actor_mesh = None
         if agent_attributes is not None:
@@ -896,6 +900,44 @@ class BirdviewRGBMeshGenerator:
         disc_verts = disc_verts[None, ...].expand(batch_size, *disc_verts.shape).clone()
         disc_faces = disc_faces[None, ...].expand(batch_size, *disc_faces.shape).clone()
         return rendering_mesh(BaseMesh(verts=disc_verts, faces=disc_faces), 'goal_waypoint')
+
+    def initialize_directional_waypoint_mesh(self, directional_waypoint_shaft_length: float = 2.0,
+                                             directional_waypoint_shaft_width: float = 1.0,
+                                             directional_waypoint_head_length: float = 3.0,
+                                             directional_waypoint_head_width: float = 4.0):
+        self.directional_waypoint_shaft_length = directional_waypoint_shaft_length
+        self.directional_waypoint_shaft_width = directional_waypoint_shaft_width
+        self.directional_waypoint_head_length = directional_waypoint_head_length
+        self.directional_waypoint_head_width = directional_waypoint_head_width
+        directional_waypoint_mesh = self._make_directional_waypoint_mesh(self.background_mesh.batch_size,
+                                                 shaft_length=self.directional_waypoint_shaft_length,
+                                                 shaft_width=self.directional_waypoint_shaft_width,
+                                                 head_length=self.directional_waypoint_head_length,
+                                                 head_width=self.directional_waypoint_head_width,
+                                                 device=self.background_mesh.device)
+        self.directional_waypoint_mesh = set_colors_with_defaults(directional_waypoint_mesh, color_map=self.color_map,
+                                                                  rendering_levels=self.rendering_levels)
+
+    @classmethod
+    def _make_directional_waypoint_mesh(cls, batch_size: int, shaft_length: float = 2.0,
+                                        shaft_width: float = 0.2, head_length: float = 0.5,
+                                        head_width: float = 0.4, device: torch.device = torch.device('cpu')) -> BirdviewMesh:
+        """
+        Create a mesh of the given directional waypoints.
+
+        Args:
+            batch_size: int number of batch waypoint meshes to create
+            shaft_length: float The length of the arrow shaft
+            shaft_width: float The width of the arrow shaft
+            head_length: float The length of the arrow head
+            head_width: float The width of the arrow head at its base
+            device: torch.device to create the mesh
+        """
+        arrow_verts, arrow_faces = create_2d_arrow_mesh(device=device, shaft_length=shaft_length, shaft_width=shaft_width,
+                                                        head_length=head_length, head_width=head_width)
+        arrow_verts = arrow_verts[None, ...].expand(batch_size, *arrow_verts.shape).clone()
+        arrow_faces = arrow_faces[None, ...].expand(batch_size, *arrow_faces.shape).clone()
+        return rendering_mesh(BaseMesh(verts=arrow_verts, faces=arrow_faces), 'goal_directional_waypoint')
 
     @classmethod
     def _make_direction_mesh(cls, lenwid: Tensor, size: float = 0.3, device: torch.device = torch.device('cpu')) -> BaseMesh:
@@ -1043,7 +1085,7 @@ class BirdviewRGBMeshGenerator:
                  present_mask: Optional[Tensor] = None,
                  traffic_lights: Optional[TrafficLightControl] = None,
                  waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
-                 custom_agent_colors: Optional[Tensor] = None) -> RGBMesh:
+                 waypoints_directional_mask: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None) -> RGBMesh:
         """
         Create an RGB mesh updates given the provided states.
 
@@ -1052,9 +1094,11 @@ class BirdviewRGBMeshGenerator:
             agent_state: BxNcxAx4 tensor specifying
             present_mask: BxNcxA tensor specifying
             traffic_lights: TrafficLightControl object extended for each camera
-            waypoints: BxNcxMx2 tensor of `M` waypoints per camera (x,y)
+            waypoints: BxNcxMx3 tensor of `M` waypoints per camera (x,y,psi)
             waypoints_rendering_mask: BxNcxM tensor of `M` waypoint masks per camera,
                 indicating which waypoints should be rendered
+            waypoints_directional_mask: BxNcxM tensor of `M` waypoint masks per camera,
+                indicating which waypoints are directional
             custom_agent_colors: a BxNcxAx3 tensor of specifying what color each agent is to what camera
         """
         actor_mesh = None
@@ -1107,31 +1151,72 @@ class BirdviewRGBMeshGenerator:
             )
 
         waypoints_mesh = None
+        directional_waypoints_mesh = None
         if waypoints is not None:
-            waypoints_mesh = self.waypoint_mesh.clone()
             assert waypoints.shape[1] == num_cameras
-            b_size, n_waypoints = waypoints_mesh.batch_size, waypoints.shape[2]
-            waypoints_mesh = waypoints_mesh.expand(num_cameras*n_waypoints)
-            waypoints_verts = waypoints_mesh.verts[..., :2]
-            n_verts = waypoints_verts.shape[-2]
-            waypoints_verts = transform(waypoints_verts, F.pad(waypoints, (0,1), value=0).reshape(-1, 3))
-            waypoints_verts = waypoints_verts.reshape(b_size*num_cameras, n_waypoints*waypoints_verts.shape[1], 2)
-            waypoints_verts = F.pad(waypoints_verts, (0,1), value=0.0)
-            waypoints_verts[..., 2:3] = waypoints_mesh.verts[..., 2:3].reshape(b_size*num_cameras, -1, 1)
+            if waypoints_directional_mask is not None:
+                waypoints_directional_mask_all = waypoints_directional_mask.all()
+                waypoints_directional_mask_any = waypoints_directional_mask.any()
+            else:
+                waypoints_directional_mask_all, waypoints_directional_mask_any = False, False
 
-            waypoints_faces = waypoints_mesh.faces.reshape(b_size*num_cameras, n_waypoints, -1, 3)
-            waypoints_faces = waypoints_faces + n_verts*torch.arange(n_waypoints,
-                                                                     device=waypoints_faces.device)[None, :, None, None]
-            waypoints_faces = waypoints_faces.flatten(1, 2)
+            if waypoints_directional_mask_any:
+                directional_waypoints_mesh = self.directional_waypoint_mesh.clone()
+                b_size, n_waypoints = directional_waypoints_mesh.batch_size, waypoints.shape[2]
+                directional_waypoints_mesh = directional_waypoints_mesh.expand(num_cameras*n_waypoints)
+                directional_waypoints_verts = directional_waypoints_mesh.verts[..., :2]
+                n_verts = directional_waypoints_verts.shape[-2]
+                directional_waypoints_verts = transform(directional_waypoints_verts, waypoints.reshape(-1, 3))
+                directional_waypoints_verts = directional_waypoints_verts.reshape(b_size*num_cameras, n_waypoints*directional_waypoints_verts.shape[1], 2)
+                directional_waypoints_verts = F.pad(directional_waypoints_verts, (0,1), value=0.0)
+                directional_waypoints_verts[..., 2:3] = directional_waypoints_mesh.verts[..., 2:3].reshape(b_size*num_cameras, -1, 1)
 
-            waypoints_attrs = waypoints_mesh.attrs.reshape(b_size*num_cameras, -1, 3)
-            if waypoints_rendering_mask is not None:
-                waypoints_mask = waypoints_rendering_mask.reshape(-1, n_waypoints, 1, 1)\
-                                 .expand(-1, -1, self.waypoint_num_triangles, 3)
-                waypoints_faces = waypoints_faces * waypoints_mask.reshape(-1, n_waypoints*self.waypoint_num_triangles, 3)
-            waypoints_mesh = dataclasses.replace(
-                waypoints_mesh, verts=waypoints_verts, faces=waypoints_faces, attrs=waypoints_attrs
-            )
+                directional_waypoints_faces = directional_waypoints_mesh.faces.reshape(b_size*num_cameras, n_waypoints, -1, 3)
+                directional_waypoints_faces = directional_waypoints_faces + n_verts*torch.arange(n_waypoints,
+                                                                         device=directional_waypoints_faces.device)[None, :, None, None]
+                directional_waypoints_faces = directional_waypoints_faces.flatten(1, 2)
+
+                directional_waypoints_attrs = directional_waypoints_mesh.attrs.reshape(b_size*num_cameras, -1, 3)
+                if waypoints_rendering_mask is not None:
+                    directional_waypoints_mask = waypoints_rendering_mask.reshape(-1, n_waypoints, 1, 1)\
+                                     .expand(-1, -1, 5, 3)
+                    directional_waypoints_faces = directional_waypoints_faces * directional_waypoints_mask.reshape(-1, n_waypoints*5, 3)
+                if waypoints_directional_mask is not None:
+                    directional_waypoints_mask = waypoints_directional_mask.reshape(-1, n_waypoints, 1, 1)\
+                                     .expand(-1, -1, 5, 3)
+                    directional_waypoints_faces = directional_waypoints_faces * directional_waypoints_mask.reshape(-1, n_waypoints*5, 3)
+                directional_waypoints_mesh = dataclasses.replace(
+                    directional_waypoints_mesh, verts=directional_waypoints_verts, faces=directional_waypoints_faces, attrs=directional_waypoints_attrs
+                )
+
+            if not waypoints_directional_mask_all:
+                waypoints_mesh = self.waypoint_mesh.clone()
+                b_size, n_waypoints = waypoints_mesh.batch_size, waypoints.shape[2]
+                waypoints_mesh = waypoints_mesh.expand(num_cameras*n_waypoints)
+                waypoints_verts = waypoints_mesh.verts[..., :2]
+                n_verts = waypoints_verts.shape[-2]
+                waypoints_verts = transform(waypoints_verts, F.pad(waypoints[..., :2], (0,1), value=0).reshape(-1, 3))
+                waypoints_verts = waypoints_verts.reshape(b_size*num_cameras, n_waypoints*waypoints_verts.shape[1], 2)
+                waypoints_verts = F.pad(waypoints_verts, (0,1), value=0.0)
+                waypoints_verts[..., 2:3] = waypoints_mesh.verts[..., 2:3].reshape(b_size*num_cameras, -1, 1)
+
+                waypoints_faces = waypoints_mesh.faces.reshape(b_size*num_cameras, n_waypoints, -1, 3)
+                waypoints_faces = waypoints_faces + n_verts*torch.arange(n_waypoints,
+                                                                         device=waypoints_faces.device)[None, :, None, None]
+                waypoints_faces = waypoints_faces.flatten(1, 2)
+
+                waypoints_attrs = waypoints_mesh.attrs.reshape(b_size*num_cameras, -1, 3)
+                if waypoints_rendering_mask is not None:
+                    waypoints_mask = waypoints_rendering_mask.reshape(-1, n_waypoints, 1, 1)\
+                                     .expand(-1, -1, self.waypoint_num_triangles, 3)
+                    waypoints_faces = waypoints_faces * waypoints_mask.reshape(-1, n_waypoints*self.waypoint_num_triangles, 3)
+                if waypoints_directional_mask is not None:
+                    waypoints_mask = waypoints_directional_mask.logical_not().reshape(-1, n_waypoints, 1, 1)\
+                                     .expand(-1, -1, self.waypoint_num_triangles, 3)
+                    waypoints_faces = waypoints_faces * waypoints_mask.reshape(-1, n_waypoints*self.waypoint_num_triangles, 3)
+                waypoints_mesh = dataclasses.replace(
+                    waypoints_mesh, verts=waypoints_verts, faces=waypoints_faces, attrs=waypoints_attrs
+                )
 
         meshes = [self.background_mesh.expand(num_cameras)]
         if actor_mesh is not None:
@@ -1142,6 +1227,8 @@ class BirdviewRGBMeshGenerator:
             meshes.append(traffic_lights_mesh)
         if waypoints_mesh is not None:
             meshes.append(waypoints_mesh)
+        if directional_waypoints_mesh is not None:
+            meshes.append(directional_waypoints_mesh)
         rgb_mesh = RGBMesh.concat(meshes)
         return rgb_mesh
 
@@ -1277,3 +1364,56 @@ def build_verts_faces_from_bounding_box(bbs: Tensor, z: float = 2) -> Tuple[Tens
     faces = faces.reshape(*batch_dims, 2 * n_actors, 3)
 
     return verts, faces
+
+
+def create_2d_arrow_mesh(shaft_length: float = 2.0, shaft_width: float = 1.0,
+                         head_length: float = 3.0, head_width: float = 4.0,
+                         device: str = 'cpu') -> Tuple[Tensor, Tensor]:
+    """
+    Generate vertices and faces for a 2D arrow mesh in the XY plane.
+    The arrow points rightward and is centered at (0,0).
+
+    Args:
+        shaft_length: float The length of the arrow shaft
+        shaft_width: float The width of the arrow shaft
+        head_length: float The length of the arrow head
+        head_width: float The width of the arrow head at its base
+
+    Returns:
+        tuple: (vertices, faces)
+            vertices: torch.Tensor of shape (N, 2) containing vertex coordinates
+            faces: torch.Tensor of shape (M, 3) containing face indices
+    """
+    # Calculate vertical offsets to center at origin
+    total_length = shaft_length + head_length
+    half_length = total_length / 2
+    shaft_start = -half_length
+    shaft_end = shaft_start + shaft_length
+    head_tip = half_length
+
+    # Create vertices
+    vertices = torch.tensor([
+        # Shaft vertices (clockwise from bottom-left)
+        [shaft_start, -shaft_width/2],          # 0
+        [shaft_start, shaft_width/2],           # 1
+        [shaft_end, shaft_width/2],             # 2
+        [shaft_end, -shaft_width/2],            # 3
+
+        # Additional vertices for arrow head
+        [shaft_end, -head_width/2],             # 4
+        [shaft_end, head_width/2],              # 5
+        [head_tip, 0]                           # 6
+    ], dtype=torch.float, device=device)
+
+    # Define faces (triangles)
+    faces = torch.tensor([
+        # Shaft (two triangles)
+        [0, 1, 2],  # Bottom-right triangle
+        [0, 2, 3],  # Top-left triangle
+
+        # Arrow head (two triangles)
+        [4, 5, 6],  # Head triangle
+        [3, 2, 4],  # Left connection triangle
+        [2, 5, 4]   # Right connection triangle
+    ], dtype=torch.long, device=device)
+    return vertices, faces
