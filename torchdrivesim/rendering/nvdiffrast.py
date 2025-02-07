@@ -80,6 +80,8 @@ class NvdiffrastRenderer(BirdviewRenderer):
             raise RuntimeError('Failed to obtain glctx session for nvdiffrast')
 
     def render_rgb_mesh(self, mesh: RGBMesh, res: Resolution, cameras: Cameras) -> torch.Tensor:
+        if mesh.device == 'cpu':
+            raise RuntimeError('Nvdiffrast does not support CPU rendering; please move the mesh to the GPU.')
         if self.cfg.shift_mesh_by_camera_before_rendering:
             mesh = mesh.translate(-cameras.xy)
             cameras = Cameras(xy=torch.zeros_like(cameras.xy), sc=cameras.sc, scale=cameras.scale)
