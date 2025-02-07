@@ -88,8 +88,8 @@ class NvdiffrastRenderer(BirdviewRenderer):
         if not hasattr(self.glctx, 'initial_dummy_frame_rendered') and \
                 self.cfg.max_minibatch_size is not None:
             maximum_min_batch_size = self.cfg.max_minibatch_size
-            dummy_verts = torch.Tensor([[0, 0, 0, 1], [1, 0, 0, 1], [0, 1, 0, 1]]).to(self.device)
-            dummy_faces = torch.IntTensor([[0, 1, 2]]).to(self.device)
+            dummy_verts = torch.Tensor([[0, 0, 0, 1], [1, 0, 0, 1], [0, 1, 0, 1]]).to(mesh.device)
+            dummy_faces = torch.IntTensor([[0, 1, 2]]).to(mesh.device)
             dummy_ranges = torch.IntTensor([[0, 1]]).expand(maximum_min_batch_size, -1).contiguous()
             _, _ = dr.rasterize(self.glctx, dummy_verts, dummy_faces, resolution=[self.res.height, self.res.width],
                                 ranges=dummy_ranges)
