@@ -62,6 +62,7 @@ class WaypointGoal:
         """
         other = self.__class__(
             waypoints=copy.deepcopy(self.waypoints), mask=copy.deepcopy(self.mask),
+            directional_mask=copy.deepcopy(self.directional_mask)
         )
         other.state = copy.deepcopy(self.state)
         return other
@@ -72,6 +73,7 @@ class WaypointGoal:
         """
         self.waypoints = self.waypoints.to(device)
         self.mask = self.mask.to(device)
+        self.directional_mask = self.directional_mask.to(device)
         self.state = self.state.to(device)
         return self
 
@@ -90,6 +92,7 @@ class WaypointGoal:
         ).reshape((n * x.shape[0],) + x.shape[1:])
         self.waypoints = enlarge(self.waypoints)
         self.mask = enlarge(self.mask)
+        self.directional_mask = enlarge(self.directional_mask)
         self.state = enlarge(self.state)
         return self
 
@@ -105,6 +108,7 @@ class WaypointGoal:
 
         self.waypoints = self.waypoints[idx]
         self.mask = self.mask[idx]
+        self.directional_mask = self.directional_mask[idx]
         self.state = self.state[idx]
         return self
 
