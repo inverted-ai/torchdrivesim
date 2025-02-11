@@ -5,6 +5,7 @@ import copy
 from typing import List, Optional, Union, Dict
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 
@@ -16,18 +17,23 @@ class WaypointGoal:
     within some distance.
 
     Args:
-        waypoints: a BxAxNxMx2 tensor of waypoint [x, y]
+        waypoints: a BxAxNxMx3 (or BxAxNxMx2) tensor of waypoint [x, y, Optional[psi]]
         mask: a BxAxNxM boolean tensor indicating whether a given waypoint element is present and not a padding.
+        is_directional: a BxAxNxM boolean tensor indicating whether a given waypoint element is directional or not.
     """
-    def __init__(self, waypoints: Tensor, mask: Optional[Tensor] = None):
-        self.waypoints = waypoints
+    def __init__(self, waypoints: Tensor, mask: Optional[Tensor] = None, directional_mask: Optional[Tensor] = None):
+        self.waypoints = F.pad(waypoints, (0, 3-waypoints.shape[-1]), value=0.0)
         self.mask = mask if mask is not None else self._default_mask()
+        self.directional_mask = directional_mask if directional_mask is not None else self._default_directional_mask()
         self.max_goal_idx = self.waypoints.shape[2]
         self.state = self._default_state()  # BxAx1
 
 
     def _default_mask(self) -> Tensor:
         return torch.ones(*self.waypoints.shape[:-1], dtype=torch.bool, device=self.waypoints.device)
+
+    def _default_directional_mask(self) -> Tensor:
+        return torch.zeros(*self.waypoints.shape[:-1], dtype=torch.bool, device=self.waypoints.device)
 
     def _default_state(self) -> Tensor:
         return torch.zeros(*self.waypoints.shape[:2] + (1, ), dtype=torch.long, device=self.waypoints.device)
@@ -37,6 +43,12 @@ class WaypointGoal:
         Returns the waypoint mask according to the current state value.
         """
         return torch.gather(self.mask, 2, self.state[..., None].expand(-1, -1, -1, *self.mask.shape[3:])).squeeze(2)
+
+    def get_directional_masks(self):
+        """
+        Returns the waypoint directional mask.
+        """
+        return torch.gather(self.directional_mask, 2, self.state[..., None].expand(-1, -1, -1, *self.directional_mask.shape[3:])).squeeze(2)
 
     def get_waypoints(self):
         """
@@ -50,6 +62,7 @@ class WaypointGoal:
         """
         other = self.__class__(
             waypoints=copy.deepcopy(self.waypoints), mask=copy.deepcopy(self.mask),
+            directional_mask=copy.deepcopy(self.directional_mask)
         )
         other.state = copy.deepcopy(self.state)
         return other
@@ -60,6 +73,7 @@ class WaypointGoal:
         """
         self.waypoints = self.waypoints.to(device)
         self.mask = self.mask.to(device)
+        self.directional_mask = self.directional_mask.to(device)
         self.state = self.state.to(device)
         return self
 
@@ -78,6 +92,7 @@ class WaypointGoal:
         ).reshape((n * x.shape[0],) + x.shape[1:])
         self.waypoints = enlarge(self.waypoints)
         self.mask = enlarge(self.mask)
+        self.directional_mask = enlarge(self.directional_mask)
         self.state = enlarge(self.state)
         return self
 
@@ -93,6 +108,7 @@ class WaypointGoal:
 
         self.waypoints = self.waypoints[idx]
         self.mask = self.mask[idx]
+        self.directional_mask = self.directional_mask[idx]
         self.state = self.state[idx]
         return self
 
@@ -104,7 +120,7 @@ class WaypointGoal:
         assert agent_states.shape[1] == self.waypoints.shape[1]
         waypoints = self.get_waypoints()
         masks = self.get_masks()
-        agent_overlap = self._agent_waypoint_overlap(agent_states[..., :2], waypoints, threshold=threshold)
+        agent_overlap = self._agent_waypoint_overlap(agent_states[..., :2], waypoints[..., :2], threshold=threshold)
         agent_overlap = agent_overlap.any(dim=-1, keepdim=True).expand_as(agent_overlap)
         agent_overlap = torch.where(masks, agent_overlap, True)
         self.mask = self._update_mask(self.state, self.mask, agent_overlap.logical_not())
