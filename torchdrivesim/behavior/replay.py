@@ -8,7 +8,7 @@ import torch
 from torch import Tensor
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, NPCController
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, NPCController, Simulator
 from torchdrivesim.utils import assert_equal
 
 
@@ -159,8 +159,7 @@ class ReplayController(NPCController):
             self.npc_present_masks = torch.ones_like(self.npc_states[..., 0], dtype=torch.bool)
         super().__init__(npc_size, self.npc_states[..., self.time, :], self.npc_present_masks[..., self.time], npc_types, agent_type_names)
 
-    def advance_npcs(self, agent_size: Tensor, agent_state: Tensor, agent_present_mask: Optional[Tensor],
-                     agent_types: Optional[Tensor]) -> None:
+    def advance_npcs(self, simulator: Simulator) -> None:
         self.time += 1
         if self.time == self.npc_states.shape[-2]:
             self.time = 0
