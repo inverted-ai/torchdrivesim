@@ -336,12 +336,12 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             camera_xy: BxNx2 tensor of x-y positions for N cameras
             camera_psi: BxNx1 tensor of orientations for N cameras
             res: desired image resolution (only square resolutions are supported; by default use value from config)
-            rendering_mask: functor of BxNxA tensors, indicating which agents should be rendered each camera
+            rendering_mask: functor of BxNxAll tensors, indicating which agents should be rendered each camera
             fov: the field of view of the resulting image in meters (by default use value from config)
             waypoints: BxNxMx2 tensor of `M` waypoints per camera (x,y)
             waypoints_rendering_mask: BxNxM tensor of `M` waypoint masks per camera,
                 indicating which waypoints should be rendered
-            custom_agent_colors: BxNxAx3 RGB tensor defining the color of each agent to each camera
+            custom_agent_colors: BxNxAllx3 RGB tensor defining the color of each agent to each camera
         Returns:
              BxNxCxHxW tensor of resulting RGB images for each camera
         """
@@ -357,8 +357,8 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
             ego_rotate: whether to orient the cameras such that the ego agent faces up in the image
             res: desired image resolution (only square resolutions are supported; by default use value from config)
             fov: the field of view of the resulting image in meters (by default use value from config)
-            visibility_matrix: a BxAxA boolean tensor indicating which agents can see each other
-            custom_agent_colors: a BxAxAx3 RGB tensor specifying what colors agent see each other as
+            visibility_matrix: a BxAxAll boolean tensor indicating which agents can see each other
+            custom_agent_colors: a BxAxAllx3 RGB tensor specifying what colors agent see each other as
         Returns:
              a functor of BxAxCxHxW tensors of resulting RGB images for each agent.
         """
@@ -1727,15 +1727,6 @@ class SelectiveWrapper(SimulatorWrapper):
         extended_action = self.inner_simulator.fit_action(extended_future_state, extended_current_state)
         action = self._restrict_tensor(extended_action, agent_dim=-2)
         return action
-
-    def render(self, camera_xy, camera_psi, res=None, rendering_mask=None, fov=None, waypoints=None,
-               waypoints_rendering_mask=None, custom_agent_colors=None):
-        if rendering_mask is not None:
-            rd_mask = rendering_mask.permute(0, 2, 1)
-            pad_tensor = torch.zeros(rd_mask.shape[0], self.is_exposed().shape[1], rd_mask.shape[1], device=rd_mask.device, dtype=rd_mask.dtype)
-            rendering_mask = self._extend_tensor(rd_mask, pad_tensor).permute(0, 2, 1)
-        return self.inner_simulator.render(camera_xy, camera_psi, res, rendering_mask, fov=fov, waypoints=waypoints,
-                                           waypoints_rendering_mask=waypoints_rendering_mask, custom_agent_colors=custom_agent_colors)
 
     def step(self, action):
         extended_action = self._extend_tensor(action, padding=self.default_action)
