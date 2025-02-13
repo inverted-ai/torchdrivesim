@@ -528,8 +528,7 @@ class NPCController:
     def get_npc_present_mask(self):
         return self.npc_present_mask
 
-    def advance_npcs(self, agent_size: Tensor, agent_state: Tensor, agent_present_mask: Optional[Tensor],
-                     agent_types: Optional[Tensor]) -> None:
+    def advance_npcs(self, simulator: "Simulator") -> None:
         return None
 
     def to(self, device):
@@ -876,7 +875,7 @@ class Simulator(SimulatorInterface):
         # validate agent numbers
         assert_equal(agent_action.shape[-2], self.agent_count)
 
-        self.npc_controller.advance_npcs(self.agent_size, self.get_state(), self.get_present_mask(), self.get_agent_type())
+        self.npc_controller.advance_npcs(self)
         self.kinematic_model.step(agent_action)
 
         if self.traffic_controls is not None:
