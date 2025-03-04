@@ -8,7 +8,7 @@ from typing_extensions import Self
 from invertedai.common import TrafficLightState, RecurrentState
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, TensorPerAgentType
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface
 from torchdrivesim.traffic_lights import TrafficLightController, current_light_state_tensor_from_controller
 
 
@@ -68,7 +68,7 @@ class IAIWrapper(NPCWrapper):
         rear_axis_offset: A BxAx1 tensor, concatenated across agent types, specifying the rear axis offset parameter
             used in the kinematic bicycle model. By default, a realistic value based on the vehicle length is used.
     """
-    def __init__(self, simulator: SimulatorInterface, npc_mask: TensorPerAgentType,
+    def __init__(self, simulator: SimulatorInterface, npc_mask: torch.Tensor,
                  recurrent_states: List[List], locations: List[str], rear_axis_offset: Optional[Tensor] = None,
                  replay_states: Optional[Tensor] = None, replay_mask: Optional[Tensor] = None,
                  traffic_light_controller: Optional[TrafficLightController] = None, traffic_light_ids: Optional[List[int]] = None):
