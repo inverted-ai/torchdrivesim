@@ -2,12 +2,17 @@ import copy
 
 import pytest
 import torch
-
+import os
 from tests.simulator.test_simulator import TestBaseSimulator
 from torchdrivesim.simulator import CollisionMetric, SimulatorWrapper, RecordingWrapper, \
     BirdviewRecordingWrapper, \
     SelectiveWrapper, BoundedRegionWrapper
 from torchdrivesim.utils import Resolution
+from torchdrivesim.behavior.iai import IAIWrapper, iai_initialize
+from torchdrivesim.kinematic import KinematicBicycle
+from torchdrivesim.simulator import Simulator, TorchDriveConfig
+from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.goals import WaypointGoal
 from tests import device
 
 
@@ -157,3 +162,44 @@ class TestProximitySimulator(TestSelectiveSimulator):
         self.simulator.update_exposed_agents()
         # When agent 0 is exposed and outside the region, agent 1 will be exposed
         assert torch.all(self.get_tensor(self.simulator.exposed_agents) == 1)
+
+class TestIAIWrapper:
+    @classmethod
+    def setup_class(cls):
+        location = 'carla:Town03'
+        agent_count = 5
+        agent_attributes, agent_states, recurrent_states = iai_initialize(location=location, agent_count=agent_count)
+        agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
+        agent_size = agent_attributes[..., :2]
+        npc_mask = torch.zeros(agent_count, dtype=torch.bool, device=device)
+        npc_mask[0] = 1
+        recurrent_states_packed = [recurrent_state.packed for recurrent_state in recurrent_states]
+
+        import lanelet2
+        agent_attributes_batch = agent_attributes.unsqueeze(0)
+        agent_size_batch = agent_size.unsqueeze(0)
+        agent_states_batch = agent_states.unsqueeze(0)
+        road_mesh = BirdviewMesh.empty(batch_size=1)
+        kinematic_model = KinematicBicycle()
+        kinematic_model.set_params(lr=agent_attributes_batch[..., 2])
+        kinematic_model.set_state(agent_states_batch)
+        initial_present_mask = torch.ones_like(agent_states_batch[..., 0], dtype=torch.bool)
+        origin = (0, 0)
+        projector = lanelet2.projection.UtmProjector(lanelet2.io.Origin(*origin))
+        lanelet_map = lanelet2.io.load(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../resources/testing_lanelet2map.osm"), projector)
+        lanelet_map = [lanelet_map]
+        waypoint_goals = WaypointGoal(torch.zeros_like(agent_states_batch[..., :2])[:, :, None, None, :])
+        config = TorchDriveConfig(left_handed_coordinates=False)
+        simulator = Simulator(road_mesh, kinematic_model, agent_size_batch,
+                         initial_present_mask, config, lanelet_map=lanelet_map, waypoint_goals=waypoint_goals).to(device)
+        cls.simulator = IAIWrapper(simulator,
+                            npc_mask=npc_mask,
+                            recurrent_states=[recurrent_states],
+                            locations=[location])
+
+    def test_step(self):
+        mock_action = torch.ones(1, 4, 2)
+        self.simulator.step(mock_action)
+    
+    def test_get_state(self):
+        assert self.simulator.get_state().shape == torch.Size([1, 4, 4])
