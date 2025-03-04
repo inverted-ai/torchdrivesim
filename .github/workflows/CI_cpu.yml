@@ -34,5 +34,7 @@ jobs:
         pip install lanelet2 pytest && pip install .
 
     - name: Run tests
+      env:
+        IAI_API_KEY: ${{ secrets.IAI_API_KEY }}
       run: |
         pytest -s -m "not depends_on_cuda and not depends_on_pytorch3d and not depends_on_nvdiffrast" tests
