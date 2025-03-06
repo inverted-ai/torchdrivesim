@@ -1185,7 +1185,7 @@ def generate_trajectory_mesh(points: Tensor, category: Optional[str] = None, edg
         torch.stack([points[..., 0] + edge_length * 0.5 * torch.cos(points[..., 2] + 4 * math.pi / 3),
                      points[..., 1] + edge_length * 0.5 * torch.sin(points[..., 2] + 4 * math.pi / 3)], dim=-1)
     ], dim=-2)
-    verts = torch.flatten(verts, start_dim=-4, end_dim=-2)
+    verts = torch.flatten(verts, start_dim=1, end_dim=-2)
     faces = (torch.arange(start=0, end=verts.shape[-2])).reshape(
         (1, int(verts.shape[-2] / 3), 3)
     ).expand(verts.shape[0], -1, -1).int().to(verts.device)
