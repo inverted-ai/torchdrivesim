@@ -498,12 +498,87 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         return agent_collisions
 
 
+class SpawnController:
+    """
+    Handles spawning and despawning of NPCs.
+    If exit_boundary is provided, NPCs will be despawned if they are outside the boundary.
+    If spawn_states and spawn_masks are provided, NPCs will be spawned at the specified states and masks if they're not already present.
+
+    Args:
+        exit_boundary: Bx2xN tensor, where N is the number of vertices of the polygon.
+        spawn_states: BxAxTx4 tensor, where A is the number of NPCs, T is the number of timesteps.
+        spawn_masks: BxAxT boolean tensor, where A is the number of NPCs, T is the number of timesteps.
+    """
+    def __init__(self, exit_boundary: Optional[Tensor] = None, spawn_states: Optional[Tensor] = None, spawn_masks: Optional[Tensor] = None):
+        self.exit_boundary = exit_boundary
+        self.spawn_states = spawn_states
+        self.spawn_masks = spawn_masks
+        self.time = 0
+
+    def spawn_despawn_npcs(self, simulator: "Simulator") -> None:
+        npc_present_mask = simulator.npc_controller.npc_present_mask
+        npc_states = simulator.npc_controller.npc_state
+        if self.exit_boundary is not None:
+            npc_position = simulator.npc_controller.npc_state[..., :2]
+            inside_boundary = is_inside_polygon(npc_position, self.exit_boundary)
+            npc_present_mask = npc_present_mask & inside_boundary
+        if self.spawn_states is not None and self.spawn_masks is not None:
+            to_spawn = self.spawn_masks[..., self.time] & ~npc_present_mask
+            npc_present_mask = npc_present_mask | to_spawn
+            npc_states = self.spawn_states[..., self.time, :].where(to_spawn, npc_states)
+        simulator.npc_controller.npc_present_mask = npc_present_mask
+        simulator.npc_controller.npc_state = npc_states
+        self.time += 1
+        return None
+
+    def to(self, device):
+        if self.exit_boundary is not None:
+            self.exit_boundary = self.exit_boundary.to(device)
+        if self.spawn_states is not None:
+            self.spawn_states = self.spawn_states.to(device)
+        if self.spawn_masks is not None:
+            self.spawn_masks = self.spawn_masks.to(device)
+        return self
+
+    def copy(self):
+        return self.__class__(self.exit_boundary, self.spawn_states, self.spawn_masks)
+
+    def extend(self, n, in_place=True):
+        if not in_place:
+            other = self.copy()
+            other.extend(n, in_place=True)
+            return other
+
+        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
+        if self.exit_boundary is not None:
+            self.exit_boundary = enlarge(self.exit_boundary)
+        if self.spawn_states is not None:
+            self.spawn_states = enlarge(self.spawn_states)
+        if self.spawn_masks is not None:
+            self.spawn_masks = enlarge(self.spawn_masks)
+        return self
+
+    def select_batch_elements(self, idx, in_place=True):
+        if not in_place:
+            return self.copy().select_batch_elements(idx, in_place=True)
+
+        if self.exit_boundary is not None:
+            self.exit_boundary = self.exit_boundary[idx]
+        if self.spawn_states is not None:
+            self.spawn_states = self.spawn_states[idx]
+        if self.spawn_masks is not None:
+            self.spawn_masks = self.spawn_masks[idx]
+        return self
+
+
+
 class NPCController:
     """
     Base class for non-playable character controllers. It leaves the state unchanged on each step.
     """
     def __init__(self, npc_size: Tensor, npc_state: Tensor, npc_present_mask: Optional[Tensor] = None,
-                 npc_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None):
+                 npc_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None,
+                 spawn_controller: Optional[SpawnController] = None):
         self.npc_size = npc_size
         self.npc_state = npc_state
         self.npc_present_mask = npc_present_mask
@@ -515,6 +590,7 @@ class NPCController:
         self.agent_type_names = agent_type_names
         if self.agent_type_names is None:
             self.agent_type_names = ['vehicle']
+        self.spawn_controller = spawn_controller
 
     def get_npc_state(self):
         return self.npc_state
@@ -528,18 +604,25 @@ class NPCController:
     def get_npc_present_mask(self):
         return self.npc_present_mask
 
-    def advance_npcs(self, simulator: "Simulator") -> None:
+    def spawn_despawn_npcs(self, simulator: "Simulator") -> None:
+        if self.spawn_controller is not None:
+            self.spawn_controller.spawn_despawn_npcs(simulator)
         return None
+
+    def advance_npcs(self, simulator: "Simulator") -> None:
+        self.spawn_despawn_npcs(simulator)
 
     def to(self, device):
         self.npc_size = self.npc_size.to(device)
         self.npc_state = self.npc_state.to(device)
         self.npc_present_mask = self.npc_present_mask.to(device)
         self.npc_types = self.npc_types.to(device)
+        if self.spawn_controller is not None:
+            self.spawn_controller.to(device)
         return self
 
     def copy(self):
-        return self.__class__(self.npc_size, self.npc_state, self.npc_present_mask, self.npc_types, self.agent_type_names)
+        return self.__class__(self.npc_size, self.npc_state, self.npc_present_mask, self.npc_types, self.agent_type_names, self.spawn_controller.copy())
 
     def extend(self, n, in_place=True):
         if not in_place:
@@ -552,6 +635,8 @@ class NPCController:
         self.npc_state = enlarge(self.npc_state)
         self.npc_present_mask = enlarge(self.npc_present_mask)
         self.npc_types = enlarge(self.npc_types)
+        if self.spawn_controller is not None:
+            self.spawn_controller.extend(n, in_place=True)
         return self
 
     def select_batch_elements(self, idx, in_place=True):
@@ -562,6 +647,8 @@ class NPCController:
         self.npc_state = self.npc_state[idx]
         self.npc_present_mask = self.npc_present_mask[idx]
         self.npc_types = self.npc_types[idx]
+        if self.spawn_controller is not None:
+            self.spawn_controller.select_batch_elements(idx, in_place=True)
         return self
 
 
