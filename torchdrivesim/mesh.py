@@ -977,6 +977,8 @@ class BirdviewRGBMeshGenerator:
             faces = actor_faces
             categories = agent_type_names
             vert_category = agent_types.unsqueeze(-1).expand(agent_types.shape + (av,)).reshape(batch_size, n_actors * (av + dv))
+        categories.append('ego')
+        vert_category[:, :4] = len(categories) - 1
         actor_mesh = BirdviewMesh(
             verts=verts, faces=faces, categories=categories,
             vert_category=vert_category,
@@ -1084,12 +1086,22 @@ class BirdviewRGBMeshGenerator:
                 dv = 3 if self.render_agent_direction else 0
                 step = av + dv
                 custom_agent_colors = custom_agent_colors.flatten(0, 1)
-                for i in range(av):
-                    actor_attrs[:,i::step] = custom_agent_colors
-
+                B, A, _ = custom_agent_colors.shape
+#                for i in range(av):
+#                    actor_attrs[:,i::step] = custom_agent_colors
+                for vi in range(av):  # 0 to 3
+                    # Compute indices into actor_attrs across batch
+                    idx = torch.arange(A) * step + vi  # [A]
+                    actor_attrs[:, idx] = custom_agent_colors  # broadcasting [B, A, 3] to [B, A, 3]
+#                print("in generate")
+#                print(custom_agent_colors.shape)
+#                print(actor_attrs.shape)
+#                print(actor_mesh.verts.shape)
+#
             actor_mesh = dataclasses.replace(
                 actor_mesh, verts=agent_verts, faces=actor_faces, attrs=actor_attrs
             )
+#            print(actor_mesh)
 
         traffic_lights_mesh = None
         if traffic_lights is not None and \
@@ -1162,8 +1174,8 @@ def set_colors_with_defaults(mesh: BirdviewMesh, color_map: Dict[str, Tensor], r
             mesh.colors[k] = tensor_color(color_map[k])
         if k not in mesh.zs:
             mesh.zs[k] = rendering_levels[k]
-    # if self.cfg.highlight_ego_vehicle:
-    #     mesh.colors["ego"] = tensor_color((color_map["ego"]))
+#    if self.cfg.highlight_ego_vehicle:
+    mesh.colors["ego"] = tensor_color((color_map["ego"]))
     return mesh.fill_attr()
 
 
