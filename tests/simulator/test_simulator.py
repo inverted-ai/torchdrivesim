@@ -49,7 +49,7 @@ class TestBaseSimulator:
     @classmethod
     def setup_class(cls):
         cls.get_shapes(cls.data_batch_size)
-        cls.mock_agent_attributes = torch.ones(cls.data_batch_size, cls.mock_agent_count, 3)
+        cls.mock_agent_attributes = torch.ones(cls.data_batch_size, cls.mock_agent_count, 3).to(device)
         cls.mock_agent_state = torch.Tensor([[[0, 0, 0, 0], [1, 1, 0, 0]]]).expand(cls.data_batch_size, -1, -1).to(device)
         cls.mock_future_state = torch.Tensor([[[1, 1, 1, 0], [2, 2, 1, 0]]]).expand(cls.data_batch_size, -1, -1).to(device)
         cls.mock_action = torch.Tensor([[[0, 0], [1, 1]]]).expand(cls.data_batch_size, -1, -1).to(device)
