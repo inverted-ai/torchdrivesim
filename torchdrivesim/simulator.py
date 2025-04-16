@@ -170,6 +170,13 @@ class SimulatorInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_agent_lr(self) -> Tensor:
+        """
+        Returns a functor of BxA long tensors containing the rear offset
+        """
+        pass
+
+    @abc.abstractmethod
     def get_present_mask(self) -> Tensor:
         """
         Returns a functor of BxA boolean tensors indicating which agents are currently present in the simulation.
@@ -593,7 +600,7 @@ class Simulator(SimulatorInterface):
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
-                 npc_controller: Optional[NPCController] = None):
+                 agent_lr: Optional[Tensor] = None, npc_controller: Optional[NPCController] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -608,9 +615,15 @@ class Simulator(SimulatorInterface):
         if len(agent_types) == 1:
             agent_types = agent_types.expand_as(initial_present_mask)
 
+        if agent_lr is None:
+            agent_lr = torch.zeros_like(initial_present_mask).long()
+        if len(agent_lr) == 1:
+            agent_lr = agent_lr.expand_as(initial_present_mask)
+
         self._agent_types = agent_type_names
         self._batch_size = self.road_mesh.batch_size
         self.agent_type = agent_types
+        self.agent_lr = agent_lr
 
         self.npc_controller = npc_controller
         if self.npc_controller is None:
@@ -670,6 +683,7 @@ class Simulator(SimulatorInterface):
         self.recenter_offset = self.recenter_offset.to(device) if self.recenter_offset is not None else None
         self.agent_size = self.agent_size.to(device)
         self.agent_type = self.agent_type.to(device)
+        self.agent_lr = self.agent_lr.to(device)
         self.present_mask = self.present_mask.to(device)
 
         self.kinematic_model = self.kinematic_model.to(device)  # type: ignore
@@ -691,6 +705,7 @@ class Simulator(SimulatorInterface):
             waypoint_goals=self.waypoint_goals.copy() if self.waypoint_goals is not None else None,
             agent_types=self.agent_type if self.agent_type is not None else None,
             agent_type_names=self.agent_types if self.agent_types is not None else None,
+            agent_lr=self.agent_lr if self.agent_lr is not None else None,
             npc_controller=self.npc_controller.copy(),
         )
         return other
@@ -705,6 +720,7 @@ class Simulator(SimulatorInterface):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         self.agent_size = enlarge(self.agent_size)
         self.agent_type = enlarge(self.agent_type)
+        self.agent_lr = enlarge(self.agent_lr)
         self.present_mask = enlarge(self.present_mask)
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
@@ -734,6 +750,7 @@ class Simulator(SimulatorInterface):
         self.lanelet_map = [self.lanelet_map[i] for i in idx] if self.lanelet_map is not None else None
         self.agent_size = self.agent_size[idx]
         self.agent_type = self.agent_type[idx]
+        self.agent_lr = self.agent_lr[idx]
         self.present_mask = self.present_mask[idx]
 
         # kinematic models are modified in place
@@ -762,6 +779,7 @@ class Simulator(SimulatorInterface):
         assert_equal(len(self.kinematic_model.get_state().shape), 3)
         assert_equal(len(self.agent_size.shape), 3)
         assert_equal(len(self.agent_type.shape), 2)
+        assert_equal(len(self.agent_lr.shape), 2)
         assert_equal(len(self.present_mask.shape), 2)
 
         # check that batch size is the same everywhere
@@ -770,12 +788,14 @@ class Simulator(SimulatorInterface):
         assert_equal(self.kinematic_model.get_state().shape[0], b)
         assert_equal(self.agent_size.shape[0], b)
         assert_equal(self.agent_type.shape[0], b)
+        assert_equal(self.agent_lr.shape[0], b)
         assert_equal(self.present_mask.shape[0], b)
 
         # check that the number of agents is the same everywhere
         assert_equal(self.kinematic_model.get_state().shape[-2], self.agent_count)
         assert_equal(self.agent_size.shape[-2], self.agent_count)
         assert_equal(self.agent_type.shape[-1], self.agent_count)
+        assert_equal(self.agent_lr.shape[-1], self.agent_count)
         assert_equal(self.present_mask.shape[-1], self.agent_count)
 
     def get_world_center(self):
@@ -819,6 +839,9 @@ class Simulator(SimulatorInterface):
 
     def get_agent_type_names(self) -> List[str]:
         return self._agent_types
+
+    def get_agent_lr(self):
+        return self.agent_lr
 
     def get_present_mask(self):
         return self.present_mask
@@ -1077,6 +1100,9 @@ class SimulatorWrapper(SimulatorInterface):
     def get_agent_type_names(self) -> List[str]:
         return self.inner_simulator.get_agent_type_names()
 
+    def get_agent_lr(self):
+        return self.inner_simulator.get_agent_lr()
+
     def get_present_mask(self):
         return self.inner_simulator.get_present_mask()
 
@@ -1213,6 +1239,10 @@ class NPCWrapper(SimulatorWrapper):
 
     def get_agent_type(self):
         sizes = self.inner_simulator.get_agent_type()[..., self.npc_mask.logical_not()]
+        return sizes
+
+    def get_agent_lr(self):
+        sizes = self.inner_simulator.get_agent_lr()[..., self.npc_mask.logical_not()]
         return sizes
 
     def get_present_mask(self):
@@ -1684,6 +1714,9 @@ class SelectiveWrapper(SimulatorWrapper):
 
     def get_agent_type(self):
         return self._restrict_tensor(self.inner_simulator.get_agent_type(), agent_dim=-1)
+
+    def get_agent_lr(self):
+        return self._restrict_tensor(self.inner_simulator.get_agent_lr(), agent_dim=-1)
 
     def get_waypoints(self):
         waypoints = self.inner_simulator.get_waypoints()
