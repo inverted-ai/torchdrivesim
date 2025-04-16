@@ -525,7 +525,7 @@ class SpawnController:
         if self.spawn_states is not None and self.spawn_masks is not None:
             to_spawn = self.spawn_masks[..., self.time] & ~npc_present_mask
             npc_present_mask = npc_present_mask | to_spawn
-            npc_states = self.spawn_states[..., self.time, :].where(to_spawn, npc_states)
+            npc_states = self.spawn_states[..., self.time, :].where(to_spawn.unsqueeze(-1), npc_states)
         simulator.npc_controller.npc_present_mask = npc_present_mask
         simulator.npc_controller.npc_state = npc_states
         self.time += 1
