@@ -174,8 +174,7 @@ class ReplayController(NPCController):
         self.npc_types = self.npc_types.to(device)
         self.npc_states = self.npc_states.to(device)
         self.npc_present_masks = self.npc_present_masks.to(device)
-        if self.spawn_controller is not None:
-            self.spawn_controller.to(device)
+        self.spawn_controller.to(device)
         return self
     
     def copy(self):
@@ -194,8 +193,7 @@ class ReplayController(NPCController):
         self.npc_types = enlarge(self.npc_types)
         self.npc_states = enlarge(self.npc_states)
         self.npc_present_masks = enlarge(self.npc_present_masks)
-        if self.spawn_controller is not None:
-            self.spawn_controller.extend(n, in_place=True)
+        self.spawn_controller.extend(n, in_place=True)
         return self
     
     def select_batch_elements(self, idx, in_place=True):
@@ -208,6 +206,5 @@ class ReplayController(NPCController):
         self.npc_types = self.npc_types[idx]
         self.npc_states = self.npc_states[idx]
         self.npc_present_masks = self.npc_present_masks[idx]
-        if self.spawn_controller is not None:
-            self.spawn_controller.select_batch_elements(idx, in_place=True)
+        self.spawn_controller.select_batch_elements(idx, in_place=True)
         return self

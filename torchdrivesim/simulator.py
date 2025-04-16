@@ -591,6 +591,8 @@ class NPCController:
         if self.agent_type_names is None:
             self.agent_type_names = ['vehicle']
         self.spawn_controller = spawn_controller
+        if self.spawn_controller is None:
+            self.spawn_controller = SpawnController()
 
     def get_npc_state(self):
         return self.npc_state
@@ -605,8 +607,7 @@ class NPCController:
         return self.npc_present_mask
 
     def spawn_despawn_npcs(self, simulator: "Simulator") -> None:
-        if self.spawn_controller is not None:
-            self.spawn_controller.spawn_despawn_npcs(simulator)
+        self.spawn_controller.spawn_despawn_npcs(simulator)
         return None
 
     def advance_npcs(self, simulator: "Simulator") -> None:
@@ -617,8 +618,7 @@ class NPCController:
         self.npc_state = self.npc_state.to(device)
         self.npc_present_mask = self.npc_present_mask.to(device)
         self.npc_types = self.npc_types.to(device)
-        if self.spawn_controller is not None:
-            self.spawn_controller.to(device)
+        self.spawn_controller.to(device)
         return self
 
     def copy(self):
@@ -635,8 +635,7 @@ class NPCController:
         self.npc_state = enlarge(self.npc_state)
         self.npc_present_mask = enlarge(self.npc_present_mask)
         self.npc_types = enlarge(self.npc_types)
-        if self.spawn_controller is not None:
-            self.spawn_controller.extend(n, in_place=True)
+        self.spawn_controller.extend(n, in_place=True)
         return self
 
     def select_batch_elements(self, idx, in_place=True):
@@ -647,8 +646,7 @@ class NPCController:
         self.npc_state = self.npc_state[idx]
         self.npc_present_mask = self.npc_present_mask[idx]
         self.npc_types = self.npc_types[idx]
-        if self.spawn_controller is not None:
-            self.spawn_controller.select_batch_elements(idx, in_place=True)
+        self.spawn_controller.select_batch_elements(idx, in_place=True)
         return self
 
 
