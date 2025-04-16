@@ -600,7 +600,7 @@ class Simulator(SimulatorInterface):
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
-                 agent_lr: Optional[Tensor] = None, npc_controller: Optional[NPCController] = None):
+                 npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
