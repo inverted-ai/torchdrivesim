@@ -198,7 +198,7 @@ class TestIAIWrapper:
                             locations=[location])
 
     def test_step(self):
-        mock_action = torch.ones(1, 4, 2)
+        mock_action = torch.ones(1, 4, 2).to(device)
         self.simulator.step(mock_action)
     
     def test_get_state(self):
