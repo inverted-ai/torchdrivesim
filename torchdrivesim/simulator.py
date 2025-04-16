@@ -570,6 +570,82 @@ class NPCController:
         self.npc_present_mask = self.npc_present_mask[idx]
         self.npc_types = self.npc_types[idx]
         return self
+    
+
+class CompoundNPCController(NPCController):
+    """
+    Combines multiple NPC controllers by assigning each agent to one of the controllers.
+
+    Args:
+        controllers: List of NPCController objects
+        controller_indices: BxA tensor of indices into the controllers list
+    """
+    def __init__(self, controllers: List[NPCController], controller_indices: Tensor):
+        batch_size, num_agents = controller_indices.shape
+        
+        npc_size = torch.zeros((batch_size, num_agents, 2), device=controller_indices.device)
+        npc_state = torch.zeros((batch_size, num_agents, 4), device=controller_indices.device)
+        npc_present_mask = torch.zeros((batch_size, num_agents), device=controller_indices.device, dtype=torch.bool)
+        npc_types = None if controllers[0].npc_types is None else torch.zeros((batch_size, num_agents), device=controller_indices.device, dtype=torch.long)
+
+        super().__init__(npc_size, npc_state, npc_present_mask, npc_types, controllers[0].agent_type_names)
+        self.controllers = controllers
+        self.controller_indices = controller_indices
+
+        self.gather_npc_states()
+    
+
+    def gather_npc_states(self):
+        # Fill tensors based on controller_indices
+        for i, controller in enumerate(self.controllers):
+            mask = (self.controller_indices == i)
+            self.npc_size = controller.npc_size.where(mask.unsqueeze(-1), self.npc_size)
+            self.npc_state = controller.npc_state.where(mask.unsqueeze(-1), self.npc_state)
+            self.npc_present_mask = controller.npc_present_mask.where(mask, self.npc_present_mask)
+            if self.npc_types is not None:
+                self.npc_types = controller.npc_types.where(mask, self.npc_types)
+
+        # Propagate all npc states to the controllers
+        for controller in self.controllers:
+            controller.npc_size = self.npc_size
+            controller.npc_state = self.npc_state
+            controller.npc_present_mask = self.npc_present_mask
+            if self.npc_types is not None:
+                controller.npc_types = self.npc_types
+
+    def advance_npcs(self, simulator: "Simulator") -> None:
+        for controller in self.controllers:
+            controller.advance_npcs(simulator)
+        self.gather_npc_states()
+
+    def to(self, device):
+        super().to(device)
+        self.controller_indices = self.controller_indices.to(device)
+        for controller in self.controllers:
+            controller.to(device)
+        return self
+
+    def copy(self):
+        return self.__class__(
+            [c.copy() for c in self.controllers],
+            self.controller_indices.clone()
+        )
+    
+    def extend(self, n, in_place=True):
+        super().extend(n, in_place)
+        self.controller_indices = self.controller_indices.expand(n, -1)
+        for controller in self.controllers:
+            controller.extend(n, in_place)
+        return self
+    
+    def select_batch_elements(self, idx, in_place=True):
+        super().select_batch_elements(idx, in_place)
+        self.controller_indices = self.controller_indices[idx]
+        for controller in self.controllers:
+            controller.select_batch_elements(idx, in_place)
+        return self
+
+
 
 
 class Simulator(SimulatorInterface):
