@@ -616,7 +616,7 @@ class Simulator(SimulatorInterface):
             agent_types = agent_types.expand_as(initial_present_mask)
 
         if agent_lr is None:
-            agent_lr = torch.zeros_like(initial_present_mask).long()
+            agent_lr = torch.zeros_like(initial_present_mask).to(agent_size.dtype)
         if len(agent_lr) == 1:
             agent_lr = agent_lr.expand_as(initial_present_mask)
 
