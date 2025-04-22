@@ -8,7 +8,7 @@ import torch
 from torch import Tensor
 
 from torchdrivesim.behavior.common import InitializationFailedError
-from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, NPCController, Simulator
+from torchdrivesim.simulator import NPCWrapper, SimulatorInterface, NPCController, Simulator, SpawnController
 from torchdrivesim.utils import assert_equal
 
 
@@ -151,13 +151,13 @@ class ReplayWrapper(NPCWrapper):
 
 class ReplayController(NPCController):
     def __init__(self, npc_size, npc_states, npc_present_masks: Optional[torch.Tensor] = None, time: int = 0,
-                 npc_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None):
+                 npc_types: Optional[Tensor] = None, agent_type_names: Optional[List[str]] = None, spawn_controller: Optional[SpawnController] = None):
         self.time = time
         self.npc_states = npc_states
         self.npc_present_masks = npc_present_masks
         if self.npc_present_masks is None:
             self.npc_present_masks = torch.ones_like(self.npc_states[..., 0], dtype=torch.bool)
-        super().__init__(npc_size, self.npc_states[..., self.time, :], self.npc_present_masks[..., self.time], npc_types, agent_type_names)
+        super().__init__(npc_size, self.npc_states[..., self.time, :], self.npc_present_masks[..., self.time], npc_types, agent_type_names, spawn_controller)
 
     def advance_npcs(self, simulator: Simulator) -> None:
         self.time += 1
@@ -165,7 +165,7 @@ class ReplayController(NPCController):
             self.time = 0
         self.npc_state = self.npc_states[..., self.time, :]
         self.npc_present_mask = self.npc_present_masks[..., self.time]
-        return None
+        self.spawn_despawn_npcs(simulator)
 
     def to(self, device):
         self.npc_size = self.npc_size.to(device)
@@ -174,10 +174,11 @@ class ReplayController(NPCController):
         self.npc_types = self.npc_types.to(device)
         self.npc_states = self.npc_states.to(device)
         self.npc_present_masks = self.npc_present_masks.to(device)
+        self.spawn_controller.to(device)
         return self
     
     def copy(self):
-        return self.__class__(self.npc_size, self.npc_states, self.npc_present_masks, self.time, self.npc_types, self.agent_type_names)
+        return self.__class__(self.npc_size, self.npc_states, self.npc_present_masks, self.time, self.npc_types, self.agent_type_names, self.spawn_controller.copy())
     
     def extend(self, n, in_place=True):
         if not in_place:
@@ -192,6 +193,7 @@ class ReplayController(NPCController):
         self.npc_types = enlarge(self.npc_types)
         self.npc_states = enlarge(self.npc_states)
         self.npc_present_masks = enlarge(self.npc_present_masks)
+        self.spawn_controller.extend(n, in_place=True)
         return self
     
     def select_batch_elements(self, idx, in_place=True):
@@ -204,4 +206,5 @@ class ReplayController(NPCController):
         self.npc_types = self.npc_types[idx]
         self.npc_states = self.npc_states[idx]
         self.npc_present_masks = self.npc_present_masks[idx]
+        self.spawn_controller.select_batch_elements(idx, in_place=True)
         return self
