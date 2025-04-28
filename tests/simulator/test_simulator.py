@@ -105,7 +105,7 @@ class TestBaseSimulator:
     def test_select_batch_elements(self):
         idx = [1, 1, 0]
         s = self.simulator[idx]
-        assert s.get_innermost_simulator().batch_size == 3
+        assert s.batch_size == 3
         state = self.get_tensor(s.get_state())
         assert (state[0] == state[1]).all()
         s.render_egocentric()
@@ -130,9 +130,6 @@ class TestBaseSimulator:
         all_agents_relative = self.get_tensor(self.simulator.get_all_agents_relative())
         assert all_agents_relative[0, 0, 0, 0] == 1
         assert all_agents_relative.shape == self.agents_relative_shape
-
-    def test_get_innermost_simulator(self):
-        assert self.simulator is self.simulator.get_innermost_simulator()
 
     def test_step(self):
         pre_state = self.get_tensor(self.simulator.get_state())

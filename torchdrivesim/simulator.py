@@ -1,12 +1,8 @@
-import abc
 import logging
-import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Union, Dict, List, Iterable, Callable, Any
 
-from build.lib.torchdrivesim.simulator import SimulatorInterface
-import imageio
 from typing_extensions import Self
 
 import numpy as np
@@ -608,7 +604,7 @@ class Simulator:
     def get_agent_type(self) -> Tensor:
         """
         Returns a functor of BxA long tensors containing agent type indexes relative to the list containing all agent types
-            as returned by `SimulatorInterface.agent_types`.
+            as returned by `Simulator.agent_types`.
         """
         return self.agent_type
 
@@ -651,7 +647,7 @@ class Simulator:
     def get_npc_types(self) -> Tensor:
         """
         Returns a functor of BxNpc long tensors containing non-playable character type indexes relative to the list containing all agent types
-            as returned by `SimulatorInterface.agent_types`.
+            as returned by `Simulator.agent_types`.
         """
         return self.npc_controller.get_npc_types()
 
@@ -724,8 +720,6 @@ class Simulator:
         Produces all traffic controls existing in the simulation, grouped by type.
         """
         return self.traffic_controls
-    def get_innermost_simulator(self) -> Self:
-        return self
 
     def step(self, agent_action: Tensor) -> None:
         """
@@ -876,7 +870,7 @@ class Simulator:
             rendering_mask = visibility_matrix
         if custom_agent_colors is not None:
             custom_agent_colors = custom_agent_colors
-        if self.get_innermost_simulator().cfg.single_agent_rendering:
+        if self.cfg.single_agent_rendering:
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
@@ -1024,15 +1018,13 @@ class Simulator:
         Returns:
             a BxA tensor
         """
-        innermost_simulator = self.get_innermost_simulator()
-        if innermost_simulator.cfg.collision_metric in [CollisionMetric.nograd, CollisionMetric.nograd_pytorch3d]:
+        if self.cfg.collision_metric in [CollisionMetric.nograd, CollisionMetric.nograd_pytorch3d]:
             assert agent_types is None, 'The argument `agent_types` is not supported by the selected collision metric.'
             agent_collisions = self._compute_collision_of_multi_agents()
         else:
             state = self.get_state()
             size = self.get_agent_size()[..., :2]
             box = torch.cat([state[..., :2], size, state[..., 2:3]], dim=-1)
-            box_type = self.get_agent_type()
             agent_count = box.shape[-2]
             if agent_count == 0:
                 return torch.zeros_like(box[..., 0])
@@ -1041,7 +1033,7 @@ class Simulator:
                 collisions = []
                 for i in range(box.shape[-2]):
                     remove_self_overlap = None
-                    collision = innermost_simulator._compute_collision_of_single_agent(box[..., i, :],
+                    collision = self._compute_collision_of_single_agent(box[..., i, :],
                         remove_self_overlap=remove_self_overlap, agent_types=agent_types)
                     collisions.append(collision)
                 agent_collisions = torch.stack(collisions, dim=-1)
