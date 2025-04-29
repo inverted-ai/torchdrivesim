@@ -56,30 +56,30 @@ def visualize_map(cfg: InitializationVisualizationConfig):
 
     kinematic_model = TeleportingKinematicModel()
     kinematic_model.set_state(agent_states[..., 0, :])
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]))
+    renderer = renderer_from_config(simulator_cfg.renderer)
 
     simulator = Simulator(
-        cfg=simulator_cfg, road_mesh=road_mesh,
+        cfg=simulator_cfg, road_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]),
         kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
         initial_present_mask=present_mask[..., 0], renderer=renderer,
     )
     simulator = ReplayWrapper(
-        simulator, npc_mask=dict(vehicle=replay_mask),
-        agent_states=dict(vehicle=agent_states), present_masks=dict(vehicle=present_mask),
+        simulator, npc_mask=replay_mask,
+        agent_states=agent_states, present_masks=present_mask,
     )
 
     images = []
     for _ in range(cfg.steps):
         if cfg.center is None:
-            camera_xy = simulator.get_innermost_simulator().renderer.world_center.to(device)
+            camera_xy = simulator.get_innermost_simulator().get_world_center().to(device)
         else:
             camera_xy = torch.tensor(cfg.center).unsqueeze(0).to(torch.float32).to(device)
         camera_psi = torch.ones_like(camera_xy[..., :1]) * cfg.orientation
         image = simulator.render(camera_xy=camera_xy, camera_psi=camera_psi, res=res, fov=cfg.fov)
         images.append(image)
 
-        agent_states = simulator.get_state()['vehicle']
-        simulator.step(dict(vehicle=agent_states[..., 1:0, :]))
+        agent_states = simulator.get_state()
+        simulator.step(agent_states[..., 1:0, :])
 
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)
     imageio.mimsave(

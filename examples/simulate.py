@@ -56,8 +56,9 @@ def simulate(cfg: SimulationConfig):
     kinematic_model = KinematicBicycle()
     kinematic_model.set_params(lr=agent_attributes[..., 2])
     kinematic_model.set_state(agent_states)
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+    renderer = renderer_from_config(simulator_cfg.renderer)
     traffic_controls = traffic_controls_from_map_config(map_cfg)
+    traffic_controls = {k: v.to(device) for k, v in traffic_controls.items()}
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
@@ -73,8 +74,9 @@ def simulate(cfg: SimulationConfig):
         traffic_light_controller=traffic_light_controller,
         traffic_light_ids=traffic_light_ids
     )
-    traffic_controls['traffic_light'].set_state(current_light_state_tensor_from_controller(traffic_light_controller, traffic_light_ids).unsqueeze(0))
-
+    traffic_controls['traffic_light'].set_state(
+        current_light_state_tensor_from_controller(traffic_light_controller, traffic_light_ids).unsqueeze(0).to(device)
+    )
     images = []
     for _ in range(cfg.steps):
         if cfg.center is None:

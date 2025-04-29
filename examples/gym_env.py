@@ -163,7 +163,7 @@ class IAIGymEnv(GymEnv):
         kinematic_model = KinematicBicycle()
         kinematic_model.set_params(lr=agent_attributes[..., 2])
         kinematic_model.set_state(agent_states)
-        renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+        renderer = renderer_from_config(simulator_cfg.renderer)
 
         simulator = Simulator(
             cfg=simulator_cfg, road_mesh=driving_surface_mesh,

@@ -18,7 +18,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tests.test_benchmarks import data_batch
 from torchdrivesim.lanelet2 import road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.behavior.replay import ReplayWrapper
 from torchdrivesim.kinematic import SimpleKinematicModel
@@ -252,8 +251,8 @@ def ego_only_simulator(batch_data, simulator_cfg):
     initial_present_mask = present_mask[..., 0]
     replay_mask = replay_mask
 
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]))
-    simulator = Simulator(cfg=simulator_cfg, road_mesh=road_mesh, kinematic_model=kinematic_model,
+    renderer = renderer_from_config(simulator_cfg.renderer)
+    simulator = Simulator(cfg=simulator_cfg, road_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]), kinematic_model=kinematic_model,
                           agent_size=agent_size, initial_present_mask=initial_present_mask, renderer=renderer,
                           agent_type_names=batch_data['agent_type_names'], agent_types=batch_data['agent_types'])
     simulator = ReplayWrapper(simulator, npc_mask=replay_mask, agent_states=agent_state,
