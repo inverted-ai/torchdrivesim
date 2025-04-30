@@ -11,7 +11,9 @@ import numpy as np
 import imageio
 from omegaconf import OmegaConf
 
+import torch
 from torchdrivesim.map import find_map_config, download_iai_map, traffic_controls_from_map_config
+from torchdrivesim.mesh import BirdviewRGBMeshGenerator
 from torchdrivesim.rendering import  renderer_from_config, RendererConfig
 from torchdrivesim.utils import Resolution
 
@@ -36,19 +38,17 @@ def visualize_map(cfg: MapVisualizationConfig):
     map_cfg = find_map_config(cfg.map_name)
     driving_surface_mesh = map_cfg.road_mesh.to(device)
     renderer_cfg = RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates)
-    renderer = renderer_from_config(
-        renderer_cfg, device=device, static_mesh=driving_surface_mesh
-    )
+    renderer = renderer_from_config(renderer_cfg)
 
     traffic_controls = traffic_controls_from_map_config(map_cfg)
-    controls_mesh = renderer.make_traffic_controls_mesh(traffic_controls).to(renderer.device)
-    renderer.add_static_meshes([controls_mesh])
+    mesh_generator = BirdviewRGBMeshGenerator(driving_surface_mesh, renderer.color_map, renderer.rendering_levels,
+                                              traffic_controls=traffic_controls).to(device)
 
-    map_image = renderer.render_static_meshes(res=res, fov=cfg.fov)
+    camera_xy = torch.zeros(1, 1, 2, device=device)
+    camera_sc = torch.ones(1, 1, 2, device=device)
+    map_image = renderer.render_frame(mesh_generator.generate(num_cameras=1), camera_xy=camera_xy, camera_sc=camera_sc, res=res, fov=cfg.fov)
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)
-    imageio.imsave(
-        cfg.save_path, map_image[0].cpu().numpy().astype(np.uint8)
-    )
+    imageio.imsave(cfg.save_path, map_image[0].permute(1, 2, 0).cpu().numpy().astype(np.uint8))
 
 
 if __name__ == '__main__':
