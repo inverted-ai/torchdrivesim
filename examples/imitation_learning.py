@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchdrivesim.lanelet2 import road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
-from torchdrivesim.behavior.replay import ReplayWrapper
+from torchdrivesim.behavior.replay import ReplayController
 from torchdrivesim.kinematic import SimpleKinematicModel
 from torchdrivesim.mesh import BaseMesh, BirdviewMesh
 from torchdrivesim.rendering import renderer_from_config
@@ -237,26 +237,42 @@ def ego_only_simulator(batch_data, simulator_cfg):
     road_mesh = batch_data['road_mesh']
     lane_mesh = batch_data['lane_mesh']
     present_mask = batch_data['present_mask']
-    replay_mask = torch.ones_like(batch_data['agent_types'], dtype=torch.bool)
-    replay_mask[0] = False  # Ego agent is assumed to be first
-    initial_state = batch_data['agent_states'][..., 0, :]
-
-
-    kinematic_model = SimpleKinematicModel()
-    kinematic_model.set_state(initial_state)
-
-    agent_size = agent_attributes[..., :2]
     agent_state = batch_data['agent_states']
-    present_mask = present_mask
-    initial_present_mask = present_mask[..., 0]
-    replay_mask = replay_mask
+    initial_state = agent_state[..., 0, :]
 
-    renderer = renderer_from_config(simulator_cfg.renderer)
-    simulator = Simulator(cfg=simulator_cfg, road_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]), kinematic_model=kinematic_model,
-                          agent_size=agent_size, initial_present_mask=initial_present_mask, renderer=renderer,
-                          agent_type_names=batch_data['agent_type_names'], agent_types=batch_data['agent_types'])
-    simulator = ReplayWrapper(simulator, npc_mask=replay_mask, agent_states=agent_state,
-                              present_masks=present_mask)
+    # Separate ego agent (first agent) from NPCs
+    ego_attributes = agent_attributes[:1]
+    ego_state = initial_state[..., :1, :]
+    npc_attributes = agent_attributes[1:]
+    npc_states = agent_state[..., 1:, :, :]
+    npc_present_mask = present_mask[..., 1:, :]
+
+    # Initialize ego agent's kinematic model
+    kinematic_model = SimpleKinematicModel()
+    kinematic_model.set_state(ego_state)
+
+    # Create NPC controller for replay
+    npc_controller = ReplayController(
+        npc_size=npc_attributes[..., :2],
+        npc_states=npc_states,
+        npc_present_masks=npc_present_mask,
+        agent_type_names=batch_data['agent_type_names'],
+        npc_types=batch_data['agent_types'][1:]  # Exclude ego agent's type
+    )
+
+    # Initialize simulator with ego agent and NPC controller
+    simulator = Simulator(
+        cfg=simulator_cfg,
+        road_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]),
+        kinematic_model=kinematic_model,
+        agent_size=ego_attributes[..., :2],
+        initial_present_mask=torch.ones_like(ego_state[..., 0], dtype=torch.bool),
+        renderer=renderer_from_config(simulator_cfg.renderer),
+        agent_type_names=batch_data['agent_type_names'],
+        agent_types=batch_data['agent_types'][:1],  # Only ego agent's type
+        npc_controller=npc_controller
+    )
+
     return simulator
 
 

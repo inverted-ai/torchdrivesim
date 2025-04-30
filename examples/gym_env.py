@@ -17,10 +17,9 @@ import numpy as np
 from omegaconf import OmegaConf
 from torch import Tensor
 
-from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
+from torchdrivesim.behavior.iai import iai_initialize, IAINPCController
 from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.map import find_map_config
-from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.rendering import RendererConfig, renderer_from_config
 from torchdrivesim.utils import Resolution
 from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
@@ -86,6 +85,8 @@ class GymEnv(gym.Env):
 
     def step(self, action: Tensor):
         self.environment_steps += 1
+        # Move action to the same device as simulator tensors
+        action = action.to(self.simulator.get_state().device)
         self.simulator.step(action)
         self.prev_action = action
         return self.get_obs(), self.get_reward(), self.is_done(), self.get_info()
@@ -158,25 +159,39 @@ class IAIGymEnv(GymEnv):
         agent_attributes, agent_states, recurrent_states = \
             iai_initialize(location=iai_location, agent_count=cfg.agent_count, center=tuple(map_cfg.center))
         agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
-        agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(
-            torch.float32)
+        agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
+
+        # Separate ego agent from NPCs
+        ego_attributes = agent_attributes[..., :1, :]
+        ego_states = agent_states[..., :1, :]
+        npc_attributes = agent_attributes[..., 1:, :]
+        npc_states = agent_states[..., 1:, :]
+
+        # Setup ego agent
         kinematic_model = KinematicBicycle()
-        kinematic_model.set_params(lr=agent_attributes[..., 2])
-        kinematic_model.set_state(agent_states)
+        kinematic_model.set_params(lr=ego_attributes[..., 2])
+        kinematic_model.set_state(ego_states)
         renderer = renderer_from_config(simulator_cfg.renderer)
+
+        # Create NPC controller
+        npc_present_mask = torch.ones_like(npc_states[..., 0], dtype=torch.bool)
+        npc_controller = IAINPCController(
+            npc_size=npc_attributes[..., :2],
+            npc_state=npc_states,
+            npc_lr=npc_attributes[..., 2],
+            location=iai_location,
+            npc_present_mask=npc_present_mask,
+            agent_type_names=['vehicle']  # All agents are vehicles in this example
+        )
 
         simulator = Simulator(
             cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-            kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
-            initial_present_mask=torch.ones_like(agent_states[..., 0], dtype=torch.bool),
+            kinematic_model=kinematic_model, agent_size=ego_attributes[..., :2],
+            initial_present_mask=torch.ones_like(ego_states[..., 0], dtype=torch.bool),
             renderer=renderer,
+            npc_controller=npc_controller
         )
-        npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
-        npc_mask[0] = False
-        simulator = IAIWrapper(
-            simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],
-            rear_axis_offset=agent_attributes[..., 2:3], locations=[iai_location]
-        )
+
         super().__init__(config=cfg, simulator=simulator)
         self.max_environment_steps = 100
 

@@ -13,7 +13,7 @@ import lanelet2
 import torch
 from omegaconf import OmegaConf
 
-from torchdrivesim.behavior.replay import interaction_replay, ReplayWrapper
+from torchdrivesim.behavior.replay import interaction_replay, ReplayController
 from torchdrivesim.kinematic import KinematicBicycle, TeleportingKinematicModel
 from torchdrivesim.lanelet2 import load_lanelet_map, road_mesh_from_lanelet_map, lanelet_map_to_lane_mesh
 from torchdrivesim.mesh import BirdviewMesh
@@ -52,34 +52,43 @@ def visualize_map(cfg: InitializationVisualizationConfig):
     agent_attributes = agent_attributes.to(device).to(torch.float32)
     agent_states = agent_states.to(device).to(torch.float32)
     present_mask = present_mask.to(device).to(torch.bool)
-    replay_mask = torch.ones_like(present_mask[0, :, 0])
 
+    # Create NPC controller for replay
+    npc_controller = ReplayController(
+        npc_size=agent_attributes[..., :2],
+        npc_states=agent_states,
+        npc_present_masks=present_mask,
+        agent_type_names=['vehicle']  # All agents are vehicles in this example
+    )
+
+    # Initialize kinematic model with initial state
     kinematic_model = TeleportingKinematicModel()
     kinematic_model.set_state(agent_states[..., 0, :])
-    renderer = renderer_from_config(simulator_cfg.renderer)
 
+    # Initialize simulator with just the NPC controller
     simulator = Simulator(
-        cfg=simulator_cfg, road_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]),
-        kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
-        initial_present_mask=present_mask[..., 0], renderer=renderer,
-    )
-    simulator = ReplayWrapper(
-        simulator, npc_mask=replay_mask,
-        agent_states=agent_states, present_masks=present_mask,
+        cfg=simulator_cfg,
+        road_mesh=BirdviewMesh.concat([road_mesh, lane_mesh]),
+        kinematic_model=kinematic_model,
+        agent_size=agent_attributes[..., :2],
+        initial_present_mask=present_mask[..., 0],
+        renderer=renderer_from_config(simulator_cfg.renderer),
+        npc_controller=npc_controller
     )
 
     images = []
     for _ in range(cfg.steps):
         if cfg.center is None:
-            camera_xy = simulator.get_innermost_simulator().get_world_center().to(device)
+            camera_xy = simulator.get_world_center().to(device)
         else:
             camera_xy = torch.tensor(cfg.center).unsqueeze(0).to(torch.float32).to(device)
         camera_psi = torch.ones_like(camera_xy[..., :1]) * cfg.orientation
         image = simulator.render(camera_xy=camera_xy, camera_psi=camera_psi, res=res, fov=cfg.fov)
         images.append(image)
 
-        agent_states = simulator.get_state()
-        simulator.step(agent_states[..., 1:0, :])
+        # Step with zero actions since we're just replaying
+        action = torch.zeros((simulator.batch_size, simulator.agent_count, simulator.action_size), device=device)
+        simulator.step(action)
 
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)
     imageio.mimsave(

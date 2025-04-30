@@ -12,7 +12,7 @@ import imageio
 import torch
 from omegaconf import OmegaConf
 
-from torchdrivesim.behavior.iai import iai_initialize, IAIWrapper
+from torchdrivesim.behavior.iai import iai_initialize, IAINPCController
 from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.map import find_map_config, traffic_controls_from_map_config
 from torchdrivesim.rendering import renderer_from_config, RendererConfig
@@ -47,33 +47,51 @@ def simulate(cfg: SimulationConfig):
     simulator_cfg = TorchDriveConfig(left_handed_coordinates=map_cfg.left_handed_coordinates,
                                      renderer=RendererConfig(left_handed_coordinates=map_cfg.left_handed_coordinates))
 
+    # Pre-compute traffic light states for all timesteps
+    light_states_all_timesteps = [initial_light_state_name] * (cfg.steps + 1)  # +1 for initialization
+
     location = map_cfg.iai_location_name
     agent_attributes, agent_states, recurrent_states =\
         iai_initialize(location=location, agent_count=cfg.agent_count, center=tuple(cfg.center) if cfg.center is not None else None,
                        traffic_light_state_history=[initial_light_state_name])
     agent_attributes, agent_states = agent_attributes.unsqueeze(0), agent_states.unsqueeze(0)
     agent_attributes, agent_states = agent_attributes.to(device).to(torch.float32), agent_states.to(device).to(torch.float32)
+
+    # Separate ego agent from NPCs
+    ego_attributes = agent_attributes[..., :1, :]
+    ego_states = agent_states[..., :1, :]
+    npc_attributes = agent_attributes[..., 1:, :]
+    npc_states = agent_states[..., 1:, :]
+
+    # Setup ego agent
     kinematic_model = KinematicBicycle()
-    kinematic_model.set_params(lr=agent_attributes[..., 2])
-    kinematic_model.set_state(agent_states)
+    kinematic_model.set_params(lr=ego_attributes[..., 2])
+    kinematic_model.set_state(ego_states)
     renderer = renderer_from_config(simulator_cfg.renderer)
     traffic_controls = traffic_controls_from_map_config(map_cfg)
     traffic_controls = {k: v.to(device) for k, v in traffic_controls.items()}
 
+    # Create NPC controller
+    npc_present_mask = torch.ones_like(npc_states[..., 0], dtype=torch.bool)
+    npc_controller = IAINPCController(
+        npc_size=npc_attributes[..., :2],
+        npc_state=npc_states,
+        npc_lr=npc_attributes[..., 2],
+        location=location,
+        npc_present_mask=npc_present_mask,
+        traffic_light_controller=traffic_light_controller,
+        light_states_all_timesteps=light_states_all_timesteps,
+        agent_type_names=['vehicle']  # All agents are vehicles in this example
+    )
+
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
-        kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
-        initial_present_mask=torch.ones_like(agent_states[..., 0], dtype=torch.bool),
+        kinematic_model=kinematic_model, agent_size=ego_attributes[..., :2],
+        initial_present_mask=torch.ones_like(ego_states[..., 0], dtype=torch.bool),
         renderer=renderer, traffic_controls=traffic_controls,
+        npc_controller=npc_controller
     )
-    npc_mask = torch.ones(agent_states.shape[-2], dtype=torch.bool, device=agent_states.device)
-    npc_mask[0] = False
-    simulator = IAIWrapper(
-        simulator=simulator, npc_mask=npc_mask, recurrent_states=[recurrent_states],
-        rear_axis_offset=agent_attributes[..., 2:3], locations=[location],
-        traffic_light_controller=traffic_light_controller,
-        traffic_light_ids=traffic_light_ids
-    )
+
     traffic_controls['traffic_light'].set_state(
         current_light_state_tensor_from_controller(traffic_light_controller, traffic_light_ids).unsqueeze(0).to(device)
     )
@@ -88,7 +106,7 @@ def simulate(cfg: SimulationConfig):
         images.append(image)
 
         action = torch.zeros((simulator.batch_size, simulator.agent_count, simulator.action_size))
-        action = action.to(agent_states.device).to(agent_states.dtype)
+        action = action.to(ego_states.device).to(ego_states.dtype)
         simulator.step(action)
 
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)

@@ -164,6 +164,8 @@ class IAINPCController(NPCController):
         super().__init__(npc_size, npc_state, npc_present_mask, npc_types, agent_type_names, spawn_controller)
         self.location = location
         self.agent_type_names = agent_type_names
+        if self.agent_type_names is None:
+            self.agent_type_names = ['vehicle']
         self.npc_attribute = torch.cat([npc_size, npc_lr.unsqueeze(-1)], dim=-1) # npc_attribute is of shape BxAx3
         self.recurrent_state = None
         self.drive_model_version = drive_model_version
@@ -238,6 +240,27 @@ class IAINPCController(NPCController):
         self.recurrent_state = predicted_npc_recurrent_state
         self.spawn_despawn_npcs(simulator)
     
+    def copy(self):
+        """Create a deep copy of the controller."""
+        other = self.__class__(
+            npc_size=self.npc_size.clone(),
+            npc_state=self.npc_state.clone(),
+            npc_lr=self.npc_attribute[..., 2].clone(),
+            location=self.location,
+            drive_model_version=self.drive_model_version,
+            npc_present_mask=self.npc_present_mask.clone() if self.npc_present_mask is not None else None,
+            time=self.time,
+            npc_types=self.npc_types.clone() if self.npc_types is not None else None,
+            agent_type_names=self.agent_type_names.copy() if self.agent_type_names is not None else None,
+            traffic_light_controller=self._traffic_light_controller,
+            light_states_all_timesteps=self.light_states_all_timesteps,
+            spawn_controller=self.spawn_controller.copy() if self.spawn_controller is not None else None
+        )
+        other.npc_attribute = self.npc_attribute.clone()
+        other.recurrent_state = self.recurrent_state
+        other.npc_state_shape = self.npc_state_shape
+        return other
+
     def to(self, device):
         super().to(device)
         self.npc_size = self.npc_size.to(device)
