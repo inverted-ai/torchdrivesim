@@ -54,7 +54,7 @@ def visualize_map(cfg: InitializationVisualizationConfig):
     kinematic_model = KinematicBicycle()
     kinematic_model.set_params(lr=agent_attributes[..., 2])
     kinematic_model.set_state(agent_states)
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+    renderer = renderer_from_config(simulator_cfg.renderer)
 
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
@@ -63,7 +63,7 @@ def visualize_map(cfg: InitializationVisualizationConfig):
         renderer=renderer,
     )
     if cfg.center is None:
-        camera_xy = simulator.renderer.world_center.to(device)
+        camera_xy = simulator.get_world_center().to(device)
     else:
         camera_xy = torch.tensor(cfg.center).unsqueeze(0).to(torch.float32).to(device)
     camera_psi = torch.ones_like(camera_xy[..., :1]) * cfg.orientation
