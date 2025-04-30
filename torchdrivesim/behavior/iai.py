@@ -125,7 +125,9 @@ class IAIWrapper(NPCWrapper):
         if self._traffic_light_controller is not None:
             self._traffic_light_controller.tick(0.1)
             self.get_innermost_simulator().traffic_controls['traffic_light'].set_state(
-                current_light_state_tensor_from_controller(self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1))
+                current_light_state_tensor_from_controller(
+                    self._traffic_light_controller, self._traffic_light_ids).unsqueeze(0).expand(self.batch_size, -1).to(self.get_state().device)
+            )
         super().step(action)
         self._npc_predictions = None
         self._replay_timestep += 1
