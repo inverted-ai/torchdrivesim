@@ -16,14 +16,14 @@ import torch
 import numpy as np
 from omegaconf import OmegaConf
 from torch import Tensor
+import imageio
 
 from torchdrivesim.behavior.iai import iai_initialize, IAINPCController
 from torchdrivesim.kinematic import KinematicBicycle
 from torchdrivesim.map import find_map_config
 from torchdrivesim.rendering import RendererConfig, renderer_from_config
 from torchdrivesim.utils import Resolution
-from torchdrivesim.simulator import TorchDriveConfig, SimulatorInterface, \
-    BirdviewRecordingWrapper, Simulator
+from torchdrivesim.simulator import TorchDriveConfig, Simulator
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class TorchDriveGymEnvConfig:
 
 
 class GymEnv(gym.Env):
-    def __init__(self, config: TorchDriveGymEnvConfig, simulator: SimulatorInterface):
+    def __init__(self, config: TorchDriveGymEnvConfig, simulator: Simulator):
         dtype = np.float32
         acceleration_range = (-1.0, 1.0)
         steering_range = (-1.0, 1.0)
@@ -57,7 +57,6 @@ class GymEnv(gym.Env):
         self.observation_space = gym.spaces.Dict({
             'speed': gym.spaces.Box(low=np.array([0.0], dtype=dtype), high=np.array([200.0], dtype=dtype), dtype=dtype),
             'birdview_image': gym.spaces.Box(low=0, high=255, shape=(3, 64, 64), dtype=dtype),
-            # 'command': gym.spaces.Discrete(n=4),
             'prev_action': self.action_space
         })
         self.reward_range = (- float('inf'), float('inf'))
@@ -68,19 +67,17 @@ class GymEnv(gym.Env):
         self.simulator = simulator
         self.start_sim = self.simulator.copy()
         self.prev_action = None
+        self.frames = []
         self.video_filename = None
+        self.recording = False
+        self.res = None
+        self.fov = None
 
     def reset(self):
-        # if recording video, retain the recording wrapper, while making a new copy of the inner simulator
-        if self.video_filename is not None and isinstance(self.simulator, BirdviewRecordingWrapper):
-            wrapper = self.simulator
-        else:
-            wrapper = None
         self.simulator = self.start_sim.copy()
-        if wrapper is not None:
-            wrapper.inner_simulator = self.simulator
-            self.simulator = wrapper
         self.environment_steps = 0
+        if self.recording:
+            self.frames = []
         return self.get_obs()
 
     def step(self, action: Tensor):
@@ -89,6 +86,12 @@ class GymEnv(gym.Env):
         action = action.to(self.simulator.get_state().device)
         self.simulator.step(action)
         self.prev_action = action
+        
+        # Capture frame if recording
+        if self.recording:
+            frame = self.simulator.render_egocentric(res=self.res, fov=self.fov)
+            self.frames.append(frame[0].cpu().numpy().transpose(1, 2, 0))
+            
         return self.get_obs(), self.get_reward(), self.is_done(), self.get_info()
 
     def get_obs(self):
@@ -97,7 +100,6 @@ class GymEnv(gym.Env):
         birdview = self.simulator.render_egocentric()
         obs = dict(
             speed=speed,
-            # command=torch.zeros_like(speed, dtype=torch.long),
             birdview_image=birdview,
             prev_action=self.prev_action,
         )
@@ -119,7 +121,6 @@ class GymEnv(gym.Env):
         info = dict(
             offroad=self.simulator.compute_offroad() > self.offroad_threshold,
             collision=self.simulator.compute_collision() > self.collision_threshold,
-            # expert_action=torch.zeros_like(self.prev_action),
             outcome=None
         )
         return info
@@ -131,12 +132,22 @@ class GymEnv(gym.Env):
         if mode == 'human':
             raise NotImplementedError
         elif mode == 'video':
-            self.simulator = BirdviewRecordingWrapper(self.simulator, res=res, fov=fov, to_cpu=True)
             self.video_filename = filename
+            self.recording = True
+            self.res = res
+            self.fov = fov
+            self.frames = []
 
     def close(self):
-        if self.video_filename is not None and isinstance(self.simulator, BirdviewRecordingWrapper):
-            self.simulator.save_gif(self.video_filename, batch_index=0)
+        if self.recording and self.frames:
+            imageio.mimsave(self.video_filename, self.frames, format="GIF-PIL", fps=10)
+            try:
+                from pygifsicle import optimize
+                optimize(self.video_filename, options=['--no-warnings'])
+            except ImportError:
+                print("You can install pygifsicle for gif compression and optimization.")
+            self.recording = False
+            self.frames = []
 
 
 class IAIGymEnv(GymEnv):
