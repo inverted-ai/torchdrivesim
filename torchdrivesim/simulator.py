@@ -1028,7 +1028,7 @@ class Simulator(SimulatorInterface):
         abs_agent_pos = self.get_all_agents_absolute()
         all_agent_count = self.agent_count + self.npc_count
 
-        xy, psi = abs_agent_pos[..., :2], abs_agent_pos[..., 2:3]  # current agent type
+        xy, psi = abs_agent_pos[..., :self.agent_count, :2], abs_agent_pos[..., :self.agent_count, 2:3]  # current agent type
         all_xy, all_psi = abs_agent_pos[..., :2], abs_agent_pos[..., 2:3]  # all agent types
         # compute relative position of all agents w.r.t. each agent from of current type
         rel_xy, rel_psi = relative(origin_xy=xy.unsqueeze(-2), origin_psi=psi.unsqueeze(-2),
@@ -1038,13 +1038,14 @@ class Simulator(SimulatorInterface):
         rel_pos = torch.cat([rel_state, abs_agent_pos[..., 3:].unsqueeze(-3).expand_as(rel_state)], dim=-1)
         if exclude_self:
             # remove the diagonal of the current agent type
-            to_keep = torch.eye(all_agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
+            to_keep = torch.eye(self.agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
+            to_keep = torch.cat([torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device), to_keep], dim=-1)
             # need to flatten to index two dimensions simultaneously
             to_keep = torch.flatten(to_keep)
             rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
             rel_pos = rel_pos[..., to_keep, :]
             # the result has one less agent in the penultimate dimension
-            rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], all_agent_count, all_agent_count - 1, 6))
+            rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
         return rel_pos
 
     def get_innermost_simulator(self) -> Self:
