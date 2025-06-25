@@ -200,7 +200,7 @@ class NPCController:
         self.npc_types = self.npc_types[idx]
         self.spawn_controller.select_batch_elements(idx, in_place=True)
         return self
-    
+
 
 class CompoundNPCController(NPCController):
     """
@@ -212,7 +212,7 @@ class CompoundNPCController(NPCController):
     """
     def __init__(self, controllers: List[NPCController], controller_indices: Tensor):
         batch_size, num_agents = controller_indices.shape
-        
+
         npc_size = torch.zeros((batch_size, num_agents, 2), device=controller_indices.device)
         npc_state = torch.zeros((batch_size, num_agents, 4), device=controller_indices.device)
         npc_present_mask = torch.zeros((batch_size, num_agents), device=controller_indices.device, dtype=torch.bool)
@@ -223,7 +223,7 @@ class CompoundNPCController(NPCController):
         self.controller_indices = controller_indices
 
         self.gather_npc_states()
-    
+
 
     def gather_npc_states(self):
         # Fill tensors based on controller_indices
@@ -260,14 +260,14 @@ class CompoundNPCController(NPCController):
             [c.copy() for c in self.controllers],
             self.controller_indices.clone()
         )
-    
+
     def extend(self, n, in_place=True):
         super().extend(n, in_place)
         self.controller_indices = self.controller_indices.expand(n, -1)
         for controller in self.controllers:
             controller.extend(n, in_place)
         return self
-    
+
     def select_batch_elements(self, idx, in_place=True):
         super().select_batch_elements(idx, in_place)
         self.controller_indices = self.controller_indices[idx]
@@ -303,7 +303,9 @@ class Simulator:
                  internal_time: int = 0, traffic_controls: Optional[Dict[str, BaseTrafficControl]] = None,
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
-                 npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None):
+                 npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None,
+                 sparse_lane_features: Optional[Tensor] = None, sparse_lane_features_mask: Optional[Tensor] = None,
+                 dense_lane_features: Optional[Tensor] = None, dense_lane_features_mask: Optional[Tensor] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -327,6 +329,11 @@ class Simulator:
         self._batch_size = self.road_mesh.batch_size
         self.agent_type = agent_types
         self.agent_lr = agent_lr
+
+        self.sparse_lane_features = sparse_lane_features
+        self.sparse_lane_features_mask = sparse_lane_features_mask
+        self.dense_lane_features = dense_lane_features
+        self.dense_lane_features_mask = dense_lane_features_mask
 
         self.npc_controller = npc_controller
         if self.npc_controller is None:
@@ -404,6 +411,11 @@ class Simulator:
         self.birdview_mesh_generator = self.birdview_mesh_generator.to(device)
         self.npc_controller = self.npc_controller.to(device)
 
+        self.sparse_lane_features = self.sparse_lane_features.to(device) if self.sparse_lane_features is not None else None
+        self.sparse_lane_features_mask = self.sparse_lane_features_mask.to(device) if self.sparse_lane_features_mask is not None else None
+        self.dense_lane_features = self.dense_lane_features.to(device) if self.dense_lane_features is not None else None
+        self.dense_lane_features_mask = self.dense_lane_features_mask.to(device) if self.dense_lane_features_mask is not None else None
+
         return self
 
     def copy(self) -> Self:
@@ -424,6 +436,10 @@ class Simulator:
             agent_type_names=self.agent_types if self.agent_types is not None else None,
             agent_lr=self.agent_lr if self.agent_lr is not None else None,
             npc_controller=self.npc_controller.copy(),
+            sparse_lane_features=self.sparse_lane_features if self.sparse_lane_features is not None else None,
+            sparse_lane_features_mask=self.sparse_lane_features_mask if self.sparse_lane_features_mask is not None else None,
+            dense_lane_features=self.dense_lane_features if self.dense_lane_features is not None else None,
+            dense_lane_features_mask=self.dense_lane_features_mask if self.dense_lane_features_mask is not None else None,
         )
         return other
 
@@ -446,6 +462,11 @@ class Simulator:
         self.present_mask = enlarge(self.present_mask)
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
+
+        self.sparse_lane_features = enlarge(self.sparse_lane_features) if self.sparse_lane_features is not None else None
+        self.sparse_lane_features_mask = enlarge(self.sparse_lane_features_mask) if self.sparse_lane_features_mask is not None else None
+        self.dense_lane_features = enlarge(self.dense_lane_features) if self.dense_lane_features is not None else None
+        self.dense_lane_features_mask = enlarge(self.dense_lane_features_mask) if self.dense_lane_features_mask is not None else None
 
         # kinematic models are modified in place
         self.kinematic_model.extend(n)
@@ -478,6 +499,11 @@ class Simulator:
         self.agent_type = self.agent_type[idx]
         self.agent_lr = self.agent_lr[idx]
         self.present_mask = self.present_mask[idx]
+
+        self.sparse_lane_features = self.sparse_lane_features[idx] if self.sparse_lane_features is not None else None
+        self.sparse_lane_features_mask = self.sparse_lane_features_mask[idx] if self.sparse_lane_features_mask is not None else None
+        self.dense_lane_features = self.dense_lane_features[idx] if self.dense_lane_features is not None else None
+        self.dense_lane_features_mask = self.dense_lane_features_mask[idx] if self.dense_lane_features_mask is not None else None
 
         # kinematic models are modified in place
         self.kinematic_model.select_batch_elements(idx)
