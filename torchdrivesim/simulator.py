@@ -705,15 +705,20 @@ class Simulator:
         # insert the info that doesn't vary with the coordinate frame
         rel_pos = torch.cat([rel_state, abs_agent_pos[..., 3:].unsqueeze(-3).expand_as(rel_state)], dim=-1)
         if exclude_self:
-            # remove the diagonal of the current agent type
-            to_keep = torch.eye(self.agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
-            to_keep = torch.cat([to_keep, torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device)], dim=-1)
-            # need to flatten to index two dimensions simultaneously
-            to_keep = torch.flatten(to_keep)
-            rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
-            rel_pos = rel_pos[..., to_keep, :]
-            # the result has one less agent in the penultimate dimension
-            rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
+            if self.agent_count == 1:
+                rel_pos = rel_pos[..., 1:, :]
+            else:
+                # remove the diagonal of the current agent type
+                # TODO: find a non-blocking version that's correct for multiple agents
+                # indexing with a boolean mask triggers CUDA synchronization
+                to_keep = torch.eye(self.agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
+                to_keep = torch.cat([to_keep, torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device)], dim=-1)
+                # need to flatten to index two dimensions simultaneously
+                to_keep = torch.flatten(to_keep)
+                rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
+                rel_pos = rel_pos[..., to_keep, :]
+                # the result has one less agent in the penultimate dimension
+                rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
         return rel_pos
 
     def get_traffic_controls(self) -> Dict[str, BaseTrafficControl]:
