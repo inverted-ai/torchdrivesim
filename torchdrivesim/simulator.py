@@ -707,7 +707,7 @@ class Simulator:
         if exclude_self:
             # remove the diagonal of the current agent type
             to_keep = torch.eye(self.agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
-            to_keep = torch.cat([torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device), to_keep], dim=-1)
+            to_keep = torch.cat([to_keep, torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device)], dim=-1)
             # need to flatten to index two dimensions simultaneously
             to_keep = torch.flatten(to_keep)
             rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
