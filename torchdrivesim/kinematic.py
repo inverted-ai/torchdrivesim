@@ -345,6 +345,7 @@ class SimpleKinematicModel(KinematicModel):
     def copy(self, other=None):
         if other is None:
             other = self.__class__(max_dx=self.max_dx, max_dv=self.max_dv, dt=self.dt)
+        other._normalization_factor = self._normalization_factor.clone()
         return super().copy(other)
 
     def to(self, device):
@@ -423,6 +424,7 @@ class KinematicBicycle(KinematicModel):
     def copy(self, other=None):
         if other is None:
             other = self.__class__(max_acceleration=self.max_acceleration, dt=self.dt, left_handed=self.left_handed)
+        other._normalization_factor = self._normalization_factor.clone()
         return super().copy(other)
     
     def to(self, device):
@@ -533,6 +535,7 @@ class BicycleByDisplacement(KinematicBicycle):
     def copy(self, other=None):
         if other is None:
             other = self.__class__(max_dx=self.max_dx, dt=self.dt)
+        other._xy_normalization_tensor = self._xy_normalization_tensor.clone()
         return super().copy(other)
     
     def to(self, device):
