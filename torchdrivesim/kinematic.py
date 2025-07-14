@@ -223,6 +223,13 @@ class CompoundKinematicModel(KinematicModel):
         other.set_state(self.get_state())
         return other
     
+    def to(self, device):
+        other = super().to(device)
+        for model in other.models:
+            model.to(device)
+        other.model_assignments = other.model_assignments.to(device)
+        return other
+    
     def extend(self, n: int):
         enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) + x.shape[1:])
         state = self.get_state()
@@ -338,13 +345,19 @@ class SimpleKinematicModel(KinematicModel):
     def copy(self, other=None):
         if other is None:
             other = self.__class__(max_dx=self.max_dx, max_dv=self.max_dv, dt=self.dt)
+        other._normalization_factor = self._normalization_factor.clone()
         return super().copy(other)
 
+    def to(self, device):
+        other = super().to(device)
+        other._normalization_factor = other._normalization_factor.to(device)
+        return other
+
     def normalize_action(self, action):
-        return action / self._normalization_factor.to(action.device).to(action.dtype)
+        return action / self._normalization_factor
 
     def denormalize_action(self, action):
-        return action * self._normalization_factor.to(action.device).to(action.dtype)
+        return action * self._normalization_factor
 
     def step(self, action, dt=None):
         if dt is None:
@@ -411,7 +424,13 @@ class KinematicBicycle(KinematicModel):
     def copy(self, other=None):
         if other is None:
             other = self.__class__(max_acceleration=self.max_acceleration, dt=self.dt, left_handed=self.left_handed)
+        other._normalization_factor = self._normalization_factor.clone()
         return super().copy(other)
+    
+    def to(self, device):
+        other = super().to(device)
+        other._normalization_factor = other._normalization_factor.to(device)
+        return other
 
     def get_params(self):
         params = super().get_params()
@@ -435,10 +454,10 @@ class KinematicBicycle(KinematicModel):
         self.lr = f(self.lr)
 
     def normalize_action(self, action):
-        return action / self._normalization_factor.to(action.device).to(action.dtype)
+        return action / self._normalization_factor
 
     def denormalize_action(self, action):
-        return action * self._normalization_factor.to(action.device).to(action.dtype)
+        return action * self._normalization_factor
 
     def step(self, action, dt=None):
         assert action.shape[-1] == 2, "The bicycle model takes as input only acceleration and steering"
@@ -516,7 +535,13 @@ class BicycleByDisplacement(KinematicBicycle):
     def copy(self, other=None):
         if other is None:
             other = self.__class__(max_dx=self.max_dx, dt=self.dt)
+        other._xy_normalization_tensor = self._xy_normalization_tensor.clone()
         return super().copy(other)
+    
+    def to(self, device):
+        other = super().to(device)
+        other._xy_normalization_tensor = other._xy_normalization_tensor.to(device)
+        return other
 
     def step(self, action, dt=None):
         assert action.shape[-1] == 2  # x and y displacement
@@ -541,7 +566,7 @@ class BicycleByDisplacement(KinematicBicycle):
         else:
             xp, yp, psip, vp = self.unpack_state(current_state)
         action = torch.stack([(xf - xp) / dt, (yf - yp) / dt], dim=-1)
-        action = action / self._xy_normalization_tensor.to(action.device).to(action.dtype)
+        action = action / self._xy_normalization_tensor
         return action
 
 
