@@ -12,7 +12,7 @@ from torch import Tensor
 import torchdrivesim.rendering.pytorch3d
 from torchdrivesim.goals import WaypointGoal
 from torchdrivesim.kinematic import KinematicModel
-from torchdrivesim.lanelet2 import LaneletMap
+from torchdrivesim.lanelet2 import LaneletMap, LaneFeatures
 from torchdrivesim.mesh import generate_trajectory_mesh, BirdviewMesh, BirdviewRGBMeshGenerator
 from torchdrivesim.rendering import BirdviewRenderer, RendererConfig, renderer_from_config
 from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientation_loss, iou_differentiable, \
@@ -304,8 +304,7 @@ class Simulator:
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
                  npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None,
-                 sparse_lane_features: Optional[Tensor] = None, sparse_lane_features_mask: Optional[Tensor] = None,
-                 dense_lane_features: Optional[Tensor] = None, dense_lane_features_mask: Optional[Tensor] = None):
+                 lane_features: Optional[LaneFeatures] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -330,10 +329,7 @@ class Simulator:
         self.agent_type = agent_types
         self.agent_lr = agent_lr
 
-        self.sparse_lane_features = sparse_lane_features
-        self.sparse_lane_features_mask = sparse_lane_features_mask
-        self.dense_lane_features = dense_lane_features
-        self.dense_lane_features_mask = dense_lane_features_mask
+        self.lane_features = lane_features
 
         self.npc_controller = npc_controller
         if self.npc_controller is None:
@@ -411,11 +407,7 @@ class Simulator:
         self.birdview_mesh_generator = self.birdview_mesh_generator.to(device)
         self.npc_controller = self.npc_controller.to(device)
 
-        self.sparse_lane_features = self.sparse_lane_features.to(device) if self.sparse_lane_features is not None else None
-        self.sparse_lane_features_mask = self.sparse_lane_features_mask.to(device) if self.sparse_lane_features_mask is not None else None
-        self.dense_lane_features = self.dense_lane_features.to(device) if self.dense_lane_features is not None else None
-        self.dense_lane_features_mask = self.dense_lane_features_mask.to(device) if self.dense_lane_features_mask is not None else None
-
+        self.lane_features = self.lane_features.to(device) if self.lane_features is not None else None
         return self
 
     def copy(self) -> Self:
@@ -436,10 +428,7 @@ class Simulator:
             agent_type_names=self.agent_types if self.agent_types is not None else None,
             agent_lr=self.agent_lr if self.agent_lr is not None else None,
             npc_controller=self.npc_controller.copy(),
-            sparse_lane_features=self.sparse_lane_features if self.sparse_lane_features is not None else None,
-            sparse_lane_features_mask=self.sparse_lane_features_mask if self.sparse_lane_features_mask is not None else None,
-            dense_lane_features=self.dense_lane_features if self.dense_lane_features is not None else None,
-            dense_lane_features_mask=self.dense_lane_features_mask if self.dense_lane_features_mask is not None else None,
+            lane_features=self.lane_features.copy() if self.lane_features is not None else None,
         )
         return other
 
@@ -463,10 +452,7 @@ class Simulator:
         self.recenter_offset = enlarge(self.recenter_offset) if self.recenter_offset is not None else None
         self.lanelet_map = [lanelet_map for lanelet_map in self.lanelet_map for _ in range(n)] if self.lanelet_map is not None else None
 
-        self.sparse_lane_features = enlarge(self.sparse_lane_features) if self.sparse_lane_features is not None else None
-        self.sparse_lane_features_mask = enlarge(self.sparse_lane_features_mask) if self.sparse_lane_features_mask is not None else None
-        self.dense_lane_features = enlarge(self.dense_lane_features) if self.dense_lane_features is not None else None
-        self.dense_lane_features_mask = enlarge(self.dense_lane_features_mask) if self.dense_lane_features_mask is not None else None
+        self.lane_features = self.lane_features.extend(n) if self.lane_features is not None else None
 
         # kinematic models are modified in place
         self.kinematic_model.extend(n)
@@ -500,10 +486,7 @@ class Simulator:
         self.agent_lr = self.agent_lr[idx]
         self.present_mask = self.present_mask[idx]
 
-        self.sparse_lane_features = self.sparse_lane_features[idx] if self.sparse_lane_features is not None else None
-        self.sparse_lane_features_mask = self.sparse_lane_features_mask[idx] if self.sparse_lane_features_mask is not None else None
-        self.dense_lane_features = self.dense_lane_features[idx] if self.dense_lane_features is not None else None
-        self.dense_lane_features_mask = self.dense_lane_features_mask[idx] if self.dense_lane_features_mask is not None else None
+        self.lane_features = self.lane_features.select_batch_elements(idx) if self.lane_features is not None else None
 
         # kinematic models are modified in place
         self.kinematic_model.select_batch_elements(idx)
