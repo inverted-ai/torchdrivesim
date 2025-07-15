@@ -6,7 +6,9 @@ to its functions raise the Lanelet2NotFound exception.
 """
 import os
 from random import random
+from dataclasses import dataclass
 from typing import Any, Tuple, List, Optional
+from typing_extensions import Self
 
 import numpy as np
 import scipy.spatial
@@ -24,6 +26,49 @@ except ImportError:
     lanelet2 = None
     is_available = False
     LaneletMap = Any
+
+
+@dataclass
+class LaneFeatures:
+    dense_lane_features: Optional[Tensor] = None  # [B, M, D]
+    dense_lane_features_mask: Optional[Tensor] = None  # [B, M]
+    sparse_lane_features: Optional[Tensor] = None  # [B, N, D]
+    sparse_lane_features_mask: Optional[Tensor] = None  # [B, N]
+
+    def to(self, device) -> Self:
+        return LaneFeatures(
+            dense_lane_features=self.dense_lane_features.to(device) if self.dense_lane_features is not None else None,
+            dense_lane_features_mask=self.dense_lane_features_mask.to(device) if self.dense_lane_features_mask is not None else None,
+            sparse_lane_features=self.sparse_lane_features.to(device) if self.sparse_lane_features is not None else None,
+            sparse_lane_features_mask=self.sparse_lane_features_mask.to(device) if self.sparse_lane_features_mask is not None else None,
+        )
+
+    def copy(self) -> Self:
+        return LaneFeatures(
+            dense_lane_features=self.dense_lane_features,
+            dense_lane_features_mask=self.dense_lane_features_mask,
+            sparse_lane_features=self.sparse_lane_features,
+            sparse_lane_features_mask=self.sparse_lane_features_mask,
+        )
+
+    def extend(self, n: int) -> Self:
+        enlarge = lambda x: x.unsqueeze(1).expand((x.shape[0], n) + x.shape[1:]).reshape((n * x.shape[0],) +
+                                                                                            x.shape[1:]) if x is not None else None
+
+        return LaneFeatures(
+            dense_lane_features=enlarge(self.dense_lane_features),
+            dense_lane_features_mask=enlarge(self.dense_lane_features_mask),
+            sparse_lane_features=enlarge(self.sparse_lane_features),
+            sparse_lane_features_mask=enlarge(self.sparse_lane_features_mask),
+        )
+
+    def select_batch_elements(self, idx) -> Self:
+        return LaneFeatures(
+            dense_lane_features=self.dense_lane_features[idx] if self.dense_lane_features is not None else None,
+            dense_lane_features_mask=self.dense_lane_features_mask[idx] if self.dense_lane_features_mask is not None else None,
+            sparse_lane_features=self.sparse_lane_features[idx] if self.sparse_lane_features is not None else None,
+            sparse_lane_features_mask=self.sparse_lane_features_mask[idx] if self.sparse_lane_features_mask is not None else None,
+        )
 
 
 class Lanelet2NotFound(ImportError):
