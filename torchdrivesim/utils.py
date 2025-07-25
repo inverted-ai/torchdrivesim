@@ -134,3 +134,54 @@ def merge_dicts(ds: List[Dict]) -> Dict:
 
 def assert_equal(x, y):
     assert x == y
+
+
+def line_circle_intersection(p1: torch.Tensor, p2: torch.Tensor,
+                           circle_center: torch.Tensor, radius: torch.Tensor) -> torch.Tensor:
+    """
+    Determine intersections between batched line segments and circles in 2D.
+
+    Args:
+        p1 (torch.Tensor): Start points of line segments [..., 2]
+        p2 (torch.Tensor): End points of line segments [..., 2]
+        circle_center (torch.Tensor): Circle centers [..., 2]
+        radius (torch.Tensor): Circle radii [..., 1]
+
+    Returns:
+        torch.Tensor: Boolean tensor indicating intersections [..., 1]
+    """
+    # Vector from p1 to p2
+    d = p2 - p1  # [..., 2]
+
+    # Vector from p1 to circle center
+    f = p1 - circle_center  # [..., 2]
+
+    # Coefficients of quadratic equation at^2 + bt + c = 0
+    a = torch.sum(d * d, dim=-1)  # [...]
+    b = 2 * torch.sum(f * d, dim=-1)  # [...]
+    c = torch.sum(f * f, dim=-1) - (radius[..., 0] * radius[..., 0])  # [...]
+
+    # Discriminant
+    discriminant = b * b - 4 * a * c  # [...]
+
+    # Check if discriminant is non-negative (potential intersection)
+    has_intersection = discriminant >= 0  # [...]
+
+    # Calculate intersection parameters
+    sqrt_discriminant = torch.sqrt(torch.clamp(discriminant, min=0))
+    # Avoid division by zero for degenerate lines (a = 0)
+    a_safe = torch.where(torch.abs(a) < 1e-8, torch.ones_like(a) * 1e-8, a)
+
+    t1 = (-b - sqrt_discriminant) / (2 * a_safe)  # [...]
+    t2 = (-b + sqrt_discriminant) / (2 * a_safe)  # [...]
+
+    # Check if line segment intersects circle
+    # Intersection occurs if interval [0,1] overlaps with interval [min(t1,t2), max(t1,t2)]
+    t_min = torch.min(t1, t2)
+    t_max = torch.max(t1, t2)
+    line_segment_intersection = (t_min <= 1) & (t_max >= 0)
+
+    # Combine discriminant check with line segment constraint
+    result = has_intersection & line_segment_intersection
+
+    return result[..., None]  # Add dimension to match expected output shape
