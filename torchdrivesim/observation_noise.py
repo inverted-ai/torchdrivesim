@@ -96,7 +96,7 @@ class StandardSensingObservationNoise(ObservationNoise):
 
         # Exclude ego agents being occluded from their own perspective
         ego_target_mask = torch.zeros(batch_size, agent_count, total_entities, total_entities, dtype=torch.bool, device=occluding.device)
-        ego_target_mask[:, agent_indices, agent_indices, :] = True
+        ego_target_mask[:, agent_indices, :, agent_indices] = True
 
         occluding = occluding & ~self_mask & ~ego_target_mask
 
