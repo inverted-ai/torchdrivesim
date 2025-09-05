@@ -67,6 +67,7 @@ def simulate(cfg: SimulationConfig):
     kinematic_model = KinematicBicycle()
     kinematic_model.set_params(lr=ego_attributes[..., 2])
     kinematic_model.set_state(ego_states)
+    kinematic_model.to(device=device)
     renderer = renderer_from_config(simulator_cfg.renderer)
     traffic_controls = traffic_controls_from_map_config(map_cfg)
     traffic_controls = {k: v.to(device) for k, v in traffic_controls.items()}
