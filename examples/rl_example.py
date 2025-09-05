@@ -324,7 +324,7 @@ def rl_trainer(cfg: TorchDriveGymEnvConfig):
     env_gen = lambda: gym.make('torchdrivesim/IAI-v0', args=cfg)
     policy_trainer = PPOTrainer(env_gen)
     print('Training Reinforcement Learning Agent:')
-    progress_bar = trange(5, leave=True)
+    progress_bar = trange(100, leave=True)
     for i in progress_bar:
         policy_trainer.train_step()
         progress_bar.set_description(f"Average Return: {policy_trainer.evaluate_policy().item():.2f}")
