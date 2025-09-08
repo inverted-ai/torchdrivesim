@@ -55,12 +55,12 @@ def rotation_matrix(theta: Tensor) -> Tensor:
 
 def rotate(v: Tensor, angle: Tensor) -> Tensor:
     """
-    Rotate the vector counterclockwise (from x towards y).
+    Rotate the vector counterclockwise (from x-axis towards y-axis).
     Works correctly in batch mode.
 
     Args:
         v: tensor of shape Sx2 representing points
-        angle: tensor of shape Sx1 representing rotation angle
+        angle: tensor of shape Sx1 representing rotation angle in radians
     Returns:
         Sx2 tensor of rotated points
     """
