@@ -44,7 +44,7 @@ def rotation_matrix(theta: Tensor) -> Tensor:
     Args:
         theta: tensor of shape Sx1 with rotation angle in radians
     Returns:
-        Sx2x2 tensor with the rotation matrix.
+        Sx2x2 tensor with the rotation matrix in row-major order (i.e. rot_mat[0] is first ROW of matrix).
     """
     rot_mat = torch.stack([
         torch.cat([torch.cos(theta), - torch.sin(theta)], dim=-1),
