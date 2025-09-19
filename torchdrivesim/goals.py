@@ -166,7 +166,8 @@ class WaypointGoal:
         masks = self.get_masks()
         agent_overlap = self._agent_waypoint_overlap(agent_states[..., :2], waypoints, threshold=threshold)
         agent_overlap = agent_overlap.any(dim=-1, keepdim=True).expand_as(agent_overlap)
-        agent_overlap = torch.where(masks, agent_overlap, True)
+        agent_overlap = torch.where(masks, agent_overlap, False)
+        agent_overlap = agent_overlap & masks.any(dim=-1, keepdim=True).expand_as(agent_overlap)
         self.mask = self._update_mask(self.state, self.mask, agent_overlap.logical_not())
         self.state = self._advance_state(self.state, agent_overlap)
 
