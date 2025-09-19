@@ -182,7 +182,12 @@ class WaypointGoal:
         Returns:
             BxAxNxM boolean tensor updated with the `new_mask` values
         """
-        return torch.scatter(mask, 2, state[..., None].expand(-1, -1, -1, mask.shape[-1]), new_mask.unsqueeze(2))
+        idx = state[..., None].expand(-1, -1, -1, mask.shape[-1])
+        # Only update valid waypoints leave padding untouched
+        valid_mask = mask.gather(2, idx)  # BxAx1xM
+        updated = mask.clone()
+        updated.scatter_(2, idx, torch.where(valid_mask, new_mask.unsqueeze(2), mask.gather(2, idx)))
+        return updated
 
     def _advance_state(self, state, agent_overlap):
         """
