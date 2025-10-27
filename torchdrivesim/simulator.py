@@ -48,6 +48,8 @@ class TorchDriveConfig:
     lanelet_inclusion_tolerance: float = 1.0  #: cars less than this many meters away from a lanelet boundary will still
         # be considered inside for the purposes of calculating the wrong way infractions
     waypoint_removal_threshold: float = 2.0  #: how close the agent needs to get to the waypoint to consider it achieved
+    waypoint_remove_if_behind: bool = False  #: if True, waypoints that are behind the agent and within 'waypoint_behind_removal_threshold' are excluded from overlap
+    waypoint_behind_removal_threshold: float = 4.0  #: distance threshold for behind check
 
 
 class SpawnController:
@@ -756,7 +758,9 @@ class Simulator:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
         if self.waypoint_goals is not None:
-            self.waypoint_goals.step(self.get_state(), self.internal_time, threshold=self.cfg.waypoint_removal_threshold)
+            self.waypoint_goals.step(self.get_state(), self.internal_time, threshold=self.cfg.waypoint_removal_threshold,
+                                     remove_if_behind=self.cfg.waypoint_remove_if_behind,
+                                     behind_threshold=self.cfg.waypoint_behind_removal_threshold)
 
     def set_state(self, agent_state: Tensor, mask: Optional[Tensor] = None) -> None:
         """
