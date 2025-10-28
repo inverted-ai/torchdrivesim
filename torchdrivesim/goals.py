@@ -166,7 +166,7 @@ class WaypointGoal:
         assert agent_states.shape[1] == self.waypoints.shape[1]
         waypoints = self.get_waypoints()
         masks = self.get_masks()
-        agent_overlap = self._agent_waypoint_overlap(agent_states[..., :2], waypoints, threshold=threshold,
+        agent_overlap = self._agent_waypoint_overlap(agent_states[..., :3], waypoints, threshold=threshold,
                                                      remove_if_behind=remove_if_behind, behind_threshold=behind_threshold)
         agent_overlap = agent_overlap & masks
         agent_overlap = agent_overlap.any(dim=-1, keepdim=True).expand_as(agent_overlap)
