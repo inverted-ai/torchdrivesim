@@ -19,6 +19,7 @@ from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientati
     compute_agent_collisions_metric_pytorch3d, compute_agent_collisions_metric, collision_detection_with_discs
 from torchdrivesim.traffic_controls import BaseTrafficControl
 from torchdrivesim.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
+from torchdrivesim.observation_noise import ObservationNoise, ObservationNoiseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +305,7 @@ class Simulator:
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
                  npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None,
-                 lane_features: Optional[LaneFeatures] = None):
+                 lane_features: Optional[LaneFeatures] = None, observation_noise_model: Optional[ObservationNoise] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
@@ -372,6 +373,11 @@ class Simulator:
         else:
             self.birdview_mesh_generator = birdview_mesh_generator
 
+        if observation_noise_model is None:
+            self.observation_noise_model = ObservationNoise(ObservationNoiseConfig())
+        else:
+            self.observation_noise_model = observation_noise_model
+
     @property
     def agent_types(self) -> Optional[List[str]]:
         """
@@ -429,6 +435,7 @@ class Simulator:
             agent_lr=self.agent_lr if self.agent_lr is not None else None,
             npc_controller=self.npc_controller.copy(),
             lane_features=self.lane_features.copy() if self.lane_features is not None else None,
+            observation_noise_model=self.observation_noise_model,
         )
         return other
 
@@ -635,6 +642,24 @@ class Simulator:
         """
         return self.present_mask
 
+    def get_noisy_state(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)xSt tensors representing current agent states.
+        """
+        return self.observation_noise_model.get_noisy_state(self)
+
+    def get_noisy_agent_size(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)x2 tensors representing agent length and width.
+        """
+        return self.observation_noise_model.get_noisy_agent_size(self)
+
+    def get_noisy_present_mask(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc) boolean tensors indicating which agents are currently present in the simulation.
+        """
+        return self.observation_noise_model.get_noisy_present_mask(self)
+
     def get_npc_state(self) -> Tensor:
         """
         Returns a functor of BxNpcxSt tensors representing current non-playable character states.
@@ -694,6 +719,14 @@ class Simulator:
         npc_info = torch.cat([self.get_npc_state()[..., :3], self.get_npc_size(), self.get_npc_present_mask().unsqueeze(-1)], dim=-1)
         return torch.cat([agent_info, npc_info], dim=-2)
 
+    def get_noisy_all_agents_absolute(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)x6 tensors,
+        where the last dimension contains the following information: x, y, psi, length, width, present.
+        Typically used to implement non-visual observation modalities.
+        """
+        return torch.cat([self.get_noisy_state()[..., :3], self.get_noisy_agent_size(), self.get_noisy_present_mask()[..., None]], dim=-1)
+
     def get_all_agents_relative(self, exclude_self: bool = True) -> Tensor:
         """
         Returns a functor of BxAx(A+Npc)x6 tensors, specifying for each of A agents the relative position about
@@ -713,6 +746,45 @@ class Simulator:
         rel_state = torch.cat([rel_xy, rel_psi], dim=-1)
         # insert the info that doesn't vary with the coordinate frame
         rel_pos = torch.cat([rel_state, abs_agent_pos[..., 3:].unsqueeze(-3).expand_as(rel_state)], dim=-1)
+        if exclude_self:
+            if self.agent_count == 1:
+                rel_pos = rel_pos[..., 1:, :]
+            else:
+                # remove the diagonal of the current agent type
+                # TODO: find a non-blocking version that's correct for multiple agents
+                # indexing with a boolean mask triggers CUDA synchronization
+                to_keep = torch.eye(self.agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
+                to_keep = torch.cat([to_keep, torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device)], dim=-1)
+                # need to flatten to index two dimensions simultaneously
+                to_keep = torch.flatten(to_keep)
+                rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
+                rel_pos = rel_pos[..., to_keep, :]
+                # the result has one less agent in the penultimate dimension
+                rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
+        return rel_pos
+
+    def get_noisy_all_agents_relative(self, exclude_self: bool = True) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)x6 tensors, specifying for each of A agents the relative position about
+        the other agents. 'All' is the number of all agents in the simulation, including hidden ones, across all
+        agent types. If `exclude_self` is set, for each agent in A, that agent itself is removed from All.
+        The final dimension has the same meaning as in `get_noisy_all_agents_absolute`, except now the positions
+        and orientations are relative to the specified agent.
+        """
+        abs_agent_pos = self.get_noisy_all_agents_absolute()  # BxAx(A+Npc)x6
+        all_agent_count = self.agent_count + self.npc_count
+        agent_indices = torch.arange(self.agent_count, device=abs_agent_pos.device)
+        agent_own_pos = abs_agent_pos[:, agent_indices, agent_indices, :]  # BxAx6
+        # Agent's own position and orientation (origin for relative transformation)
+        xy, psi = agent_own_pos[..., :2], agent_own_pos[..., 2:3]  # BxAx...
+        # All entities as observed by each agent
+        all_xy, all_psi = abs_agent_pos[..., :2], abs_agent_pos[..., 2:3]  # BxAx(A+Npc)x...
+        # Compute relative position of all entities w.r.t. each agent
+        rel_xy, rel_psi = relative(origin_xy=xy.unsqueeze(-2), origin_psi=psi.unsqueeze(-2),
+                                   target_xy=all_xy, target_psi=all_psi)
+        rel_state = torch.cat([rel_xy, rel_psi], dim=-1)  # BxAx(A+Npc)x3
+        # Insert the info that doesn't vary with the coordinate frame
+        rel_pos = torch.cat([rel_state, abs_agent_pos[..., 3:]], dim=-1)  # BxAx(A+Npc)x6
         if exclude_self:
             if self.agent_count == 1:
                 rel_pos = rel_pos[..., 1:, :]
