@@ -568,11 +568,11 @@ class Simulator:
         """
         return self.kinematic_model.get_state()
 
-    def get_waypoints(self) -> Tensor:
+    def get_waypoints(self, count: int = 1) -> Tensor:
         """
-        Returns a functor of BxAxMx2 tensors representing current agent waypoints.
+        Returns a functor of BxAxcount*Mx2 tensors representing current agent waypoints.
         """
-        return self.waypoint_goals.get_waypoints() if self.waypoint_goals is not None else None
+        return self.waypoint_goals.get_waypoints(count=count) if self.waypoint_goals is not None else None
 
     def get_waypoints_state(self) -> Tensor:
         """
@@ -580,11 +580,11 @@ class Simulator:
         """
         return self.waypoint_goals.state if self.waypoint_goals is not None else None
 
-    def get_waypoints_mask(self) -> Tensor:
+    def get_waypoints_mask(self, count: int = 1) -> Tensor:
         """
-        Returns a functor of BxAxM boolean tensors representing current agent waypoints present mask.
+        Returns a functor of BxAxcount*M boolean tensors representing current agent waypoints present mask.
         """
-        return self.waypoint_goals.get_masks() if self.waypoint_goals is not None else None
+        return self.waypoint_goals.get_masks(count=count) if self.waypoint_goals is not None else None
 
     def compute_wrong_way(self) -> Tensor:
         """
@@ -929,7 +929,8 @@ class Simulator:
         return self.renderer.render_frame(rbg_mesh, camera_xy, camera_sc, res=res, fov=fov)
 
     def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None,
-                          visibility_matrix: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None)\
+                          visibility_matrix: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None,
+                          n_subsequent_waypoints: int = 1)\
             -> Tensor:
         """
         Renders the world using cameras placed on each agent.
@@ -940,14 +941,15 @@ class Simulator:
             fov: the field of view of the resulting image in meters (by default use value from config)
             visibility_matrix: a BxAxAll boolean tensor indicating which agents can see each other
             custom_agent_colors: a BxAxAllx3 RGB tensor specifying what colors agent see each other as
+            n_subsequent_waypoints: the number of subsequent waypoints to render
         Returns:
              a functor of BxAxCxHxW tensors of resulting RGB images for each agent.
         """
         camera_xy = self.get_state()[..., :2]
         camera_psi = self.get_state()[..., 2:3]
-        waypoints = self.get_waypoints()
+        waypoints = self.get_waypoints(count=n_subsequent_waypoints)
         if waypoints is not None:
-            waypoints_mask = self.get_waypoints_mask()
+            waypoints_mask = self.get_waypoints_mask(count=n_subsequent_waypoints)
         else:
             waypoints, waypoints_mask = None, None
         if not ego_rotate:

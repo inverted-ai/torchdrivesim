@@ -32,17 +32,77 @@ class WaypointGoal:
     def _default_state(self) -> Tensor:
         return torch.zeros(*self.waypoints.shape[:2] + (1, ), dtype=torch.long, device=self.waypoints.device)
 
-    def get_masks(self):
+    def get_masks(self, count: int = 1):
         """
         Returns the waypoint mask according to the current state value.
-        """
-        return torch.gather(self.mask, 2, self.state[..., None].expand(-1, -1, -1, *self.mask.shape[3:])).squeeze(2)
 
-    def get_waypoints(self):
+        Args:
+            count: Number of subsequent waypoint masks to return starting from current state
+        """
+        if count == 1:
+            return torch.gather(self.mask, 2, self.state[..., None].expand(-1, -1, -1, *self.mask.shape[3:])).squeeze(2)
+
+        B, A = self.state.shape[:2]
+        M = self.mask.shape[3]
+
+        # Create indices: state, state+1, state+2, ..., state+count-1
+        collection_offsets = torch.arange(count, device=self.mask.device)  # (count,)
+        indices = self.state + collection_offsets.view(1, 1, -1)  # BxAx1 + 1x1xcount -> BxAxcount
+
+        # Create validity mask (True if the collection index is within bounds)
+        valid_mask = indices < self.max_goal_idx  # BxAxcount
+
+        # Clamp indices to valid range to avoid gather errors
+        indices_clamped = torch.clamp(indices, 0, self.max_goal_idx - 1)  # BxAxcount
+
+        # Expand indices for gathering
+        indices_expanded = indices_clamped[..., None].expand(-1, -1, -1, M)  # BxAxcountxM
+
+        # Gather masks
+        gathered = torch.gather(self.mask, 2, indices_expanded)  # BxAxcountxM
+
+        # Set masks from invalid collections to False
+        valid_mask_expanded = valid_mask[..., None].expand_as(gathered)  # BxAxcountxM
+        gathered = torch.where(valid_mask_expanded, gathered, torch.zeros_like(gathered, dtype=torch.bool))
+
+        # Reshape to flatten collections and waypoints
+        return gathered.view(B, A, count * M)
+
+    def get_waypoints(self, count: int = 1):
         """
         Returns the waypoints according to the current state value.
+
+        Args:
+            count: Number of subsequent waypoints to return starting from current state
         """
-        return torch.gather(self.waypoints, 2, self.state[..., None, None].expand(-1, -1, -1, *self.waypoints.shape[3:])).squeeze(2)
+        if count == 1:
+            return torch.gather(self.waypoints, 2, self.state[..., None, None].expand(-1, -1, -1, *self.waypoints.shape[3:])).squeeze(2)
+
+        B, A = self.state.shape[:2]
+        M = self.waypoints.shape[3]
+
+        # Create indices: state, state+1, state+2, ..., state+count-1
+        collection_offsets = torch.arange(count, device=self.waypoints.device)  # (count,)
+        indices = self.state + collection_offsets.view(1, 1, -1)  # BxAx1 + 1x1xcount -> BxAxcount
+
+        # Create validity mask (True if the collection index is within bounds)
+        valid_mask = indices < self.max_goal_idx  # BxAxcount
+
+        # Clamp indices to valid range to avoid gather errors
+        indices_clamped = torch.clamp(indices, 0, self.max_goal_idx - 1)  # BxAxcount
+
+        # Expand indices for gathering
+        indices_expanded = indices_clamped[..., None, None].expand(-1, -1, -1, M, 2)  # BxAxcountxMx2
+
+        # Gather waypoints
+        gathered = torch.gather(self.waypoints, 2, indices_expanded)  # BxAxcountxMx2
+
+        # Zero out waypoints from invalid collections
+        valid_mask_expanded = valid_mask[..., None, None].expand_as(gathered)  # BxAxcountxMx2
+        gathered = torch.where(valid_mask_expanded, gathered, torch.zeros_like(gathered))
+
+        # Reshape to flatten collections and waypoints
+        return gathered.view(B, A, count * M, 2)
 
     def copy(self):
         """
@@ -105,8 +165,10 @@ class WaypointGoal:
         waypoints = self.get_waypoints()
         masks = self.get_masks()
         agent_overlap = self._agent_waypoint_overlap(agent_states[..., :2], waypoints, threshold=threshold)
+        agent_overlap = agent_overlap & masks
         agent_overlap = agent_overlap.any(dim=-1, keepdim=True).expand_as(agent_overlap)
-        agent_overlap = torch.where(masks, agent_overlap, True)
+        agent_overlap = torch.where(masks, agent_overlap, False)
+        agent_overlap = agent_overlap & masks.any(dim=-1, keepdim=True).expand_as(agent_overlap)
         self.mask = self._update_mask(self.state, self.mask, agent_overlap.logical_not())
         self.state = self._advance_state(self.state, agent_overlap)
 
@@ -121,7 +183,12 @@ class WaypointGoal:
         Returns:
             BxAxNxM boolean tensor updated with the `new_mask` values
         """
-        return torch.scatter(mask, 2, state[..., None].expand(-1, -1, -1, mask.shape[-1]), new_mask.unsqueeze(2))
+        idx = state[..., None].expand(-1, -1, -1, mask.shape[-1])
+        # Only update valid waypoints leave padding untouched
+        valid_mask = mask.gather(2, idx)  # BxAx1xM
+        updated = mask.clone()
+        updated.scatter_(2, idx, torch.where(valid_mask, new_mask.unsqueeze(2), mask.gather(2, idx)))
+        return updated
 
     def _advance_state(self, state, agent_overlap):
         """
