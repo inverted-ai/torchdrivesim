@@ -802,6 +802,16 @@ class Simulator:
                 rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
         return rel_pos
 
+    def get_noisy_lane_features(self) -> Optional["LaneFeatures"]:
+        """
+        Returns per-agent, noise-model-modified lane features (if provided by the noise model).
+        Otherwise passthrough.
+        Shapes (if provided): dense: [B, A, M, D], sparse: [B, A, N, D]; masks accordingly.
+        """
+        if hasattr(self.observation_noise_model, "get_noisy_lane_features"):
+            return self.observation_noise_model.get_noisy_lane_features(self)
+        return self.lane_features
+
     def get_traffic_controls(self) -> Dict[str, BaseTrafficControl]:
         """
         Produces all traffic controls existing in the simulation, grouped by type.
@@ -917,9 +927,31 @@ class Simulator:
         present_mask = self.get_all_agent_present_mask().unsqueeze(-2).expand(target_shape[:-1] + (n_cameras,) + target_shape[-1:])
         rendering_mask = present_mask if rendering_mask is None else present_mask.logical_and(rendering_mask)
 
+        from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rotate
+        noisy_lf = self.get_noisy_lane_features()
+        markers = noisy_lf.dense_lane_features[:,0]
+        markers_mask = noisy_lf.dense_lane_features_mask[:,0]
+        n_markers = markers.shape[-2]
+        width = markers[..., 3]
+        triangle_verts = torch.stack([
+            torch.stack([torch.zeros_like(width), -width / 2], dim=-1),
+            torch.stack([torch.zeros_like(width), width / 2], dim=-1),
+            torch.stack([torch.ones_like(width), torch.zeros_like(width)], dim=-1),
+        ], dim=-2)
+        verts = rotate(triangle_verts, markers[..., None, 2:3]) + markers[..., None, :2]
+        verts = verts.where(markers_mask[..., None, None], 0)
+        faces = torch.tensor([[0, 1, 2]], dtype=torch.long, device=markers.device) + 3 * torch.arange(n_markers, device=markers.device)[:, None]
+        faces = faces.expand_as(verts[..., 0])
+        verts = verts.flatten(-3, -2)
+        dense_mesh = BirdviewMesh.set_properties(BaseMesh(verts=verts, faces=faces), category='direction')
+
+        bv_generator = self.birdview_mesh_generator.copy()
+        bv_generator.add_static_meshes([dense_mesh])
+
         # TODO: we assume the same agent states for all cameras but we can give the option
         #       to pass different states for each camera.
-        rbg_mesh = self.birdview_mesh_generator.generate(n_cameras,
+        # rbg_mesh = self.birdview_mesh_generator.generate(n_cameras,
+        rbg_mesh = bv_generator.generate(n_cameras,
             agent_state=self.get_all_agent_state()[:, None].expand(-1, n_cameras, -1, -1), present_mask=rendering_mask,
             traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
                 if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,
@@ -957,6 +989,7 @@ class Simulator:
         rendering_mask = None
         if visibility_matrix is not None:
             rendering_mask = visibility_matrix
+        rendering_mask = self.get_noisy_present_mask()
         if custom_agent_colors is not None:
             custom_agent_colors = custom_agent_colors
         if self.cfg.single_agent_rendering:
