@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 import torch
 
-from torchdrivesim.mesh import BirdviewMesh
+from torchdrivesim.mesh import BirdviewMesh, set_colors_with_defaults
 from torchdrivesim.utils import line_circle_intersection
 from torchdrivesim.lanelet2 import LaneFeatures
 
