@@ -170,10 +170,17 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
         all_psi = states[:, :, :, 2:3]                         # [B, A, E, 1] - heading of all entities
 
         # Transform to ego frame: R * (p - ego)
-        s, c = torch.sin(ego_psi), torch.cos(ego_psi)
-        R_T = torch.stack([torch.stack([c, -s], dim=-1),
-                           torch.stack([s, c], dim=-1)], dim=-2)  # [B, A, 2, 2]
-        rel_xy = torch.matmul(all_xy - ego_xy.unsqueeze(-2), R_T)   # [B, A, E, 2]
+        s = torch.sin(ego_psi).squeeze(-1)  # [B, A]
+        c = torch.cos(ego_psi).squeeze(-1)  # [B, A]
+
+        R_T = torch.stack(
+            [torch.stack([c, -s], dim=-1),  # row 0
+             torch.stack([s,  c], dim=-1)], # row 1
+            dim=-2
+        )  # [B, A, 2, 2]
+
+        rel_xy = torch.matmul(all_xy - ego_xy.unsqueeze(-2), R_T)  # [B, A, E, 2]
+
 
         rel_x = rel_xy[..., 0]  # [B, A, E]
         rel_y = rel_xy[..., 1]  # [B, A, E]
@@ -219,8 +226,8 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
 
         # Don't consider the ego itself
         self_mask = torch.zeros((B, A, E), device=states.device, dtype=torch.bool)
-        batch_idx = torch.arange(B, device=states.device)[:, None]
-        self_mask[batch_idx, agent_idx[None, :], agent_idx[None, :]] = True
+        diag_idx = torch.arange(A, device=states.device).view(1, A, 1).expand(B, A, 1)  # [B, A, 1]
+        self_mask.scatter_(2, diag_idx, torch.ones(B, A, 1, dtype=torch.bool, device=states.device))
 
         # Set ego's own position to inf so it won't be selected
         candidates = torch.where(self_mask, torch.inf, rel_x)
@@ -238,12 +245,17 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
         keep = torch.zeros_like(base_mask, dtype=torch.bool)  # [B, A, E]
 
         # Set the front entity to True for each ego agent that has one
-        valid_idx = has_front.nonzero(as_tuple=True)
-        if len(valid_idx[0]) > 0:
-            keep[valid_idx[0], valid_idx[1], front_idx[valid_idx]] = True
+        keep = torch.zeros_like(base_mask, dtype=torch.bool)  # [B, A, E]
+
+        # write the chosen front entity per (b,a) only where has_front==True
+        front_idx_exp = front_idx.unsqueeze(-1)          # [B, A, 1]
+        has_front_exp = has_front.unsqueeze(-1)          # [B, A, 1] (bool)
+
+        # Scatter booleans into the last dim
+        keep.scatter_(2, front_idx_exp, has_front_exp)
 
         # Keep the ego itself visible (for self-awareness)
-        keep[batch_idx, agent_idx[None, :], agent_idx[None, :]] = True
+        keep.scatter_(2, diag_idx, torch.ones(B, A, 1, dtype=keep.dtype, device=keep.device))
 
         # Final mask is intersection with base present mask
         final_mask = keep & base_mask
@@ -304,13 +316,13 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
             smoothness = self.cfg.lane_distance_noise_smoothness
 
             # Primary curve component (low frequency)
-            curve1 = torch.sin(rel_x.unsqueeze(-1) / smoothness + phase_offsets[..., 0:1])
+            curve1 = torch.sin(rel_x / smoothness + phase_offsets[..., 0:1])
 
             # Secondary variation (medium frequency)
-            curve2 = 0.3 * torch.sin(rel_x.unsqueeze(-1) * 2 / smoothness + phase_offsets[..., 1:2])
+            curve2 = 0.3 * torch.sin(rel_x * 2 / smoothness + phase_offsets[..., 1:2])
 
             # Tertiary detail (higher frequency, smaller amplitude)
-            curve3 = 0.1 * torch.sin(rel_x.unsqueeze(-1) * 4 / smoothness + phase_offsets[..., 2:3])
+            curve3 = 0.1 * torch.sin(rel_x * 4 / smoothness + phase_offsets[..., 2:3])
 
             # Combine curves
             combined_curve = (curve1 + curve2 + curve3).squeeze(-1)
@@ -341,11 +353,19 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
             ego_psi_e = ego_psi                                     # [B, A, 1]
 
             # Rotate points to ego frame
-            s, c = torch.sin(ego_psi_e), torch.cos(ego_psi_e)
-            R_T = torch.stack([torch.stack([c, -s], dim=-1),
-                              torch.stack([s, c], dim=-1)], dim=-2)  # [B, A, 2, 2]
-            rel_xy = torch.matmul(xy_e - ego_xy_e, R_T)            # [B, A, M, 2]
-            rel_x, rel_y = rel_xy[..., 0], rel_xy[..., 1]
+            s = torch.sin(ego_psi_e).squeeze(-1)  # [B, A]
+            c = torch.cos(ego_psi_e).squeeze(-1)  # [B, A]
+
+            R_T = torch.stack(
+                [torch.stack([c, -s], dim=-1),  # row 0
+                 torch.stack([s,  c], dim=-1)], # row 1
+                dim=-2
+            )  # [B, A, 2, 2]
+
+            # rel_xy: [B, A, M, 2]
+            rel_xy = torch.matmul(xy_e - ego_xy_e, R_T)
+            rel_x, rel_y = rel_xy[..., 0], rel_xy[..., 1]   # both [B, A, M]
+
 
             # APPLY PROGRESSIVE CURVE NOISE
             if self.cfg.lane_distance_noise_enabled:
@@ -370,7 +390,7 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
 
             # Heading alignment gate
             if psi_e is not None:
-                delta = (psi_e - ego_psi_e)
+                delta = (psi_e.squeeze(-1) - ego_psi_e)
 
                 # Optionally add noise to perceived lane heading for distant points
                 if self.cfg.lane_distance_noise_enabled and hasattr(self.cfg, 'lane_distance_noise_heading'):
@@ -402,15 +422,16 @@ class EgocentricLanePruningObservationNoise(ObservationNoise):
             if self.cfg.lane_distance_noise_enabled:
                 # Transform noise back to global frame and apply to actual features
                 # This ensures the returned features have the noise baked in
-                noise_ego_frame = torch.zeros_like(rel_xy)
-                noise_ego_frame[..., 1] = lateral_noise  # Apply noise to lateral component
+                R = torch.stack(
+                    [torch.stack([c,  s], dim=-1),   # row 0
+                     torch.stack([-s, c], dim=-1)],  # row 1
+                    dim=-2
+                )  # [B, A, 2, 2]
 
-                # Rotate noise back to global frame
-                R = torch.stack([torch.stack([c, s], dim=-1),
-                                torch.stack([-s, c], dim=-1)], dim=-2)
-                noise_global = torch.matmul(noise_ego_frame, R)
+                noise_ego_frame = torch.zeros_like(rel_xy)      # [B, A, M, 2]
+                noise_ego_frame[..., 1] = lateral_noise         # lateral_noise: [B, A, M]
 
-                # Apply noise to feature positions
+                noise_global = torch.matmul(noise_ego_frame, R) # [B, A, M, 2]
                 feat_e[..., :2] = feat_e[..., :2] + noise_global * mask_e.unsqueeze(-1)
 
             pruned = torch.where(mask_e.unsqueeze(-1), feat_e, torch.zeros_like(feat_e))
