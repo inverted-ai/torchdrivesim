@@ -900,7 +900,7 @@ class Simulator:
     def render(self, camera_xy: Tensor, camera_psi: Tensor, res: Optional[Resolution] = None,
                rendering_mask: Optional[Tensor] = None, fov: Optional[float] = None,
                waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
-               custom_agent_colors: Optional[Tensor] = None) -> Tensor:
+               custom_agent_colors: Optional[Tensor] = None, noisy_perception: bool = False) -> Tensor:
         """
         Renders the world from bird's eye view using cameras in given positions.
 
@@ -923,35 +923,57 @@ class Simulator:
             camera_xy = camera_xy.unsqueeze(1)
             camera_sc = camera_sc.unsqueeze(1)
         n_cameras = camera_xy.shape[-2]
-        target_shape = self.get_all_agent_present_mask().shape
-        present_mask = self.get_all_agent_present_mask().unsqueeze(-2).expand(target_shape[:-1] + (n_cameras,) + target_shape[-1:])
+        if noisy_perception:
+            assert n_cameras == 1, 'Currently only works with a single camera'
+            assert self.agent_count == 1, 'Currently only works with a single exposed agent'
+
+            present_mask = self.get_noisy_present_mask()
+        else:
+            target_shape = self.get_all_agent_present_mask().shape
+            present_mask = self.get_all_agent_present_mask().unsqueeze(-2).expand(target_shape[:-1] + (n_cameras,) + target_shape[-1:])
         rendering_mask = present_mask if rendering_mask is None else present_mask.logical_and(rendering_mask)
 
         from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rotate
         noisy_lf = self.get_noisy_lane_features()
         markers = noisy_lf.dense_lane_features[:,0]
         markers_mask = noisy_lf.dense_lane_features_mask[:,0]
-        n_markers = markers.shape[-2]
-        width = markers[..., 3]
-        triangle_verts = torch.stack([
-            torch.stack([torch.zeros_like(width), -width / 2], dim=-1),
-            torch.stack([torch.zeros_like(width), width / 2], dim=-1),
-            torch.stack([torch.ones_like(width), torch.zeros_like(width)], dim=-1),
-        ], dim=-2)
-        verts = rotate(triangle_verts, markers[..., None, 2:3]) + markers[..., None, :2]
-        verts = verts.where(markers_mask[..., None, None], 0)
-        faces = torch.tensor([[0, 1, 2]], dtype=torch.long, device=markers.device) + 3 * torch.arange(n_markers, device=markers.device)[:, None]
-        faces = faces.expand_as(verts[..., 0])
-        verts = verts.flatten(-3, -2)
-        dense_mesh = BirdviewMesh.set_properties(BaseMesh(verts=verts, faces=faces), category='direction')
 
-        bv_generator = self.birdview_mesh_generator.copy()
-        bv_generator.add_static_meshes([dense_mesh])
+        # TODO:
+        if noisy_perception:
+            assert n_cameras == 1, 'Currently only works with a single camera'
+            assert self.agent_count == 1, 'Currently only works with a single exposed agent'
+
+            birdview_mesh_generator = self.birdview_mesh_generator.copy()
+
+            # Add dense features
+            from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rotate
+            noisy_lf = self.get_noisy_lane_features()
+            markers = noisy_lf.dense_lane_features
+            markers_mask = noisy_lf.dense_lane_features_mask
+            if len(markers.shape) == 4:
+                markers = markers[:,0]
+            if len(markers_mask.shape) == 3:
+                markers_mask = markers_mask[:,0]
+            n_markers = markers.shape[-2]
+            width = markers[..., 3]
+            triangle_verts = torch.stack([
+                torch.stack([torch.zeros_like(width), -width / 2], dim=-1),
+                torch.stack([torch.zeros_like(width), width / 2], dim=-1),
+                torch.stack([torch.ones_like(width), torch.zeros_like(width)], dim=-1),
+            ], dim=-2)
+            verts = rotate(triangle_verts, markers[..., None, 2:3]) + markers[..., None, :2]
+            verts = verts.where(markers_mask[..., None, None], 0)
+            faces = torch.tensor([[0, 1, 2]], dtype=torch.long, device=markers.device) + 3 * torch.arange(n_markers, device=markers.device)[:, None]
+            faces = faces.expand_as(verts[..., 0])
+            verts = verts.flatten(-3, -2)
+            dense_mesh = BirdviewMesh.set_properties(BaseMesh(verts=verts, faces=faces), category='stop_sign')
+            birdview_mesh_generator.add_static_meshes([dense_mesh])
+        else:
+            birdview_mesh_generator = self.birdview_mesh_generator
 
         # TODO: we assume the same agent states for all cameras but we can give the option
         #       to pass different states for each camera.
-        # rbg_mesh = self.birdview_mesh_generator.generate(n_cameras,
-        rbg_mesh = bv_generator.generate(n_cameras,
+        rbg_mesh = birdview_mesh_generator.generate(n_cameras,
             agent_state=self.get_all_agent_state()[:, None].expand(-1, n_cameras, -1, -1), present_mask=rendering_mask,
             traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
                 if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,
@@ -962,7 +984,7 @@ class Simulator:
 
     def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None,
                           visibility_matrix: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None,
-                          n_subsequent_waypoints: int = 1)\
+                          n_subsequent_waypoints: int = 1, noisy_perception: bool = False)\
             -> Tensor:
         """
         Renders the world using cameras placed on each agent.
@@ -989,14 +1011,14 @@ class Simulator:
         rendering_mask = None
         if visibility_matrix is not None:
             rendering_mask = visibility_matrix
-        rendering_mask = self.get_noisy_present_mask()
         if custom_agent_colors is not None:
             custom_agent_colors = custom_agent_colors
         if self.cfg.single_agent_rendering:
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
-                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask, custom_agent_colors=custom_agent_colors)
+                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask, custom_agent_colors=custom_agent_colors,
+                         noisy_perception=noisy_perception)
         total_agents = self.agent_count
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
         return bv
