@@ -736,7 +736,7 @@ class Simulator:
         """
         return self.traffic_controls
 
-    def step(self, agent_action: Tensor) -> None:
+    def step(self, agent_action: Tensor) -> Optional[Tensor]:
         """
         Runs the simulation for one step with given agent actions.
         Input is a functor of BxAxAc tensors, where Ac is determined by the kinematic model.
@@ -756,7 +756,7 @@ class Simulator:
             for traffic_control_type, traffic_control in self.traffic_controls.items():
                 traffic_control.step(self.internal_time)
         if self.waypoint_goals is not None:
-            self.waypoint_goals.step(self.get_state(), self.internal_time, threshold=self.cfg.waypoint_removal_threshold)
+            return self.waypoint_goals.step(self.get_state(), threshold=self.cfg.waypoint_removal_threshold)
 
     def set_state(self, agent_state: Tensor, mask: Optional[Tensor] = None) -> None:
         """

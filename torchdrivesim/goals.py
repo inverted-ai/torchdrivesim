@@ -103,6 +103,21 @@ class WaypointGoal:
 
         # Reshape to flatten collections and waypoints
         return gathered.view(B, A, count * M, 2)
+    
+    def get_previous_waypoints(self, agent_pos):
+        """
+        Get the previous collection of waypoints for each agent.
+        Returns BxAxMx2 tensor (or zeros if at the first waypoint).
+        """
+        M = self.waypoints.shape[3]
+        prev_state = torch.clamp(self.state - 1, min=0)  # BxAx1
+        indices_expanded = prev_state[..., None, None].expand(-1, -1, -1, M, 2)  # BxAx1xMx2
+        prev_waypoints = torch.gather(self.waypoints, 2, indices_expanded).squeeze(2)  # BxAxMx2
+        
+        is_first = (self.state == 0).unsqueeze(-1).expand_as(prev_waypoints)  # BxAxMx2
+        prev_waypoints = torch.where(is_first, agent_pos.expand(-1, -1, M, -1), prev_waypoints)
+        
+        return prev_waypoints
 
     def copy(self):
         """
@@ -156,12 +171,13 @@ class WaypointGoal:
         self.state = self.state[idx]
         return self
 
-    def step(self, agent_states: Tensor, time: int = 0, threshold: float = 2.0) -> None:
+    def step(self, agent_states: Tensor, threshold: float = 2.0) -> Tensor:
         """
         Advances the state of the waypoints.
         """
         assert torch.is_tensor(self.waypoints)
         assert agent_states.shape[1] == self.waypoints.shape[1]
+        old_state = self.state.clone()
         waypoints = self.get_waypoints()
         masks = self.get_masks()
         agent_overlap = self._agent_waypoint_overlap(agent_states[..., :2], waypoints, threshold=threshold)
@@ -171,6 +187,8 @@ class WaypointGoal:
         agent_overlap = agent_overlap & masks.any(dim=-1, keepdim=True).expand_as(agent_overlap)
         self.mask = self._update_mask(self.state, self.mask, agent_overlap.logical_not())
         self.state = self._advance_state(self.state, agent_overlap)
+        reached = (self.state != old_state)
+        return reached
 
     def _update_mask(self, state, mask, new_mask):
         """
