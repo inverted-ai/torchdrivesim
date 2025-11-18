@@ -10,6 +10,7 @@ import torch
 from torchdrivesim.mesh import BirdviewMesh, set_colors_with_defaults
 from torchdrivesim.utils import line_circle_intersection
 from torchdrivesim.lanelet2 import LaneFeatures
+from torchdrivesim.traffic_controls import BaseTrafficControl
 
 
 @dataclass
@@ -56,6 +57,9 @@ class ObservationNoise:
 
     def get_noisy_background_mesh(self, simulator):
         return simulator.birdview_mesh_generator.background_mesh
+
+    def get_noisy_traffic_controls(self, simulator):
+        return simulator.traffic_controls
 
 
 class StandardSensingObservationNoise(ObservationNoise):
@@ -127,10 +131,12 @@ class StandardSensingObservationNoise(ObservationNoise):
 class MapObservationNoiseFromLog(ObservationNoise):
     def __init__(self, cfg: StandardSensingObservationNoiseConfig,
                  noisy_lane_features: Optional[List[LaneFeatures]] = None,
-                 noisy_background_mesh: Optional[List[BirdviewMesh]] = None):
+                 noisy_background_mesh: Optional[List[BirdviewMesh]] = None,
+                 noisy_traffic_controls: Optional[List[Dict[str, BaseTrafficControl]]] = None):
         super().__init__(cfg)
         self.noisy_lane_features = noisy_lane_features
         self.noisy_background_mesh = noisy_background_mesh
+        self.noisy_traffic_controls = noisy_traffic_controls
 
     def get_noisy_lane_features(self, simulator):
         if self.noisy_lane_features is not None and simulator.internal_time < len(self.noisy_lane_features):
@@ -146,3 +152,9 @@ class MapObservationNoiseFromLog(ObservationNoise):
             return background_mesh
         else:
             return simulator.birdview_mesh_generator.background_mesh
+
+    def get_noisy_traffic_controls(self, simulator):
+        if self.noisy_traffic_controls is not None and simulator.internal_time < len(self.noisy_traffic_controls):
+            return self.noisy_traffic_controls[simulator.internal_time]
+        else:
+            return simulator.traffic_controls
