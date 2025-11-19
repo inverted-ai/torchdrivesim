@@ -694,7 +694,7 @@ class Simulator:
         npc_info = torch.cat([self.get_npc_state()[..., :3], self.get_npc_size(), self.get_npc_present_mask().unsqueeze(-1)], dim=-1)
         return torch.cat([agent_info, npc_info], dim=-2)
 
-    def get_all_agents_relative(self, exclude_self: bool = True) -> Tensor:
+    def get_all_agents_relative(self, exclude_self: bool = True, perception_radius: Optional[float] = None) -> Tensor:
         """
         Returns a functor of BxAx(A+Npc)x6 tensors, specifying for each of A agents the relative position about
         the other agents. 'All' is the number of all agents in the simulation, including hidden ones, across all
@@ -728,6 +728,10 @@ class Simulator:
                 rel_pos = rel_pos[..., to_keep, :]
                 # the result has one less agent in the penultimate dimension
                 rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
+        if perception_radius is not None:
+            rel_pos_mask = (torch.linalg.norm(rel_pos[...,:2], dim=-1) > perception_radius).bool().unsqueeze(-1) # BxAx(A+Npc)x1
+            rel_pos[..., :-1][rel_pos_mask.expand(-1, -1, -1, rel_pos.shape[-1] - 1)] = float('nan')
+        
         return rel_pos
 
     def get_traffic_controls(self) -> Dict[str, BaseTrafficControl]:
