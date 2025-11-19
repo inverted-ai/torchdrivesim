@@ -814,6 +814,9 @@ class Simulator:
     def get_noisy_background_mesh(self) -> LaneFeatures:
         return self.observation_noise_model.get_noisy_background_mesh(self)
 
+    def get_noisy_traffic_controls(self) -> Dict[str, BaseTrafficControl]:
+        return self.observation_noise_model.get_noisy_traffic_controls(self)
+
     def step(self, agent_action: Tensor) -> None:
         """
         Runs the simulation for one step with given agent actions.
@@ -947,15 +950,21 @@ class Simulator:
             verts = verts.flatten(-3, -2)
             dense_mesh = BirdviewMesh.set_properties(BaseMesh(verts=verts, faces=faces), category='stop_sign')
             birdview_mesh_generator.add_static_meshes([dense_mesh])
+            # Add noisy traffic controls
+            noisy_traffic_controls = self.get_noisy_traffic_controls()
+            if noisy_traffic_controls is not None:
+                birdview_mesh_generator.initialize_traffic_controls_mesh(noisy_traffic_controls)
+            traffic_controls = noisy_traffic_controls
         else:
             birdview_mesh_generator = self.birdview_mesh_generator
+            traffic_controls = self.traffic_controls
 
         # TODO: we assume the same agent states for all cameras but we can give the option
         #       to pass different states for each camera.
         rbg_mesh = birdview_mesh_generator.generate(n_cameras,
             agent_state=self.get_all_agent_state()[:, None].expand(-1, n_cameras, -1, -1), present_mask=rendering_mask,
-            traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
-                if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,
+            traffic_lights=traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
+                if traffic_controls is not None and 'traffic_light' in traffic_controls else None,
             waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
             custom_agent_colors=custom_agent_colors,
         )
