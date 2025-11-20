@@ -48,6 +48,7 @@ class TorchDriveConfig:
     lanelet_inclusion_tolerance: float = 1.0  #: cars less than this many meters away from a lanelet boundary will still
         # be considered inside for the purposes of calculating the wrong way infractions
     waypoint_removal_threshold: float = 2.0  #: how close the agent needs to get to the waypoint to consider it achieved
+    speed_limit: Optional[float] = None
 
 
 class SpawnController:
@@ -755,7 +756,7 @@ class Simulator:
         assert_equal(agent_action.shape[-2], self.agent_count)
 
         self.npc_controller.advance_npcs(self)
-        self.kinematic_model.step(agent_action)
+        self.kinematic_model.step(agent_action, speed_limit=self.cfg.speed_limit)
 
         if self.traffic_controls is not None:
             for traffic_control_type, traffic_control in self.traffic_controls.items():

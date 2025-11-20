@@ -38,7 +38,7 @@ class KinematicModel(ABC):
         return len(self.get_state()[..., 0].flatten())
 
     @abstractmethod
-    def step(self, action: Tensor, dt: Optional[float] = None) -> None:
+    def step(self, action: Tensor, dt: Optional[float] = None, speed_limit: Optional[float] = None) -> None:
         """
         Calculates and sets the next state given the current action.
 
