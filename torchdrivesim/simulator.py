@@ -729,8 +729,9 @@ class Simulator:
                 # the result has one less agent in the penultimate dimension
                 rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
         if perception_radius is not None:
-            rel_pos_mask = (torch.linalg.norm(rel_pos[...,:2], dim=-1) > perception_radius).bool().unsqueeze(-1) # BxAx(A+Npc)x1
+            rel_pos_mask = (torch.linalg.norm(rel_pos[...,:2], dim=-1) >= perception_radius).bool().unsqueeze(-1) # BxAx(A+Npc)x1
             rel_pos[..., :-1][rel_pos_mask.expand(-1, -1, -1, rel_pos.shape[-1] - 1)] = float('nan')
+            rel_pos[..., -1][rel_pos_mask.squeeze(-1)] = False
         
         return rel_pos
 
