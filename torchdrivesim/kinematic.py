@@ -194,7 +194,7 @@ class CompoundKinematicModel(KinematicModel):
     def batch_shape(self) -> torch.Size:
         return self.model_assignments.shape
 
-    def step(self, action: Tensor, dt: Optional[float] = None) -> None:
+    def step(self, action: Tensor, dt: Optional[float] = None, speed_limit=None) -> None:
         action_flattened = action.flatten(0, -2)
         action_splits = [action_flattened[self.batch_assignments == i, :model.action_size] for (i, model) in enumerate(self.models)]
         for model, action_split in zip(self.models, action_splits):
@@ -318,7 +318,7 @@ class TeleportingKinematicModel(KinematicModel):
     """
     A trivial kinematic model where the action is the next state.
     """
-    def step(self, action, dt=None):
+    def step(self, action, dt=None, speed_limit=None):
         self.set_state(action)
 
     def fit_action(self, future_state, current_state=None, dt=None):
@@ -359,7 +359,7 @@ class SimpleKinematicModel(KinematicModel):
     def denormalize_action(self, action):
         return action * self._normalization_factor
 
-    def step(self, action, dt=None):
+    def step(self, action, dt=None, speed_limit=None):
         if dt is None:
             dt = self.dt
         assert action.shape[-1] == self.action_size
@@ -381,7 +381,7 @@ class OrientedKinematicModel(SimpleKinematicModel):
     Just like `SimpleKinematicModel`, but the action coordinate frame rotates with the agent,
     so that the x-axis of the action space always points forward.
     """
-    def step(self, action, dt=None):
+    def step(self, action, dt=None, speed_limit=None):
         assert action.shape[-1] == self.action_size
         psi = self.get_state()[..., 2:3]
         xy = rotate(action[..., :2], psi)
@@ -459,7 +459,7 @@ class KinematicBicycle(KinematicModel):
     def denormalize_action(self, action):
         return action * self._normalization_factor
 
-    def step(self, action, dt=None):
+    def step(self, action, dt=None, speed_limit=None):
         assert action.shape[-1] == 2, "The bicycle model takes as input only acceleration and steering"
         action = self.denormalize_action(action)
         a, beta = action[..., 0], action[..., 1]
@@ -510,7 +510,7 @@ class BicycleNoReversing(KinematicBicycle):
     """
     Modified bicycle model that brings a vehicle to full stop when it attempts to reverse.
     """
-    def step(self, action, dt=None):
+    def step(self, action, dt=None, speed_limit=None):
         if dt is None:
             dt = self.dt
         action = self.denormalize_action(action)
@@ -543,7 +543,7 @@ class BicycleByDisplacement(KinematicBicycle):
         other._xy_normalization_tensor = other._xy_normalization_tensor.to(device)
         return other
 
-    def step(self, action, dt=None):
+    def step(self, action, dt=None, speed_limit=None):
         assert action.shape[-1] == 2  # x and y displacement
         self.step_from_xy(action[..., :2], dt=dt)
 
