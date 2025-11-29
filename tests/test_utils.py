@@ -1,3 +1,4 @@
+import pdb
 from torchdrivesim.utils import *
 import pytest
 import numpy as np
@@ -149,27 +150,36 @@ class TestRotate:
         ret = rotate(v=self.vecs[vector_angle], angle=torch.deg2rad(torch.tensor([angle]))) #NOTE: may want to change this if we ever allow scalar angle inputs
         expected = self.vecs[(vector_angle + angle) % 360]
         
-        assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate({angle}) returned {ret}, expected: {expected}"
+        assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate(=) returned {ret}, expected: {expected}"
         
-    @pytest.mark.parametrize("angles, vector_angles", (torch.tensor(range(0, 30*len(vecs), 30)), vecs.keys())) # angles start from 0, incrementing 30 for each vector.
+    @pytest.mark.parametrize("angles, vector_angles", [(torch.tensor(range(0, 30*len(vecs), 30)).unsqueeze(1), list(vecs.keys()))]) # angles start from 0, incrementing 30 for each vector.
     def test_rotate_batch_no_broadcast(self, angles, vector_angles):
         """
         Test behavior with large batch size where length of angles and vectors match
         """
-        vectors = torch.tensor([self.vecs[a] for a in vector_angles])
+        vectors = torch.stack([self.vecs[a] for a in vector_angles])
         ret = rotate(v=vectors, angle=torch.deg2rad(angles))
-        expected = None # TODO
+        expected = torch.stack([rotate(self.vecs[a], torch.deg2rad(angles)[i]) for i, a in enumerate(vector_angles)])
         
-        assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate({angles}) returned {ret}, expected: {expected}"
-        
-    def test_rotate_batch_broadcast_angle(self, angle, vector_angles):
+        assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate() returned {ret}, expected: {expected}"
+    
+    @pytest.mark.parametrize("angle", list(range(-390, 391, 30))) # list of angles from -390 to 390 inclusive with step size 30
+    @pytest.mark.parametrize("vectors", [torch.stack(list(vecs.values()))])
+    def test_rotate_batch_broadcast_angle(self, angle, vectors):
         """
         Test behavior with large vector batch size where size of angles is one.
         """
-        pass
+        angle = torch.tensor(angle).reshape(1,1)
+        ret = rotate(v=vectors, angle=angle)
+        expected = torch.cat([rotate(v=v.unsqueeze(0), angle=angle) for v in vectors])
+        assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate() returned {ret}, expected: {expected}"
     
-    def test_rotate_batch_broadcast_vector(self, angles, vector_angle):
+    @pytest.mark.parametrize("angles", [torch.tensor(list(range(-390, 391, 30))).unsqueeze(1)])
+    @pytest.mark.parametrize("vector", list(vecs.values()))
+    def test_rotate_batch_broadcast_vector(self, angles, vector):
         """
         Test behavior with large angle batch size where size of vectors is one.
         """
-        pass
+        ret = rotate(v=vector, angle=angles)
+        expected = torch.cat([rotate(v=vector, angle=a.unsqueeze(0)) for a in angles])
+        assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate() returned {ret}, expected: {expected}"
