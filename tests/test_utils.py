@@ -13,6 +13,76 @@ PI = torch.pi
 PI_T = torch.tensor([torch.pi]) # 1-dimensional tensor. NOTE: may want to remove this and change to PI constant if we ever allow scalar inputs
 sqrt = np.sqrt
 
+class TestIsIn:
+    max_int32 = torch.iinfo(torch.int32).max
+    min_int32 = torch.iinfo(torch.int32).min
+    y_tensor = torch.tensor([min_int32, -100, -3, -1, 0, 1, 3, 100, max_int32], dtype=torch.int32)
+
+    # Test different dtype scalar
+    # Test scalar x
+    # Test (1,) x
+    # Test large (say (2,3)) x
+    
+    @pytest.mark.parametrize(
+        "x_value, expected",
+        [
+            (-3, torch.tensor(True)),
+            (42, torch.tensor(False)),
+            (0, torch.tensor(True)),
+            (min_int32, torch.tensor(True)),
+            (max_int32, torch.tensor(True)),
+            (-50, torch.tensor(False)),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "dtype", [torch.int32, torch.int64]
+    ) # Test if dtype is converted automatically e.g. int64 to int32
+    def test_scalar_values(self, x_value, expected, dtype):
+        x = torch.tensor(x_value, dtype=dtype)
+        result = isin(x, self.y_tensor)
+        assert result.shape == x.shape
+        assert torch.equal(result, expected)
+
+    @pytest.mark.parametrize(
+        "x_tensor, expected",
+        [
+            (torch.tensor([-1], dtype=torch.int32), torch.tensor([True])),
+            (torch.tensor([42], dtype=torch.int32), torch.tensor([False])),
+            (torch.tensor([min_int32, 0, 2], dtype=torch.int32),
+             torch.tensor([True, True, False])),
+            (torch.tensor([[3, 50], [0, -100]], dtype=torch.int32),
+             torch.tensor([[True, False], [True, True]])),
+        ]
+    )
+    def test_tensor_values(self, x_tensor, expected):
+        result = isin(x_tensor, self.y_tensor)
+        assert result.shape == x_tensor.shape
+        assert torch.equal(result, expected)
+
+    def test_empty_tensor(self):
+        x = torch.tensor([], dtype=torch.int32)
+        expected = torch.tensor([], dtype=torch.bool)
+        assert torch.equal(isin(x, self.y_tensor), expected)
+
+    def test_y_tensor_empty(self):
+        x = torch.tensor([1, 2, 3], dtype=torch.int32)
+        y = torch.tensor([], dtype=torch.int32)
+        expected = torch.tensor([False, False, False])
+        assert torch.equal(isin(x, y), expected)
+        
+    def test_equal_tensor(self):
+        result = isin(self.y_tensor, self.y_tensor)
+        expected = torch.ones_like(self.y_tensor, dtype=torch.bool)
+        assert result.shape == self.y_tensor.shape
+        assert torch.equal(result, expected)
+        
+    def test_invalid_y_tensor(self):
+        x = torch.tensor([1, 2, 3])
+        y = torch.tensor([[1, 2], [3, 4]])  # 2D, should fail
+
+        with pytest.raises(Exception):
+            isin(x, y)
+        
 class TestNormalizeAngle:
     common_cases = [(1               ,               1),
                     (-1              ,              -1),
