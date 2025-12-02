@@ -469,6 +469,8 @@ class KinematicBicycle(KinematicModel):
             dt = self.dt
         x, y, psi, v = self.unpack_state(self.get_state())
         v = v + a * dt
+        if speed_limit is not None:
+            v[v > speed_limit] = speed_limit
         x = x + v * torch.cos(psi + beta) * dt
         y = y + v * torch.sin(psi + beta) * dt
         psi = psi + (v / self.lr) * torch.sin(beta) * dt
@@ -520,7 +522,7 @@ class BicycleNoReversing(KinematicBicycle):
         modified_acc = torch.where(reversing, - v / dt, acc)
         modified_action = torch.stack([modified_acc, beta], dim=-1)
         modified_action = self.normalize_action(modified_action)
-        super().step(modified_action, dt=dt)
+        super().step(modified_action, dt=dt, speed_limit=speed_limit)
 
 
 class BicycleByDisplacement(KinematicBicycle):
