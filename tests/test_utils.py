@@ -13,6 +13,25 @@ TOLERANCE = 1e-6  # allow tolerance in case some slight numerical error
 PI = torch.pi
 PI_T = torch.tensor([torch.pi]) # 1-dimensional tensor. NOTE: may want to remove this and change to PI constant if we ever allow scalar inputs
 sqrt = np.sqrt
+COMMON_ANGLES = [
+    0,
+    PI/6,
+    PI/4,
+    PI/2,
+
+    3*PI/4,
+    5*PI/6,
+    PI,
+
+    7*PI/6,
+    5*PI/4,
+    3*PI/2,
+
+    7*PI/4,
+    11*PI/6,
+    2*PI  # Duplicate but good to have
+]
+
 
 class TestIsIn:
     max_int32 = torch.iinfo(torch.int32).max
@@ -367,3 +386,142 @@ class TestRelative:
 
         assert torch.allclose(rel_xy2, target_xy, atol=TOLERANCE)
         assert torch.allclose(rel_psi2, target_psi, atol=TOLERANCE)
+
+class TestTransform:
+    point_list = [[0.0, 0.0],
+                  [1.0, 0.0],
+                  [0.0, 1.0],
+                  [-1.0, 0.0],
+                  [0.0, -1.0],
+                  [1.0, 1.0],
+                  [-1.0, -1.0],
+                  [1e-9, -1e-9],
+                  [1e9, -1e9],
+                  [2.3, -4.7]]
+
+    translation_only_poses = [[*p, 0.0] for p in point_list] # same as points list but each element gets a 0 attached at the end
+    rotation_only_poses = [[0.0, 0.0, p] for p in COMMON_ANGLES]
+    rotation_only_poses.extend([[0.0, 0.0, 1e-9],
+                                [0.0, 0.0, -1e-9],
+                                [0.0, 0.0, 2*PI + 1e-9],
+                                [0.0, 0.0, 2*PI - 1e-9]])
+
+    poses_list = [[1e-9, -1e-9, PI/6],
+                  [1e9, -1e9, -PI/6],
+                  [10.0, 10.0, torch.pi/6],
+                  [-10.0, 10.0, -torch.pi/6]]
+                
+    @pytest.mark.parametrize("point", point_list)
+    def test_identity_pose(self, point):
+        """
+        Transform should not change point when given identity pose.
+        """
+        point = torch.tensor([point]).unsqueeze(0) # Batch size 1
+        pose   = torch.tensor([0.0, 0.0, 0.0]).unsqueeze(0) # Batch size 1
+
+        out = transform(point, pose)
+
+        assert torch.allclose(out, point)
+
+    @pytest.mark.parametrize("pose", translation_only_poses)
+    def test_translation_only(self, pose):
+        """
+        psi = 0 tests.
+        """
+        point = torch.tensor([[1.0, 1.0]]).unsqueeze(0) # Batch size 1
+        pose  = torch.tensor(pose).unsqueeze(0) # Batch size 1
+        
+        assert torch.all(pose[:, -1] == 0.0) # sanity check to make sure we are using psi = 0 poses
+
+        out = transform(point, pose)
+        expected = point + pose[:, :-1] # discard phi of pose
+
+        assert torch.allclose(out, expected)
+
+    @pytest.mark.parametrize("pose", rotation_only_poses)
+    def test_rotation_only(self, pose):
+        """
+        translation = 0 tests.
+        """
+        point = torch.tensor([[1.0, 1.0]]).unsqueeze(0) # Batch size 1
+        pose  = torch.tensor(pose).unsqueeze(0) # Batch size 1
+
+        assert torch.all(pose[:, 0:2] == 0.0) # sanity check to make sure we are using translation = 0 poses
+
+        out = transform(point, pose)
+
+        expected = rotate(point, pose[:, -1]) # discard translation of pose
+        assert torch.allclose(out, expected, atol=TOLERANCE)
+
+
+    @pytest.mark.parametrize("batch_shape", [
+        (1,),        # simple batch
+        (2, 1),      # 2x1 batch
+        (2, 2, 1),   # 2x2x1 batch
+    ]) # Note we treat N as a batch dimension here
+    @pytest.mark.parametrize("pose", poses_list)
+    def test_batched(self, batch_shape, pose):
+        """
+        Test transform with arbitrary batch shapes, using different points inside the batch.
+        """
+        total_points = 1
+        for dim in batch_shape:
+            total_points *= dim
+
+        # ============================================= AI SLOP ==============================================
+        # Repeat or slice point_list to fill batch
+        points_flat = torch.tensor(TestTransform.point_list[:total_points], dtype=torch.float32)
+        # If point_list is too short, tile it
+        if points_flat.shape[0] < total_points:
+            repeats = (total_points + len(TestTransform.point_list) - 1) // len(TestTransform.point_list)
+            points_flat = torch.tensor(TestTransform.point_list * repeats, dtype=torch.float32)[:total_points]
+
+        points_batch = points_flat.view(*batch_shape, 1, 2)
+        # ====================================================================================================
+
+        assert list(points_batch.shape) == [*batch_shape, 1, 2] # Sanity check
+
+        # Compute as batch size 1 with large N, use the result to check if batched transform is correct
+        points_flat_list = points_batch.view(-1, 1, 2)
+        pose_ref = torch.tensor([pose] * points_flat_list.shape[0])
+        expected_flat = transform(points_flat_list, pose_ref)
+        expected_batch = expected_flat.view(*points_batch.shape)
+
+        out_batch = transform(points_batch, torch.tensor([pose]*total_points).view(*batch_shape, 3))
+
+        assert torch.allclose(out_batch, expected_batch, atol=TOLERANCE)
+
+    @pytest.mark.parametrize("origin_xy", point_list)
+    @pytest.mark.parametrize("origin_phi", rotation_only_poses)
+    @pytest.mark.parametrize("target", point_list)
+    def test_relative_consistency(self, origin_xy, origin_phi, target):
+        """
+        Ensure transform and relative are inverses using all combinations from point_list and poses_list.
+        """
+        origin_xy = torch.tensor([origin_xy]) # 1x2
+        origin_phi = torch.tensor([[origin_phi[2]]]) #1x1
+        target_xy = torch.tensor([target]) # 1x2
+        target_psi = torch.tensor([[0]]) #1x1
+
+        # Compute relative target pose in origin frame
+        rel_xy, rel_psi = relative(origin_xy, origin_phi, target_xy, target_psi)
+
+        # Transform relative coords back to global frame
+        rel_points = rel_xy.unsqueeze(0)  # 1x1x2
+        origin_pose_tensor = torch.cat([origin_xy, origin_phi], dim=1)  # 1x3
+        out = transform(rel_points, origin_pose_tensor)[0, 0]
+
+        assert torch.allclose(out, target_xy[0], atol=TOLERANCE)
+
+
+    def test_empty_points(self):
+        """
+        Handle zero points.
+        """
+        points = torch.zeros((2, 0, 2))  # B=2, N=0
+        pose = torch.zeros((2, 3))
+
+        out = transform(points, pose)
+
+        assert out.shape == (2, 0, 2)  # unchanged shape
+    
