@@ -32,6 +32,8 @@ def normalize_angle(angle):
     """
     Normalize to <-pi, pi) range by shifting by a multiple of 2*pi.
     Works with floats, numpy arrays, and torch tensors.
+    
+    NOTE: For some values close to a multiple of pi may clip to pi rather than -pi but likely not to cause an issue in practice.
     """
     angle = (angle + np.pi) % (2 * np.pi) - np.pi
     return angle
