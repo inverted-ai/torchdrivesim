@@ -525,3 +525,20 @@ class TestTransform:
 
         assert out.shape == (2, 0, 2)  # unchanged shape
     
+class TestMergeDicts:
+    dict_ab = {"a": 1, "b": 2}
+    dict_ab_2 = {"a": 3, "b": 4}
+    dict_bc = {"b": 5, "c": 6}
+    dict_de = {"d": 7, "e": 8}
+
+    dicts = [dict_ab, dict_ab_2, dict_bc, dict_de]
+    results = [ #results of merging in the order of dicts list, up to a certain point
+        {"a": 1, "b": 2},
+        {"a": 3, "b": 4},
+        {"a": 3, "b": 5, "c": 6},
+        {"a": 3, "b": 5, "c": 6, "d": 7, "e": 8}      
+    ] 
+    
+    def test_merge_dicts(self):
+        for i in range(len(self.dicts)):
+            assert merge_dicts(self.dicts[:i+1]) == self.results[i]
