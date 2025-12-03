@@ -1,3 +1,4 @@
+import math
 import pdb
 from torchdrivesim.utils import *
 import pytest
@@ -253,3 +254,116 @@ class TestRotate:
         ret = rotate(v=vector, angle=angles)
         expected = torch.cat([rotate(v=vector, angle=a.unsqueeze(0)) for a in angles])
         assert torch.allclose(ret, expected, atol=TOLERANCE), f"rotate() returned {ret}, expected: {expected}"
+
+class TestRelative:
+    @pytest.mark.parametrize("target_xy", [[0,0], [1,1], [-1,-1],
+                                           [1,-1], [-1,1], [100,100],
+                                           [-100,-100], [100,-100], 
+                                           [-100,100]])
+    @pytest.mark.parametrize("target_psi", [0.0, PI/4, PI/2,
+                                              PI, -PI/2, -PI/4])
+    def test_zero_origin(self, target_xy, target_psi):
+        """
+        Check trivial case where origin_xy and origin_psi are that of the world origin ([0,0] and [0]) 
+        """
+        origin_xy = torch.tensor([[0]], dtype=torch.float64)
+        origin_psi = torch.tensor([[0]], dtype=torch.float64)
+        target_xy = torch.tensor([target_xy], dtype=torch.float64)
+        target_psi = torch.tensor([target_psi], dtype=torch.float64)  
+
+        rel_xy, rel_psi = relative(origin_xy, origin_psi, target_xy, target_psi)
+
+        # With zero origin, relative should just be target minus origin
+        expected_xy = target_xy - origin_xy
+        expected_psi = normalize_angle(target_psi - origin_psi)
+
+        assert torch.allclose(rel_xy, expected_xy, atol=TOLERANCE)
+        assert torch.allclose(rel_psi, expected_psi, atol=TOLERANCE)
+
+    @pytest.mark.parametrize("origin_xy", [[0,0], [1,1], [-1,-1],
+                                           [1,-1], [-1,1], [100,100],
+                                           [-100,-100], [100,-100], 
+                                           [-100,100]])
+    @pytest.mark.parametrize("target_xy", [[0,0], [1,1], [-1,-1],
+                                           [1,-1], [-1,1], [100,100],
+                                           [-100,-100], [100,-100], 
+                                           [-100,100]])
+    @pytest.mark.parametrize("target_psi", [0.0, PI/4, PI/2,
+                                              PI, -PI/2, -PI/4])
+    def test_nontrivial_origin_xy_zero_psi(self, origin_xy, target_xy, target_psi):
+        """
+        Check case where origin_psi is zero but origin_xy is non-trivial
+        """
+        origin_xy = torch.tensor([origin_xy], dtype=torch.float64)
+        origin_psi = torch.tensor([[0]], dtype=torch.float64)
+        target_xy = torch.tensor([target_xy], dtype=torch.float64)
+        target_psi = torch.tensor([target_psi], dtype=torch.float64)  
+
+        rel_xy, rel_psi = relative(origin_xy, origin_psi, target_xy, target_psi)
+
+        expected_xy = target_xy - origin_xy
+        expected_psi = normalize_angle(target_psi - origin_psi)
+
+        assert torch.allclose(rel_xy, expected_xy, atol=TOLERANCE)
+        assert torch.allclose(rel_psi, expected_psi, atol=TOLERANCE)
+
+
+    @pytest.mark.parametrize("origin_psi", [0.0, PI/4, PI/2,
+                                              PI, -PI/2, -PI/4])
+    @pytest.mark.parametrize("target_xy", [[0,0], [1,1], [-1,-1],
+                                           [1,-1], [-1,1], [100,100],
+                                           [-100,-100], [100,-100], 
+                                           [-100,100]])
+    @pytest.mark.parametrize("target_psi", [0.0, PI/4, PI/2,
+                                              PI, -PI/2, -PI/4])
+    def test_zero_origin_xy_nontrivial_psi(self, origin_psi, target_xy, target_psi):
+        """
+        Check case where origin_xy is zero but origin_psi is non-trivial.
+        Test multiple angles using pytest parametrize.
+        """
+        origin_xy = torch.tensor([[0.0, 0.0]], dtype=torch.float64)
+        origin_psi = torch.tensor([[origin_psi]], dtype=torch.float64)
+        target_xy = torch.tensor([target_xy], dtype=torch.float64)
+        target_psi = torch.tensor([target_psi], dtype=torch.float64)
+
+        rel_xy, rel_psi = relative(origin_xy, origin_psi, target_xy, target_psi)
+
+        # Relative position should rotate the vector by -origin_psi
+        expected_xy = rotate(target_xy - origin_xy, -origin_psi)
+        expected_psi = normalize_angle(target_psi - origin_psi)
+
+        assert torch.allclose(rel_xy, expected_xy, atol=TOLERANCE)
+        assert torch.allclose(rel_psi, expected_psi, atol=TOLERANCE)
+
+    @pytest.mark.parametrize("origin_xy", [[0,0], [1,1], [-1,-1],
+                                           [1,-1], [-1,1], [100,100],
+                                           [-100,-100], [100,-100], 
+                                           [-100,100]])
+    @pytest.mark.parametrize("origin_psi", [0.0, PI/4, PI/2,
+                                              PI, -PI/2, -PI/4])
+    @pytest.mark.parametrize("target_xy", [[0,0], [1,1], [-1,-1],
+                                           [1,-1], [-1,1], [100,100],
+                                           [-100,-100], [100,-100], 
+                                           [-100,100]])
+    @pytest.mark.parametrize("target_psi", [0.0, PI/4, PI/2,
+                                              PI, -PI/2, -PI/4])
+    def test_nontrivial_origin_xy_psi_round_trip(self, origin_xy, origin_psi, target_xy, target_psi):
+        """
+        Shift to relative, then shift back to world origin coordinates, both using relative(). Then check if same as original target
+        """
+        origin_xy = torch.tensor([origin_xy], dtype=torch.float64)
+        origin_psi = torch.tensor([origin_psi], dtype=torch.float64)
+        target_xy = torch.tensor([target_xy], dtype=torch.float64)
+        target_psi = torch.tensor([target_psi], dtype=torch.float64)  
+
+        # Compute relative coordinates
+        rel_xy, rel_psi = relative(origin_xy, origin_psi, target_xy, target_psi)
+
+        # Compute world origin in relative coordinates
+        worigin_xy, worigin_psi = relative(origin_xy, origin_psi, torch.tensor([0,0]), torch.tensor([0]))
+
+        # Now compute relative again from recovered world origin
+        rel_xy2, rel_psi2 = relative(worigin_xy, worigin_psi, rel_xy, rel_psi)
+
+        assert torch.allclose(rel_xy2, target_xy, atol=TOLERANCE)
+        assert torch.allclose(rel_psi2, target_psi, atol=TOLERANCE)
