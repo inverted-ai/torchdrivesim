@@ -542,3 +542,77 @@ class TestMergeDicts:
     def test_merge_dicts(self):
         for i in range(len(self.dicts)):
             assert merge_dicts(self.dicts[:i+1]) == self.results[i]
+            
+@pytest.mark.usefixtures("setup")
+class TestIsInsidePolygon:
+    regularPolygons = {} # Regular polygons with side length L
+    L = 1 # Side length of regular polygons
+    num_points = 100 # Points to randomly sample inside and outside polygon
+
+    @pytest.fixture(scope="class")
+    def setup(self):
+        # Populate regular polygons dict, where the key is side count N
+        # Formulas used from https://en.wikipedia.org/wiki/Regular_polygon
+        for n in range(3,10):
+            r_outer = self.L/(2*math.sin(math.pi / n)) # Radius of circumscribed circle
+            
+            points = [] # Points of the regular polygon
+            for i in range(n):
+                point = rotate(torch.tensor([[r_outer, 0]]), torch.tensor([[i*2*math.pi / n]]))
+                points.append(point)
+                
+            self.regularPolygons[n] =  torch.cat(points)
+            
+    def test_points_inside_inscribed_circle(self):
+        for n in range(3, 10): 
+            polygon = self.regularPolygons[n]
+            r_inner = self.L/(2*math.tan(math.pi / n)) # Radius of inscribed circle
+            
+            # Sample random points inside the inscribed circle
+            theta = 2 * math.pi * torch.rand(self.num_points * n)
+            radius = r_inner * torch.sqrt(torch.rand(self.num_points * n))
+            points = torch.stack([radius * torch.cos(theta), radius * torch.sin(theta)], dim=1)
+            
+            inside = is_inside_polygon(points, polygon)
+            assert inside.all(), f"Some points inside inscribed circle for {n}-gon are outside"
+
+    def test_points_outside_circumscribed_circle(self):
+        for n in range(3, 10):
+            polygon = self.regularPolygons[n]
+            r_outer = self.L/(2*math.sin(math.pi / n)) # Radius of circumscribed circle
+            
+            # Sample random points outside the circumscribed circle
+            theta = 2 * math.pi * torch.rand(self.num_points * n)
+            radius = r_outer + torch.rand(self.num_points * n)  # Random distance outside r_outer
+            points = torch.stack([radius * torch.cos(theta), radius * torch.sin(theta)], dim=1)
+            
+            inside = is_inside_polygon(points, polygon)
+            assert not inside.any(), f"Some points outside circumscribed circle for {n}-gon are inside" 
+            
+    def test_points_near_edges(self):
+        """Sample points slightly inside and outside the polygon edges."""
+        epsilon = 1e-5  # Small offset to test border
+        
+        for n in range(3, 10):
+            polygon = self.regularPolygons[n]
+            num_vertices = len(polygon)
+            
+            # For each edge, pick a random point on the edge and move slightly inward/outward
+            for i in range(num_vertices):
+                j = (i + 1) % num_vertices
+                start, end = polygon[i], polygon[j]
+                # Random interpolation along edge
+                t = torch.rand(self.num_points)
+                edge_points = start + t.unsqueeze(1) * (end - start)
+                
+                center = torch.zeros(2)
+                
+                # Points slightly inside (towards center)
+                inward = edge_points + epsilon * (center - edge_points) / torch.norm(center - edge_points, dim=1, keepdim=True)
+                inside = is_inside_polygon(inward, polygon)
+                assert inside.all(), f"Some slightly inward points near edge for {n}-gon are outside"
+                
+                # Points slightly outside (away from center)
+                outward = edge_points - epsilon * (center - edge_points) / torch.norm(center - edge_points, dim=1, keepdim=True)
+                outside = is_inside_polygon(outward, polygon)
+                assert not outside.any(), f"Some slightly outward points near edge for {n}-gon are inside"
