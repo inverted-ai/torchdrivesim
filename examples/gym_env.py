@@ -201,7 +201,7 @@ class IAIGymEnv(GymEnv):
             initial_present_mask=torch.ones_like(ego_states[..., 0], dtype=torch.bool),
             renderer=renderer,
             npc_controller=npc_controller
-        )
+        ).to(device=device)
 
         super().__init__(config=cfg, simulator=simulator)
         self.max_environment_steps = 100

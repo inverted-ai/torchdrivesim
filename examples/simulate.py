@@ -90,7 +90,7 @@ def simulate(cfg: SimulationConfig):
         initial_present_mask=torch.ones_like(ego_states[..., 0], dtype=torch.bool),
         renderer=renderer, traffic_controls=traffic_controls,
         npc_controller=npc_controller
-    )
+    ).to(device=device)
 
     traffic_controls['traffic_light'].set_state(
         current_light_state_tensor_from_controller(traffic_light_controller, traffic_light_ids).unsqueeze(0).to(device)
@@ -112,7 +112,7 @@ def simulate(cfg: SimulationConfig):
     os.makedirs(os.path.dirname(cfg.save_path), exist_ok=True)
     imageio.mimsave(
         cfg.save_path, [image[0].cpu().numpy().astype(np.uint8).transpose(1, 2, 0) for image in images],
-        format="GIF-PIL", fps=10
+        format="GIF", fps=10
     )
     try:
         from pygifsicle import optimize
