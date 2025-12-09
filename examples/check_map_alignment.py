@@ -2,6 +2,7 @@
 A test script to check the alignment between a local map and one used by IAI server.
 """
 import os
+import pdb
 import sys
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -67,7 +68,7 @@ def visualize_maps(cfg: AlignmentCheckConfig):
     except invertedai.error.InvalidRequestError:
         raise InitializationFailedError()
     agent_attributes = torch.stack(
-        [torch.tensor(at.tolist()) for at in response.agent_attributes], dim=-2
+        [torch.tensor([a for a in at.tolist() if type(a) == float]) for at in response.agent_attributes ], dim=-2
     )
     agent_states = torch.stack(
         [torch.tensor(st.tolist()) for st in response.agent_states], dim=-2
@@ -77,7 +78,7 @@ def visualize_maps(cfg: AlignmentCheckConfig):
     kinematic_model = KinematicBicycle()
     kinematic_model.set_params(lr=agent_attributes[..., 2])
     kinematic_model.set_state(agent_states)
-    renderer = renderer_from_config(simulator_cfg.renderer, static_mesh=driving_surface_mesh)
+    renderer = renderer_from_config(simulator_cfg.renderer)
     simulator = Simulator(
         cfg=simulator_cfg, road_mesh=driving_surface_mesh,
         kinematic_model=kinematic_model, agent_size=agent_attributes[..., :2],
@@ -85,8 +86,7 @@ def visualize_maps(cfg: AlignmentCheckConfig):
         renderer=renderer,
     )
     print(f'Local map center: {simulator.get_world_center().cpu().squeeze(0).numpy().tolist()}')
-    print(f'Agent states:\n{simulator.get_state()["vehicle"].cpu().squeeze(0).numpy()}')
-
+    print(f'Agent states:\n{simulator.get_state().cpu().squeeze(0).numpy()}')
     response.birdview.decode_and_save(cfg.remote_save_path)
 
     if cfg.center is None:
