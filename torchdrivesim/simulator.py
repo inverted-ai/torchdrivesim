@@ -305,13 +305,15 @@ class Simulator:
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
                  npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None,
-                 lane_features: Optional[LaneFeatures] = None, observation_noise_model: Optional[ObservationNoise] = None):
+                 lane_features: Optional[LaneFeatures] = None, observation_noise_model: Optional[ObservationNoise] = None,
+                 action_model_extras: Optional[Dict[str, Any]] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
         self.kinematic_model = kinematic_model
         self.agent_size = agent_size
         self.present_mask = initial_present_mask
+        self.action_model_extras = action_model_extras
 
         if not agent_type_names:
             agent_type_names = ['vehicle']
