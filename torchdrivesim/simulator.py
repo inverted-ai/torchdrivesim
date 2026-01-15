@@ -558,6 +558,22 @@ class Simulator:
         assert_equal(self.agent_lr.shape[-1], self.agent_count)
         assert_equal(self.present_mask.shape[-1], self.agent_count)
 
+    def get_action_model_extras(self) -> Dict[str, Any]:
+        """
+        Returns any extra information to be passed to the action model
+        """
+        if self.action_model_extras is None:
+            return {}
+        action_model_extras = {}
+        for k, v in self.action_model_extras.items():
+            if k == "target_speeds" and v is not None:
+                action_model_extras["target_speed"] = v.flatten(0, 1)[:, self.internal_time]
+            elif k == "target_speeds_mask" and v is not None:
+                action_model_extras["target_speed_mask"] = v.flatten(0, 1)[:, self.internal_time]
+            else:
+                action_model_extras[k] = v
+        return action_model_extras
+
     def get_world_center(self) -> Tensor:
         """
         Returns a Bx2 tensor with the coordinates of the map center.
