@@ -60,6 +60,9 @@ class ObservationNoise:
 
     def get_noisy_traffic_controls(self, simulator):
         return simulator.traffic_controls
+    
+    def get_noisy_road_mesh(self, simulator):
+        return simulator.road_mesh
 
 
 class StandardSensingObservationNoise(ObservationNoise):
@@ -152,7 +155,13 @@ class MapObservationNoiseFromLog(ObservationNoise):
             return background_mesh
         else:
             return simulator.birdview_mesh_generator.background_mesh
-
+    
+    def get_noisy_road_mesh(self, simulator):
+        if self.noisy_background_mesh is not None and simulator.internal_time < len(self.noisy_background_mesh):
+            return self.noisy_background_mesh[simulator.internal_time]
+        else:
+            return simulator.road_mesh
+        
     def get_noisy_traffic_controls(self, simulator):
         if self.noisy_traffic_controls is not None and simulator.internal_time < len(self.noisy_traffic_controls):
             return self.noisy_traffic_controls[simulator.internal_time]
