@@ -828,6 +828,9 @@ class Simulator:
 
     def get_noisy_lane_features(self) -> LaneFeatures:
         return self.observation_noise_model.get_noisy_lane_features(self)
+    
+    def get_noisy_road_mesh(self):
+        return self.observation_noise_model.get_noisy_road_mesh(self)
 
     def get_noisy_background_mesh(self) -> LaneFeatures:
         return self.observation_noise_model.get_noisy_background_mesh(self)
