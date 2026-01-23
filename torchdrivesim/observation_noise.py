@@ -6,6 +6,7 @@ from typing import Tuple, Dict, Any, List, Optional, Union
 from dataclasses import dataclass, field
 
 import torch
+from torch import Tensor
 
 from torchdrivesim.mesh import BirdviewMesh, set_colors_with_defaults
 from torchdrivesim.utils import line_circle_intersection
