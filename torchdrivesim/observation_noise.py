@@ -171,7 +171,7 @@ class MapObservationNoiseFromLog(ObservationNoise):
             return simulator.traffic_controls
 
     def get_noisy_crosswalk_features(self, simulator):
-        if self.noisy_crosswalk_features is not None and simulator.internal_time < len(self.noisy_traffic_controls):
+        if self.noisy_crosswalk_features is not None and simulator.internal_time < len(self.noisy_crosswalk_features):
             return self.noisy_crosswalk_features[simulator.internal_time]
         else:
             return None
