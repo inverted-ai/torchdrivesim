@@ -6,8 +6,12 @@ from typing import Tuple, Dict, Any, List, Optional, Union
 from dataclasses import dataclass, field
 
 import torch
+from torch import Tensor
 
+from torchdrivesim.mesh import BirdviewMesh, set_colors_with_defaults
 from torchdrivesim.utils import line_circle_intersection
+from torchdrivesim.lanelet2 import LaneFeatures
+from torchdrivesim.traffic_controls import BaseTrafficControl
 
 
 @dataclass
@@ -18,6 +22,11 @@ class ObservationNoiseConfig:
 @dataclass
 class StandardSensingObservationNoiseConfig:
     _type_: str = 'standard_sensing'
+
+
+@dataclass
+class MapObservationNoiseFromLogConfig:
+    _type_: str = 'map_observation_noise_from_log'
 
 
 class ObservationNoise:
@@ -42,10 +51,24 @@ class ObservationNoise:
             simulator.get_npc_size()[:, None, :, :].expand(-1, simulator.agent_count, -1, -1),
         ], dim=-2)
 
+    def get_noisy_lane_features(self, simulator):
+        # TODO: This should return (noisy) lane features for each agent separately
+        # TODO: (the LaneFeatures class should be expanded to support this).
+        return simulator.lane_features
+
+    def get_noisy_background_mesh(self, simulator):
+        return simulator.birdview_mesh_generator.background_mesh
+
+    def get_noisy_traffic_controls(self, simulator):
+        return simulator.traffic_controls
+
+    def get_noisy_road_mesh(self, simulator):
+        return simulator.road_mesh
+
 
 class StandardSensingObservationNoise(ObservationNoise):
     def __init__(self, cfg: StandardSensingObservationNoiseConfig):
-        self.cfg = cfg
+        super().__init__(cfg)
 
     def get_noisy_state(self, simulator):
         exposed_states = simulator.get_state()   # [B, A, 4]
@@ -107,3 +130,49 @@ class StandardSensingObservationNoise(ObservationNoise):
         final_mask = base_mask & ~occluded
 
         return final_mask
+
+
+class MapObservationNoiseFromLog(ObservationNoise):
+    def __init__(self, cfg: StandardSensingObservationNoiseConfig,
+                 noisy_lane_features: Optional[List[LaneFeatures]] = None,
+                 noisy_background_mesh: Optional[List[BirdviewMesh]] = None,
+                 noisy_traffic_controls: Optional[List[Dict[str, BaseTrafficControl]]] = None,
+                 noisy_crosswalk_features: Optional[List[Tuple[Tensor]]] = None):
+        super().__init__(cfg)
+        self.noisy_lane_features = noisy_lane_features
+        self.noisy_background_mesh = noisy_background_mesh
+        self.noisy_traffic_controls = noisy_traffic_controls
+        self.noisy_crosswalk_features = noisy_crosswalk_features
+
+    def get_noisy_lane_features(self, simulator):
+        if self.noisy_lane_features is not None and simulator.internal_time < len(self.noisy_lane_features):
+            return self.noisy_lane_features[simulator.internal_time]
+        else:
+            return simulator.lane_features
+
+    def get_noisy_background_mesh(self, simulator):
+        if self.noisy_background_mesh is not None and simulator.internal_time < len(self.noisy_background_mesh):
+            bg_mesh = self.noisy_background_mesh[simulator.internal_time]
+            background_mesh = set_colors_with_defaults(bg_mesh.clone(), color_map=simulator.birdview_mesh_generator.color_map,
+                                                       rendering_levels=simulator.birdview_mesh_generator.rendering_levels)
+            return background_mesh
+        else:
+            return simulator.birdview_mesh_generator.background_mesh
+
+    def get_noisy_road_mesh(self, simulator):
+        if self.noisy_background_mesh is not None and simulator.internal_time < len(self.noisy_background_mesh):
+            return self.noisy_background_mesh[simulator.internal_time]
+        else:
+            return simulator.road_mesh
+
+    def get_noisy_traffic_controls(self, simulator):
+        if self.noisy_traffic_controls is not None and simulator.internal_time < len(self.noisy_traffic_controls):
+            return self.noisy_traffic_controls[simulator.internal_time]
+        else:
+            return simulator.traffic_controls
+
+    def get_noisy_crosswalk_features(self, simulator):
+        if self.noisy_crosswalk_features is not None and simulator.internal_time < len(self.noisy_crosswalk_features):
+            return self.noisy_crosswalk_features[simulator.internal_time]
+        else:
+            return None

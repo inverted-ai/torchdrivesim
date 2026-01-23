@@ -31,6 +31,7 @@ class RendererConfig:
     left_handed_coordinates: bool = False
     highlight_ego_vehicle: bool = False
     shift_mesh_by_camera_before_rendering: bool = True
+    device: Optional[str] = None
 
 
 @dataclass

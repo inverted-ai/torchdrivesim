@@ -210,6 +210,10 @@ class BaseMesh:
                 dtype=offset.dtype, device=offset.device)]
             )
         return dataclasses.replace(self, verts=self.verts + offset)
+    
+    def pad(self, pad_size: int):
+        f = lambda x: torch.cat([x, torch.zeros((pad_size, *x.shape[1:]), device=x.device, dtype=x.dtype)], dim=0)
+        return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces))
 
     def pytorch3d(self, include_textures=True) -> "pytorch3d.structures.Meshes":
         """
@@ -409,6 +413,10 @@ class AttributeMesh(BaseMesh):
             self, verts=self.verts.to(device), faces=self.faces.to(device), attrs=self.attrs.to(device)
         )
 
+    def pad(self, pad_size: int):
+        f = lambda x: torch.cat([x, torch.zeros((pad_size, *x.shape[1:]), device=x.device, dtype=x.dtype)], dim=0)
+        return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces), attrs=f(self.attrs))
+
     def expand(self, size: int):
         f = lambda x: x.unsqueeze(1).expand((self.batch_size, size, *x.shape[1:])).flatten(0, 1)
         return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces), attrs=f(self.attrs))
@@ -582,6 +590,10 @@ class BirdviewMesh(BaseMesh):
             self, verts=self.verts.to(device), faces=self.faces.to(device),
             vert_category=self.vert_category.to(device)
         )
+    
+    def pad(self, pad_size: int):
+        f = lambda x: torch.cat([x, torch.zeros((pad_size, *x.shape[1:]), device=x.device, dtype=x.dtype)], dim=0)
+        return dataclasses.replace(self, verts=f(self.verts), faces=f(self.faces), vert_category=f(self.vert_category))
 
     def expand(self, size):
         f = lambda x: x.unsqueeze(1).expand((self.batch_size, size, *x.shape[1:])).flatten(0, 1)
@@ -630,7 +642,6 @@ class BirdviewMesh(BaseMesh):
         return cls(
             verts=base_concat.verts, faces=base_concat.faces, categories=categories,
             vert_category=vert_category, colors=colors, zs=zs
-
         )
 
     @classmethod
