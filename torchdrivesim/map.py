@@ -3,6 +3,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, List
+from functools import cached_property
 
 import lanelet2
 import numpy as np
@@ -14,10 +15,6 @@ from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.traffic_controls import BaseTrafficControl, TrafficLightControl, StopSignControl, YieldControl
 from torchdrivesim.traffic_lights import TrafficLightController
 from torchdrivesim.utils import normalize_angle
-from functools import cached_property
-import logging
-import time
-logger = logging.getLogger(__name__)
 
 @dataclass
 class Stopline:
