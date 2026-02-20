@@ -3,6 +3,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, List
+from functools import cached_property
 
 import lanelet2
 import numpy as np
@@ -14,7 +15,6 @@ from torchdrivesim.mesh import BirdviewMesh
 from torchdrivesim.traffic_controls import BaseTrafficControl, TrafficLightControl, StopSignControl, YieldControl
 from torchdrivesim.traffic_lights import TrafficLightController
 from torchdrivesim.utils import normalize_angle
-
 
 @dataclass
 class Stopline:
@@ -59,7 +59,7 @@ class MapConfig:
             return None
         return load_lanelet_map(self.lanelet_path, origin=self.lanelet_map_origin)
 
-    @property
+    @cached_property
     def road_mesh(self) -> Optional[BirdviewMesh]:
         if self.mesh_path is None:
             if self.lanelet_path is None:
