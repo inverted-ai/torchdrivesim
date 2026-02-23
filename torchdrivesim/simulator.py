@@ -567,9 +567,9 @@ class Simulator:
         action_model_extras = {}
         for k, v in self.action_model_extras.items():
             if k == "target_speeds" and v is not None:
-                action_model_extras["target_speed"] = v.flatten(0, 1)[:, self.internal_time]
+                action_model_extras["target_speed"] = v.flatten(0, 1)[:, 0]
             elif k == "target_speeds_mask" and v is not None:
-                action_model_extras["target_speed_mask"] = v.flatten(0, 1)[:, self.internal_time]
+                action_model_extras["target_speed_mask"] = v.flatten(0, 1)[:, 0]
             else:
                 action_model_extras[k] = v
         return action_model_extras
