@@ -90,7 +90,7 @@ class GymEnv(gym.Env):
         # Capture frame if recording
         if self.recording:
             frame = self.simulator.render_egocentric(res=self.res, fov=self.fov)
-            self.frames.append(frame[0].cpu().numpy().transpose(1, 2, 0))
+            self.frames.append(frame[0][0].cpu().numpy().transpose(1, 2, 0)) # frame is BxAxCxHxW so we pick the 1st batch (of 1 total) and 1st agent (of 1 total)
             
         return self.get_obs(), self.get_reward(), self.is_done(), self.get_info()
 
@@ -182,6 +182,7 @@ class IAIGymEnv(GymEnv):
         kinematic_model = KinematicBicycle()
         kinematic_model.set_params(lr=ego_attributes[..., 2])
         kinematic_model.set_state(ego_states)
+        kinematic_model.to(device=device)
         renderer = renderer_from_config(simulator_cfg.renderer)
 
         # Create NPC controller
