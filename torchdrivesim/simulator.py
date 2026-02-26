@@ -19,6 +19,7 @@ from torchdrivesim.infractions import offroad_infraction_loss, lanelet_orientati
     compute_agent_collisions_metric_pytorch3d, compute_agent_collisions_metric, collision_detection_with_discs
 from torchdrivesim.traffic_controls import BaseTrafficControl
 from torchdrivesim.utils import Resolution, is_inside_polygon, isin, relative, assert_equal
+from torchdrivesim.observation_noise import ObservationNoise, ObservationNoiseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -304,13 +305,15 @@ class Simulator:
                  waypoint_goals: Optional[WaypointGoal] = None,
                  agent_types: Optional[Tensor] = None, agent_type_names: Optional[List[str] ] = None,
                  npc_controller: Optional[NPCController] = None, agent_lr: Optional[Tensor] = None,
-                 lane_features: Optional[LaneFeatures] = None):
+                 lane_features: Optional[LaneFeatures] = None, observation_noise_model: Optional[ObservationNoise] = None,
+                 action_model_extras: Optional[Dict[str, Any]] = None):
         self.road_mesh = road_mesh
         self.lanelet_map = lanelet_map
         self.recenter_offset = recenter_offset
         self.kinematic_model = kinematic_model
         self.agent_size = agent_size
         self.present_mask = initial_present_mask
+        self.action_model_extras = action_model_extras
 
         if not agent_type_names:
             agent_type_names = ['vehicle']
@@ -372,6 +375,11 @@ class Simulator:
         else:
             self.birdview_mesh_generator = birdview_mesh_generator
 
+        if observation_noise_model is None:
+            self.observation_noise_model = ObservationNoise(ObservationNoiseConfig())
+        else:
+            self.observation_noise_model = observation_noise_model
+
     @property
     def agent_types(self) -> Optional[List[str]]:
         """
@@ -429,6 +437,7 @@ class Simulator:
             agent_lr=self.agent_lr if self.agent_lr is not None else None,
             npc_controller=self.npc_controller.copy(),
             lane_features=self.lane_features.copy() if self.lane_features is not None else None,
+            observation_noise_model=self.observation_noise_model,
         )
         return other
 
@@ -549,6 +558,22 @@ class Simulator:
         assert_equal(self.agent_lr.shape[-1], self.agent_count)
         assert_equal(self.present_mask.shape[-1], self.agent_count)
 
+    def get_action_model_extras(self) -> Dict[str, Any]:
+        """
+        Returns any extra information to be passed to the action model
+        """
+        if self.action_model_extras is None:
+            return {}
+        action_model_extras = {}
+        for k, v in self.action_model_extras.items():
+            if k == "target_speeds" and v is not None:
+                action_model_extras["target_speed"] = v.flatten(0, 1)[:, 0]
+            elif k == "target_speeds_mask" and v is not None:
+                action_model_extras["target_speed_mask"] = v.flatten(0, 1)[:, 0]
+            else:
+                action_model_extras[k] = v
+        return action_model_extras
+
     def get_world_center(self) -> Tensor:
         """
         Returns a Bx2 tensor with the coordinates of the map center.
@@ -635,6 +660,24 @@ class Simulator:
         """
         return self.present_mask
 
+    def get_noisy_state(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)xSt tensors representing current agent states.
+        """
+        return self.observation_noise_model.get_noisy_state(self)
+
+    def get_noisy_agent_size(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)x2 tensors representing agent length and width.
+        """
+        return self.observation_noise_model.get_noisy_agent_size(self)
+
+    def get_noisy_present_mask(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc) boolean tensors indicating which agents are currently present in the simulation.
+        """
+        return self.observation_noise_model.get_noisy_present_mask(self)
+
     def get_npc_state(self) -> Tensor:
         """
         Returns a functor of BxNpcxSt tensors representing current non-playable character states.
@@ -694,6 +737,14 @@ class Simulator:
         npc_info = torch.cat([self.get_npc_state()[..., :3], self.get_npc_size(), self.get_npc_present_mask().unsqueeze(-1)], dim=-1)
         return torch.cat([agent_info, npc_info], dim=-2)
 
+    def get_noisy_all_agents_absolute(self) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)x6 tensors,
+        where the last dimension contains the following information: x, y, psi, length, width, present.
+        Typically used to implement non-visual observation modalities.
+        """
+        return torch.cat([self.get_noisy_state()[..., :3], self.get_noisy_agent_size(), self.get_noisy_present_mask()[..., None]], dim=-1)
+
     def get_all_agents_relative(self, exclude_self: bool = True) -> Tensor:
         """
         Returns a functor of BxAx(A+Npc)x6 tensors, specifying for each of A agents the relative position about
@@ -730,11 +781,62 @@ class Simulator:
                 rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
         return rel_pos
 
+    def get_noisy_all_agents_relative(self, exclude_self: bool = True) -> Tensor:
+        """
+        Returns a functor of BxAx(A+Npc)x6 tensors, specifying for each of A agents the relative position about
+        the other agents. 'All' is the number of all agents in the simulation, including hidden ones, across all
+        agent types. If `exclude_self` is set, for each agent in A, that agent itself is removed from All.
+        The final dimension has the same meaning as in `get_noisy_all_agents_absolute`, except now the positions
+        and orientations are relative to the specified agent.
+        """
+        abs_agent_pos = self.get_noisy_all_agents_absolute()  # BxAx(A+Npc)x6
+        all_agent_count = self.agent_count + self.npc_count
+        agent_indices = torch.arange(self.agent_count, device=abs_agent_pos.device)
+        agent_own_pos = abs_agent_pos[:, agent_indices, agent_indices, :]  # BxAx6
+        # Agent's own position and orientation (origin for relative transformation)
+        xy, psi = agent_own_pos[..., :2], agent_own_pos[..., 2:3]  # BxAx...
+        # All entities as observed by each agent
+        all_xy, all_psi = abs_agent_pos[..., :2], abs_agent_pos[..., 2:3]  # BxAx(A+Npc)x...
+        # Compute relative position of all entities w.r.t. each agent
+        rel_xy, rel_psi = relative(origin_xy=xy.unsqueeze(-2), origin_psi=psi.unsqueeze(-2),
+                                   target_xy=all_xy, target_psi=all_psi)
+        rel_state = torch.cat([rel_xy, rel_psi], dim=-1)  # BxAx(A+Npc)x3
+        # Insert the info that doesn't vary with the coordinate frame
+        rel_pos = torch.cat([rel_state, abs_agent_pos[..., 3:]], dim=-1)  # BxAx(A+Npc)x6
+        if exclude_self:
+            if self.agent_count == 1:
+                rel_pos = rel_pos[..., 1:, :]
+            else:
+                # remove the diagonal of the current agent type
+                # TODO: find a non-blocking version that's correct for multiple agents
+                # indexing with a boolean mask triggers CUDA synchronization
+                to_keep = torch.eye(self.agent_count, dtype=torch.bool, device=rel_pos.device).logical_not()
+                to_keep = torch.cat([to_keep, torch.ones(self.agent_count, self.npc_count, dtype=torch.bool, device=rel_pos.device)], dim=-1)
+                # need to flatten to index two dimensions simultaneously
+                to_keep = torch.flatten(to_keep)
+                rel_pos = rel_pos.flatten(start_dim=-3, end_dim=-2)
+                rel_pos = rel_pos[..., to_keep, :]
+                # the result has one less agent in the penultimate dimension
+                rel_pos = rel_pos.reshape((*rel_pos.shape[:-2], self.agent_count, all_agent_count - 1, 6))
+        return rel_pos
+
     def get_traffic_controls(self) -> Dict[str, BaseTrafficControl]:
         """
         Produces all traffic controls existing in the simulation, grouped by type.
         """
         return self.traffic_controls
+
+    def get_noisy_lane_features(self) -> LaneFeatures:
+        return self.observation_noise_model.get_noisy_lane_features(self)
+    
+    def get_noisy_road_mesh(self):
+        return self.observation_noise_model.get_noisy_road_mesh(self)
+
+    def get_noisy_background_mesh(self) -> LaneFeatures:
+        return self.observation_noise_model.get_noisy_background_mesh(self)
+
+    def get_noisy_traffic_controls(self) -> Dict[str, BaseTrafficControl]:
+        return self.observation_noise_model.get_noisy_traffic_controls(self)
 
     def step(self, agent_action: Tensor) -> None:
         """
@@ -818,7 +920,7 @@ class Simulator:
     def render(self, camera_xy: Tensor, camera_psi: Tensor, res: Optional[Resolution] = None,
                rendering_mask: Optional[Tensor] = None, fov: Optional[float] = None,
                waypoints: Optional[Tensor] = None, waypoints_rendering_mask: Optional[Tensor] = None,
-               custom_agent_colors: Optional[Tensor] = None) -> Tensor:
+               custom_agent_colors: Optional[Tensor] = None, noisy_perception: bool = False) -> Tensor:
         """
         Renders the world from bird's eye view using cameras in given positions.
 
@@ -845,12 +947,45 @@ class Simulator:
         present_mask = self.get_all_agent_present_mask().unsqueeze(-2).expand(target_shape[:-1] + (n_cameras,) + target_shape[-1:])
         rendering_mask = present_mask if rendering_mask is None else present_mask.logical_and(rendering_mask)
 
+        # TODO:
+        if noisy_perception:
+            birdview_mesh_generator = self.birdview_mesh_generator.copy()
+            birdview_mesh_generator.background_mesh = self.get_noisy_background_mesh()
+
+            # Add dense features
+            from torchdrivesim.mesh import BirdviewMesh, BaseMesh, rotate
+            noisy_lf = self.get_noisy_lane_features()
+            markers = noisy_lf.dense_lane_features
+            markers_mask = noisy_lf.dense_lane_features_mask
+            n_markers = markers.shape[-2]
+            width = markers[..., 3]
+            triangle_verts = torch.stack([
+                torch.stack([torch.zeros_like(width), -width / 2], dim=-1),
+                torch.stack([torch.zeros_like(width), width / 2], dim=-1),
+                torch.stack([torch.ones_like(width), torch.zeros_like(width)], dim=-1),
+            ], dim=-2)
+            verts = rotate(triangle_verts, markers[..., None, 2:3]) + markers[..., None, :2]
+            verts = verts.where(markers_mask[..., None, None], 0)
+            faces = torch.tensor([[0, 1, 2]], dtype=torch.long, device=markers.device) + 3 * torch.arange(n_markers, device=markers.device)[:, None]
+            faces = faces.expand_as(verts[..., 0])
+            verts = verts.flatten(-3, -2)
+            dense_mesh = BirdviewMesh.set_properties(BaseMesh(verts=verts, faces=faces), category='stop_sign')
+            birdview_mesh_generator.add_static_meshes([dense_mesh])
+            # Add noisy traffic controls
+            noisy_traffic_controls = self.get_noisy_traffic_controls()
+            if noisy_traffic_controls is not None:
+                birdview_mesh_generator.initialize_traffic_controls_mesh(noisy_traffic_controls)
+            traffic_controls = noisy_traffic_controls
+        else:
+            birdview_mesh_generator = self.birdview_mesh_generator
+            traffic_controls = self.traffic_controls
+
         # TODO: we assume the same agent states for all cameras but we can give the option
         #       to pass different states for each camera.
-        rbg_mesh = self.birdview_mesh_generator.generate(n_cameras,
+        rbg_mesh = birdview_mesh_generator.generate(n_cameras,
             agent_state=self.get_all_agent_state()[:, None].expand(-1, n_cameras, -1, -1), present_mask=rendering_mask,
-            traffic_lights=self.traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
-                if self.traffic_controls is not None and 'traffic_light' in self.traffic_controls else None,
+            traffic_lights=traffic_controls['traffic_light'].extend(n_cameras, in_place=False)
+                if traffic_controls is not None and 'traffic_light' in traffic_controls else None,
             waypoints=waypoints, waypoints_rendering_mask=waypoints_rendering_mask,
             custom_agent_colors=custom_agent_colors,
         )
@@ -858,7 +993,7 @@ class Simulator:
 
     def render_egocentric(self, ego_rotate: bool = True, res: Optional[Resolution] = None, fov: Optional[float] = None,
                           visibility_matrix: Optional[Tensor] = None, custom_agent_colors: Optional[Tensor] = None,
-                          n_subsequent_waypoints: int = 1)\
+                          n_subsequent_waypoints: int = 1, noisy_perception: bool = False)\
             -> Tensor:
         """
         Renders the world using cameras placed on each agent.
@@ -891,7 +1026,8 @@ class Simulator:
             rendering_mask = torch.eye(camera_xy[0].shape[1]).to(camera_xy.device).unsqueeze(0).expand(camera_xy[0].shape[0], -1, -1)
 
         bv = self.render(camera_xy, camera_psi, rendering_mask=rendering_mask, res=res, fov=fov,
-                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask, custom_agent_colors=custom_agent_colors)
+                         waypoints=waypoints, waypoints_rendering_mask=waypoints_mask, custom_agent_colors=custom_agent_colors,
+                         noisy_perception=noisy_perception)
         total_agents = self.agent_count
         bv = bv.reshape((bv.shape[0] // total_agents, total_agents) + bv.shape[1:])
         return bv
